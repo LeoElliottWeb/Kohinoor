@@ -61,9 +61,25 @@ export default function App() {
 
     return (
         <div style={styles.app}>
+
             {/* 🛑 HEADER & NAVIGATION */}
             <header style={styles.header}>
-                <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant</h1>
+                <img
+                    src=""
+                    alt=""
+                    style={{
+                        height: '0px',  // Adjust this value to fit your design
+                        width: 'auto',
+                        marginRight: '15px'
+                    }}
+                />
+
+
+
+
+                <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant </h1>
+
+                 
                 <nav style={styles.nav}>
                     <button style={styles.navBtn(activeTab === 'menu')} onClick={() => setActiveTab('menu')}>Menu & Order</button>
                     <button style={styles.navBtn(activeTab === 'reservation')} onClick={() => setActiveTab('reservation')}>Book Table</button>
