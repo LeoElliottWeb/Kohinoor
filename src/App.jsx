@@ -70,7 +70,7 @@ export default function App() {
                     <button style={styles.navBtn(activeTab === 'location')} onClick={() => setActiveTab('location')}>Location</button>
                     {isAdmin && <button style={styles.navBtn(activeTab === 'admin')} onClick={() => setActiveTab('admin')}>Admin Dashboard</button>}
                     {!user ? (
-                        <button style={styles.navBtn(false)} onClick={() => setShowLoginModal(true)}>Admin Login</button>
+                        <button style={styles.navBtn(false)} onClick={() => setShowLoginModal(true)}>Login</button>
                     ) : (
                         <button style={styles.navBtn(false)} onClick={() => supabase.auth.signOut()}>Logout</button>
                     )}
@@ -246,6 +246,7 @@ function ReservationView() {
     );
 }
 
+
 // ==========================================
 // 📍 LOCATION VIEW
 // ==========================================
@@ -253,11 +254,10 @@ function LocationView() {
     return (
         <div style={styles.card}>
             <h2>Find Us</h2>
-            <p>123 Spice Avenue, Culinary District, City</p>
-            {/* Replace the src below with your actual Google Maps embed link for Kohinoor */}
+            <p>Calle Trasera San Blas, 38639 Santa Cruz de Tenerife, Spain</p>
             <iframe
                 title="Kohinoor Location"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d113032.64621389814!2d-16.711818223652874!3d28.283182562479496!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xc6a80b628cb39d3%3A0xcb1bda0eb3e9610b!2sTenerife%2C%20Spain!5e0!3m2!1sen!2sus!4v1688561234567!5m2!1sen!2sus"
+                src="https://maps.google.com/maps?q=Calle%20Trasera%20San%20Blas,%2038639%20Santa%20Cruz%20de%20Tenerife,%20Spain&t=&z=16&ie=UTF8&iwloc=&output=embed"
                 width="100%"
                 height="450"
                 style={{ border: 0, borderRadius: '8px' }}
@@ -268,6 +268,7 @@ function LocationView() {
         </div>
     );
 }
+
 
 // ==========================================
 // ⚙️ ADMIN VIEW (Menu Management)
