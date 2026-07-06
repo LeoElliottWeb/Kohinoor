@@ -1,0 +1,82 @@
+{
+  "packageId": "com.eu.chessonline.twa",
+  "host": "chessonline.eu.com",
+  "name": "chessOnline.eu.com",
+  "launcherName": "chessOnline",
+  "display": "standalone",
+  "themeColor": "#1A1A1A",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#1A1A1A",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://chessonline.eu.com/pwa-512x512.png",
+  "maskableIconUrl": "https://chessonline.eu.com/maskable-icon.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "C:\\NormDev\\AAA NOE  Create a chess website\\WEB SITE\\my-chess-app\\android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "2",
+  "appVersionCode": 2,
+  "shortcuts": [
+    {
+      "name": "Play Match",
+      "shortName": "Play",
+      "url": "https://chessonline.eu.com/",
+      "chosenIconUrl": "https://chessonline.eu.com/pwa-192x192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://chessonline.eu.com/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://chessonline.eu.com/",
+  "minSdkVersion": 21,
+  "shareTarget": {
+    "action": "https://chessonline.eu.com/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [
+    {
+      "protocol": "web+chess",
+      "url": "https://chessonline.eu.com/?match=%s"
+    }
+  ],
+  "fileHandlers": [
+    {
+      "actionUrl": "https://chessonline.eu.com/",
+      "mimeTypes": [
+        "application/x-chess-pgn"
+      ]
+    }
+  ],
+  "launchHandlerClientMode": [
+    "focus-existing",
+    "navigate-new"
+  ],
+  "displayOverride": [
+    "tabbed",
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "appVersion": "2"
+}
