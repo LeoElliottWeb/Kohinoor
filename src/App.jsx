@@ -10,18 +10,21 @@ const ADMIN_EMAIL = 'admin@kohinoor.com'; // Change to your admin email
 // 🎨 STYLES
 // ==========================================
 const styles = {
-    app: { fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#fafafa', minHeight: '100vh', color: '#333' },
-    header: { backgroundColor: '#b91c1c', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
+    app: { fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#fed7aa', minHeight: '100vh', color: '#333', display: 'flex', flexDirection: 'column' },
+    header: { backgroundColor: '#c2410c', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
     nav: { display: 'flex', gap: '15px' },
-    navBtn: (isActive) => ({ padding: '10px 15px', backgroundColor: isActive ? '#991b1b' : 'transparent', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }),
-    container: { maxWidth: '1200px', margin: '0 auto', padding: '20px' },
+    navBtn: (isActive) => ({ padding: '10px 15px', backgroundColor: isActive ? '#9a3412' : 'transparent', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }),
+    container: { maxWidth: '1200px', margin: '0 auto', padding: '20px', flexGrow: 1, width: '100%', boxSizing: 'border-box' },
     card: { backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '20px' },
     input: { width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' },
-    btnPrimary: { backgroundColor: '#b91c1c', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', width: '100%' },
+    btnPrimary: { backgroundColor: '#c2410c', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', width: '100%' },
     grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' },
     menuImg: { width: '100%', height: '180px', objectFit: 'cover', borderRadius: '4px' },
+    heroImage: { width: '100%', height: '350px', objectFit: 'cover', borderRadius: '8px', marginBottom: '30px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-    modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px' }
+    modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px' },
+    footer: { backgroundColor: '#c2410c', color: 'white', textAlign: 'center', padding: '15px', marginTop: 'auto' },
+    socialLink: { color: 'white', textDecoration: 'underline', fontWeight: 'bold' }
 };
 
 // ==========================================
@@ -82,6 +85,14 @@ export default function App() {
                 {activeTab === 'admin' && isAdmin && <AdminView menuItems={menuItems} fetchMenu={fetchMenu} />}
             </main>
 
+            {/* 🛑 FOOTER */}
+            <footer style={styles.footer}>
+                <p style={{ margin: '0 0 10px 0' }}>© {new Date().getFullYear()} Kohinoor Indian Restaurant. All rights reserved.</p>
+                <p style={{ margin: 0 }}>
+                    Follow us on <a href="https://www.facebook.com/IndianRestaurantsTenerife" target="_blank" rel="noopener noreferrer" style={styles.socialLink}>Facebook</a>
+                </p>
+            </footer>
+
             {/* 🛑 AUTH MODAL */}
             {showLoginModal && (
                 <div style={styles.modalOverlay}>
@@ -134,50 +145,59 @@ function MenuAndOrderView({ menuItems, cart, setCart }) {
     };
 
     return (
-        <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
-            <div style={{ flex: '2', minWidth: '300px' }}>
-                <h2>Our Menu</h2>
-                <div style={styles.grid}>
-                    {menuItems.filter(i => i.is_available).map(item => (
-                        <div key={item.id} style={styles.card}>
-                            {item.image_url && <img src={item.image_url} alt={item.name} style={styles.menuImg} />}
-                            <h3 style={{ marginBottom: '5px' }}>{item.name}</h3>
-                            <p style={{ color: '#666', fontSize: '14px', marginTop: 0 }}>{item.description}</p>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '18px' }}>£{item.price.toFixed(2)}</span>
-                                <button onClick={() => addToCart(item)} style={{ ...styles.btnPrimary, width: 'auto', padding: '5px 15px' }}>Add</button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+        <div>
+            {/* 📸 HERO IMAGE - Dynamically includes the base URL so it works everywhere */}
+            <img
+                src={`${import.meta.env.BASE_URL}home.jpg`}
+                alt="Delicious Indian Food Spread"
+                style={styles.heroImage}
+            />
 
-            <div style={{ flex: '1', minWidth: '300px' }}>
-                <div style={{ ...styles.card, position: 'sticky', top: '20px' }}>
-                    <h2>Your Order</h2>
-                    {cart.length === 0 ? <p>Cart is empty</p> : (
-                        <div style={{ marginBottom: '20px' }}>
-                            {cart.map(item => (
-                                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                                    <span>{item.qty}x {item.name}</span>
-                                    <span>£{(item.price * item.qty).toFixed(2)}</span>
+            <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+                <div style={{ flex: '2', minWidth: '300px' }}>
+                    <h2 style={{ marginTop: 0 }}>Our Menu</h2>
+                    <div style={styles.grid}>
+                        {menuItems.filter(i => i.is_available).map(item => (
+                            <div key={item.id} style={styles.card}>
+                                {item.image_url && <img src={item.image_url} alt={item.name} style={styles.menuImg} />}
+                                <h3 style={{ marginBottom: '5px' }}>{item.name}</h3>
+                                <p style={{ color: '#666', fontSize: '14px', marginTop: 0 }}>{item.description}</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: 'bold', fontSize: '18px' }}>£{item.price.toFixed(2)}</span>
+                                    <button onClick={() => addToCart(item)} style={{ ...styles.btnPrimary, width: 'auto', padding: '5px 15px' }}>Add</button>
                                 </div>
-                            ))}
-                            <hr />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px' }}>
-                                <span>Total:</span>
-                                <span>£{cartTotal.toFixed(2)}</span>
                             </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
+                </div>
 
-                    <form onSubmit={handleCheckout}>
-                        <input style={styles.input} type="text" placeholder="Your Name" required value={customerInfo.name} onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })} />
-                        <input style={styles.input} type="email" placeholder="Email Address" required value={customerInfo.email} onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })} />
-                        <button type="submit" style={styles.btnPrimary} disabled={loading || cart.length === 0}>
-                            {loading ? 'Processing...' : 'Place Order'}
-                        </button>
-                    </form>
+                <div style={{ flex: '1', minWidth: '300px' }}>
+                    <div style={{ ...styles.card, position: 'sticky', top: '20px' }}>
+                        <h2 style={{ marginTop: 0 }}>Your Order</h2>
+                        {cart.length === 0 ? <p>Cart is empty</p> : (
+                            <div style={{ marginBottom: '20px' }}>
+                                {cart.map(item => (
+                                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                        <span>{item.qty}x {item.name}</span>
+                                        <span>£{(item.price * item.qty).toFixed(2)}</span>
+                                    </div>
+                                ))}
+                                <hr />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px' }}>
+                                    <span>Total:</span>
+                                    <span>£{cartTotal.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <form onSubmit={handleCheckout}>
+                            <input style={styles.input} type="text" placeholder="Your Name" required value={customerInfo.name} onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })} />
+                            <input style={styles.input} type="email" placeholder="Email Address" required value={customerInfo.email} onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })} />
+                            <button type="submit" style={styles.btnPrimary} disabled={loading || cart.length === 0}>
+                                {loading ? 'Processing...' : 'Place Order'}
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
