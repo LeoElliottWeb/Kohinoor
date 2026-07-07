@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 
 // ==========================================
@@ -12,7 +12,7 @@ const ADMIN_EMAIL = 'admin@kohinoor.com'; // Change to your admin email
 const styles = {
     app: { fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#fed7aa', minHeight: '100vh', color: '#333', display: 'flex', flexDirection: 'column' },
     header: { backgroundColor: '#c2410c', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
-    nav: { display: 'flex', gap: '15px' },
+    nav: { display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' },
     navBtn: (isActive) => ({ padding: '10px 15px', backgroundColor: isActive ? '#9a3412' : 'transparent', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }),
     container: { maxWidth: '1200px', margin: '0 auto', padding: '20px', flexGrow: 1, width: '100%', boxSizing: 'border-box' },
     card: { backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '20px' },
@@ -22,7 +22,7 @@ const styles = {
     menuImg: { width: '100%', height: '180px', objectFit: 'cover', borderRadius: '4px' },
     heroImage: { width: '100%', height: '350px', objectFit: 'cover', borderRadius: '8px', marginBottom: '30px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-    modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px' },
+    modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' },
     footer: { backgroundColor: '#c2410c', color: 'white', textAlign: 'center', padding: '15px', marginTop: 'auto' },
     socialLink: { color: 'white', textDecoration: 'underline', fontWeight: 'bold' }
 };
@@ -35,11 +35,21 @@ export default function App() {
     const [activeTab, setActiveTab] = useState('menu');
     const [menuItems, setMenuItems] = useState([]);
     const [cart, setCart] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
+
+    const fetchMenu = useCallback(async () => {
+        const { data, error } = await supabase.from('menu_items').select('*').order('category');
+        if (error) {
+            console.error("❌ Supabase Error:", error.message);
+        } else if (data) {
+            setMenuItems(data);
+        }
+    }, []);
 
     // Initial Auth & Data Load
     useEffect(() => {
+        fetchMenu();
+
         supabase.auth.getSession().then(({ data: { session } }) => {
             setUser(session?.user || null);
         });
@@ -48,14 +58,8 @@ export default function App() {
             setUser(session?.user || null);
         });
 
-        fetchMenu();
         return () => subscription.unsubscribe();
-    }, []);
-
-    const fetchMenu = async () => {
-        const { data, error } = await supabase.from('menu_items').select('*').order('category');
-        if (!error && data) setMenuItems(data);
-    };
+    }, [fetchMenu]);
 
     const isAdmin = user?.email === ADMIN_EMAIL;
 
@@ -64,27 +68,32 @@ export default function App() {
 
             {/* 🛑 HEADER & NAVIGATION */}
             <header style={styles.header}>
-                <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant </h1>
- 
+                <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant</h1>
+
                 <nav style={styles.nav}>
                     <button style={styles.navBtn(activeTab === 'menu')} onClick={() => setActiveTab('menu')}>Menu & Order</button>
                     <button style={styles.navBtn(activeTab === 'reservation')} onClick={() => setActiveTab('reservation')}>Book Table</button>
                     <button style={styles.navBtn(activeTab === 'location')} onClick={() => setActiveTab('location')}>Location</button>
                     {isAdmin && <button style={styles.navBtn(activeTab === 'admin')} onClick={() => setActiveTab('admin')}>Admin Dashboard</button>}
-                    {!user ? (
-                        <button style={styles.navBtn(false)} onClick={() => setShowLoginModal(true)}>Login</button>
+
+                    {user ? (
+                        <>
+                            <button style={styles.navBtn(activeTab === 'account')} onClick={() => setActiveTab('account')}>My Account</button>
+                            <button style={styles.navBtn(false)} onClick={() => { supabase.auth.signOut(); setActiveTab('menu'); }}>Logout</button>
+                        </>
                     ) : (
-                        <button style={styles.navBtn(false)} onClick={() => supabase.auth.signOut()}>Logout</button>
+                        <button style={styles.navBtn(false)} onClick={() => setShowAuthModal(true)}>Login / Signup</button>
                     )}
                 </nav>
             </header>
 
             {/* 🛑 MAIN CONTENT AREA */}
             <main style={styles.container}>
-                {activeTab === 'menu' && <MenuAndOrderView menuItems={menuItems} cart={cart} setCart={setCart} />}
+                {activeTab === 'menu' && <MenuAndOrderView menuItems={menuItems} cart={cart} setCart={setCart} user={user} />}
                 {activeTab === 'reservation' && <ReservationView />}
                 {activeTab === 'location' && <LocationView />}
                 {activeTab === 'admin' && isAdmin && <AdminView menuItems={menuItems} fetchMenu={fetchMenu} />}
+                {activeTab === 'account' && user && <AccountView user={user} setCart={setCart} setActiveTab={setActiveTab} />}
             </main>
 
             {/* 🛑 FOOTER */}
@@ -96,11 +105,10 @@ export default function App() {
             </footer>
 
             {/* 🛑 AUTH MODAL */}
-            {showLoginModal && (
+            {showAuthModal && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
-                        <h2 style={{ marginTop: 0 }}>Admin Login</h2>
-                        <LoginForm onSuccess={() => setShowLoginModal(false)} onCancel={() => setShowLoginModal(false)} />
+                        <AuthForm onSuccess={() => setShowAuthModal(false)} onCancel={() => setShowAuthModal(false)} />
                     </div>
                 </div>
             )}
@@ -109,11 +117,136 @@ export default function App() {
 }
 
 // ==========================================
+// 👤 ACCOUNT VIEW (Profile & Orders)
+// ==========================================
+function AccountView({ user, setCart, setActiveTab }) {
+    const [loading, setLoading] = useState(false);
+    const [orders, setOrders] = useState([]);
+
+    // Form state initialized from user metadata
+    const [formData, setFormData] = useState({
+        first_name: user?.user_metadata?.first_name || '',
+        last_name: user?.user_metadata?.last_name || '',
+        address: user?.user_metadata?.address || '',
+        mobile_number: user?.user_metadata?.mobile_number || ''
+    });
+
+    useEffect(() => {
+        fetchOrderHistory();
+    }, [user]);
+
+    const fetchOrderHistory = async () => {
+        if (!user?.email) return;
+        // Fetch orders associated with this user's email
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('email', user.email)
+            .order('created_at', { ascending: false });
+
+        if (!error && data) {
+            setOrders(data);
+        }
+    };
+
+    const handleProfileUpdate = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        const { error } = await supabase.auth.updateUser({
+            data: formData
+        });
+        setLoading(false);
+
+        if (error) {
+            alert("Error updating profile: " + error.message);
+        } else {
+            alert("Profile updated successfully!");
+        }
+    };
+
+    const handleRepeatOrder = (items) => {
+        setCart(items);
+        setActiveTab('menu');
+        alert("Previous order items have been added to your cart!");
+    };
+
+    return (
+        <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+            {/* Left Col: Profile Details */}
+            <div style={{ flex: '1', minWidth: '300px' }}>
+                <div style={styles.card}>
+                    <h2>My Profile</h2>
+                    <form onSubmit={handleProfileUpdate}>
+                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>First Name</label>
+                        <input style={styles.input} type="text" required value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} />
+
+                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Last Name</label>
+                        <input style={styles.input} type="text" required value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} />
+
+                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Mobile Number</label>
+                        <input style={styles.input} type="tel" required value={formData.mobile_number} onChange={e => setFormData({ ...formData, mobile_number: e.target.value })} />
+
+                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Full Address</label>
+                        <textarea style={{ ...styles.input, resize: 'vertical', minHeight: '80px' }} required value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+
+                        <button type="submit" style={styles.btnPrimary} disabled={loading}>
+                            {loading ? 'Saving...' : 'Update Details'}
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {/* Right Col: Order History */}
+            <div style={{ flex: '2', minWidth: '300px' }}>
+                <div style={styles.card}>
+                    <h2>Order History</h2>
+                    {orders.length === 0 ? (
+                        <p>You haven't placed any orders yet.</p>
+                    ) : (
+                        orders.map(order => (
+                            <div key={order.id} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <strong>Date: {new Date(order.created_at).toLocaleDateString()}</strong>
+                                    <span style={{ fontWeight: 'bold', color: '#c2410c' }}>£{order.total_amount.toFixed(2)}</span>
+                                </div>
+                                <ul style={{ margin: '0 0 15px 0', paddingLeft: '20px', color: '#555' }}>
+                                    {order.items.map((item, idx) => (
+                                        <li key={idx}>{item.qty}x {item.name}</li>
+                                    ))}
+                                </ul>
+                                <button
+                                    onClick={() => handleRepeatOrder(order.items)}
+                                    style={{ ...styles.btnPrimary, width: 'auto', padding: '8px 15px', fontSize: '14px' }}
+                                >
+                                    Repeat Order
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ==========================================
 // 🍛 MENU & ORDERING VIEW
 // ==========================================
-function MenuAndOrderView({ menuItems, cart, setCart }) {
+function MenuAndOrderView({ menuItems, cart, setCart, user }) {
     const [customerInfo, setCustomerInfo] = useState({ name: '', email: '' });
     const [loading, setLoading] = useState(false);
+
+    // Auto-fill customer info if logged in
+    useEffect(() => {
+        if (user) {
+            const firstName = user.user_metadata?.first_name || '';
+            const lastName = user.user_metadata?.last_name || '';
+            setCustomerInfo({
+                name: `${firstName} ${lastName}`.trim(),
+                email: user.email || ''
+            });
+        }
+    }, [user]);
 
     const addToCart = (item) => {
         const existing = cart.find(c => c.id === item.id);
@@ -142,13 +275,15 @@ function MenuAndOrderView({ menuItems, cart, setCart }) {
         } else {
             alert("Order placed successfully!");
             setCart([]);
-            setCustomerInfo({ name: '', email: '' });
+            if (!user) {
+                setCustomerInfo({ name: '', email: '' });
+            }
         }
     };
 
     return (
         <div>
-            {/* 📸 HERO IMAGE - Dynamically includes the base URL so it works everywhere */}
+            {/* 📸 HERO IMAGE */}
             <img
                 src={`${import.meta.env.BASE_URL}home.jpg`}
                 alt="Delicious Indian Food Spread"
@@ -159,7 +294,7 @@ function MenuAndOrderView({ menuItems, cart, setCart }) {
                 <div style={{ flex: '2', minWidth: '300px' }}>
                     <h2 style={{ marginTop: 0 }}>Our Menu</h2>
                     <div style={styles.grid}>
-                        {menuItems.filter(i => i.is_available).map(item => (
+                        {menuItems.filter(i => i.is_available !== false).map(item => (
                             <div key={item.id} style={styles.card}>
                                 {item.image_url && <img src={item.image_url} alt={item.name} style={styles.menuImg} />}
                                 <h3 style={{ marginBottom: '5px' }}>{item.name}</h3>
@@ -248,7 +383,6 @@ function ReservationView() {
     );
 }
 
-
 // ==========================================
 // 📍 LOCATION VIEW
 // ==========================================
@@ -271,7 +405,6 @@ function LocationView() {
     );
 }
 
-
 // ==========================================
 // ⚙️ ADMIN VIEW (Menu Management)
 // ==========================================
@@ -284,7 +417,8 @@ function AdminView({ menuItems, fetchMenu }) {
         setLoading(true);
         const { error } = await supabase.from('menu_items').insert([{
             ...newItem,
-            price: parseFloat(newItem.price)
+            price: parseFloat(newItem.price),
+            is_available: true
         }]);
         setLoading(false);
         if (error) alert("Error adding item: " + error.message);
@@ -296,7 +430,8 @@ function AdminView({ menuItems, fetchMenu }) {
     };
 
     const toggleAvailability = async (id, currentStatus) => {
-        await supabase.from('menu_items').update({ is_available: !currentStatus }).eq('id', id);
+        const isCurrentlyAvailable = currentStatus !== false;
+        await supabase.from('menu_items').update({ is_available: !isCurrentlyAvailable }).eq('id', id);
         fetchMenu();
     };
 
@@ -338,7 +473,7 @@ function AdminView({ menuItems, fetchMenu }) {
                             <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
                                 <td style={{ padding: '10px' }}>{item.name}</td>
                                 <td>£{item.price.toFixed(2)}</td>
-                                <td>{item.is_available ? '🟢 Active' : '🔴 Hidden'}</td>
+                                <td>{item.is_available !== false ? '🟢 Active' : '🔴 Hidden'}</td>
                                 <td>
                                     <button onClick={() => toggleAvailability(item.id, item.is_available)} style={{ marginRight: '10px', padding: '5px', cursor: 'pointer' }}>Toggle</button>
                                     <button onClick={() => deleteItem(item.id)} style={{ padding: '5px', color: 'white', backgroundColor: '#dc2626', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Delete</button>
@@ -355,26 +490,84 @@ function AdminView({ menuItems, fetchMenu }) {
 // ==========================================
 // 🔐 AUTHENTICATION FORM
 // ==========================================
-function LoginForm({ onSuccess, onCancel }) {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+function AuthForm({ onSuccess, onCancel }) {
+    const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
 
-    const handleLogin = async (e) => {
+    // Form fields
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [address, setAddress] = useState('');
+    const [mobile, setMobile] = useState('');
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        setLoading(false);
-        if (error) alert(error.message);
-        else onSuccess();
+
+        if (isLogin) {
+            // Login Logic
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            setLoading(false);
+            if (error) alert(error.message);
+            else onSuccess();
+        } else {
+            // Signup Logic
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        first_name: firstName,
+                        last_name: lastName,
+                        address: address,
+                        mobile_number: mobile
+                    }
+                }
+            });
+            setLoading(false);
+
+            if (error) {
+                alert(error.message);
+            } else {
+                alert("Account created successfully! Please check your email to confirm your account.");
+                onSuccess();
+            }
+        }
     };
 
     return (
-        <form onSubmit={handleLogin}>
-            <input style={styles.input} type="email" placeholder="Admin Email" required value={email} onChange={e => setEmail(e.target.value)} />
-            <input style={styles.input} type="password" placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} />
-            <button type="submit" style={styles.btnPrimary} disabled={loading}>{loading ? 'Authenticating...' : 'Login'}</button>
-            <button type="button" onClick={onCancel} style={{ ...styles.btnPrimary, backgroundColor: 'transparent', color: '#666', marginTop: '10px', border: '1px solid #ccc' }}>Cancel</button>
-        </form>
+        <div>
+            <h2 style={{ marginTop: 0 }}>{isLogin ? 'Login' : 'Create an Account'}</h2>
+            <form onSubmit={handleSubmit}>
+                {!isLogin && (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <input style={styles.input} type="text" placeholder="First Name" required={!isLogin} value={firstName} onChange={e => setFirstName(e.target.value)} />
+                        <input style={styles.input} type="text" placeholder="Last Name" required={!isLogin} value={lastName} onChange={e => setLastName(e.target.value)} />
+                    </div>
+                )}
+
+                <input style={styles.input} type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(e.target.value)} />
+                <input style={styles.input} type="password" placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} />
+
+                {!isLogin && (
+                    <>
+                        <input style={styles.input} type="tel" placeholder="Mobile Number" required={!isLogin} value={mobile} onChange={e => setMobile(e.target.value)} />
+                        <input style={styles.input} type="text" placeholder="Full Address" required={!isLogin} value={address} onChange={e => setAddress(e.target.value)} />
+                    </>
+                )}
+
+                <button type="submit" style={styles.btnPrimary} disabled={loading}>
+                    {loading ? 'Processing...' : (isLogin ? 'Login' : 'Sign Up')}
+                </button>
+
+                <button type="button" onClick={() => setIsLogin(!isLogin)} style={{ width: '100%', background: 'none', border: 'none', color: '#c2410c', marginTop: '15px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    {isLogin ? "Don't have an account? Sign up" : "Already have an account? Log in"}
+                </button>
+
+                <button type="button" onClick={onCancel} style={{ ...styles.btnPrimary, backgroundColor: 'transparent', color: '#666', marginTop: '10px', border: '1px solid #ccc' }}>Cancel</button>
+            </form>
+        </div>
     );
 }
