@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 // ==========================================
 // 🛠️ CONFIGURATION
 // ==========================================
-const ADMIN_EMAIL = 'admin@kohinoor.com'; // Fallback Supabase admin email
+const ADMIN_EMAIL = 'admin@kohinoor.com';
 
 // ==========================================
 // 🎨 STYLES
@@ -33,7 +33,9 @@ const styles = {
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
     modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' },
     footer: { backgroundColor: '#c2410c', color: 'white', textAlign: 'center', padding: '15px 15px 50px 15px', marginTop: 'auto' },
-    socialLink: { color: 'white', textDecoration: 'underline', fontWeight: 'bold' }
+    socialLink: { color: 'white', textDecoration: 'underline', fontWeight: 'bold' },
+    categorySection: { width: '100%', gridColumn: '1 / -1' },
+    categoryTitle: { margin: '30px 0 15px 0', borderBottom: '2px solid #c2410c', paddingBottom: '8px', color: '#c2410c' }
 };
 
 // ==========================================
@@ -44,7 +46,7 @@ export default function App() {
     const [hardcodedAdmin, setHardcodedAdmin] = useState(false);
     const [activeTab, setActiveTab] = useState('menu');
     const [menuItems, setMenuItems] = useState([]);
-    const [categories, setCategories] = useState([]); // 🚀 NEW: Categories state
+    const [categories, setCategories] = useState([]);
     const [cart, setCart] = useState([]);
     const [showAuthModal, setShowAuthModal] = useState(false);
 
@@ -57,12 +59,11 @@ export default function App() {
         }
     }, []);
 
-    // 🚀 UPDATED: Fetch categories ordered by the new display_order column
     const fetchCategories = useCallback(async () => {
         const { data, error } = await supabase
             .from('menu_categories')
             .select('*')
-            .order('display_order', { ascending: true }); // Orders 1, 2, 3, 4...
+            .order('display_order', { ascending: true });
 
         if (error) console.error("❌ Category Fetch Error:", error.message);
         else if (data) setCategories(data);
@@ -96,30 +97,20 @@ export default function App() {
 
     return (
         <div style={styles.app}>
-
-            {/* 🛑 HEADER & NAVIGATION */}
             <header style={styles.header}>
                 <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant</h1>
-
                 <nav style={styles.nav}>
                     <button style={styles.navBtn(activeTab === 'menu')} onClick={() => setActiveTab('menu')}>Menu & Order</button>
                     <button style={styles.navBtn(activeTab === 'reservation')} onClick={() => setActiveTab('reservation')}>Book Table</button>
                     <button style={styles.navBtn(activeTab === 'location')} onClick={() => setActiveTab('location')}>Location</button>
                     {isAdmin && <button style={styles.navBtn(activeTab === 'admin')} onClick={() => setActiveTab('admin')}>Admin Dashboard</button>}
-
                     {user && !hardcodedAdmin && (
                         <>
-                            <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>
-                                Welcome, {user.user_metadata?.first_name || ''}
-                            </span>
+                            <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>Welcome, {user.user_metadata?.first_name || ''}</span>
                             <button style={styles.navBtn(activeTab === 'account')} onClick={() => setActiveTab('account')}>My Account</button>
                         </>
                     )}
-
-                    {hardcodedAdmin && (
-                        <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>Welcome, AdminK</span>
-                    )}
-
+                    {hardcodedAdmin && <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>Welcome, AdminK</span>}
                     {user || hardcodedAdmin ? (
                         <button style={styles.navBtn(false)} onClick={handleLogout}>Logout</button>
                     ) : (
@@ -128,9 +119,8 @@ export default function App() {
                 </nav>
             </header>
 
-            {/* 🛑 MAIN CONTENT AREA */}
             <main style={styles.container}>
-                {activeTab === 'menu' && <MenuAndOrderView menuItems={menuItems} cart={cart} setCart={setCart} user={user} />}
+                {activeTab === 'menu' && <MenuAndOrderView menuItems={menuItems} categories={categories} cart={cart} setCart={setCart} user={user} />}
                 {activeTab === 'reservation' && <ReservationView />}
                 {activeTab === 'location' && <LocationView />}
                 {activeTab === 'admin' && isAdmin && (
@@ -144,15 +134,11 @@ export default function App() {
                 {activeTab === 'account' && user && !hardcodedAdmin && <AccountView user={user} setCart={setCart} setActiveTab={setActiveTab} />}
             </main>
 
-            {/* 🛑 FOOTER */}
             <footer style={styles.footer}>
                 <p style={{ margin: '0 0 10px 0' }}>© {new Date().getFullYear()} Kohinoor Indian Restaurant. All rights reserved.</p>
-                <p style={{ margin: 0 }}>
-                    Follow us on <a href="https://www.facebook.com/IndianRestaurantsTenerife" target="_blank" rel="noopener noreferrer" style={styles.socialLink}>Facebook</a>
-                </p>
+                <p style={{ margin: 0 }}>Follow us on <a href="https://www.facebook.com/IndianRestaurantsTenerife" target="_blank" rel="noopener noreferrer" style={styles.socialLink}>Facebook</a></p>
             </footer>
 
-            {/* 🛑 AUTH MODAL */}
             {showAuthModal && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -174,7 +160,7 @@ export default function App() {
 }
 
 // ==========================================
-// 👤 ACCOUNT VIEW (Profile & Orders)
+// 👤 ACCOUNT VIEW
 // ==========================================
 function AccountView({ user, setCart, setActiveTab }) {
     const [loading, setLoading] = useState(false);
@@ -233,16 +219,12 @@ function AccountView({ user, setCart, setActiveTab }) {
                     <form onSubmit={handleProfileUpdate}>
                         <label style={{ fontWeight: 'bold', fontSize: '14px' }}>First Name</label>
                         <input style={styles.input} type="text" required value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} />
-
                         <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Last Name</label>
                         <input style={styles.input} type="text" required value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} />
-
                         <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Mobile Number</label>
                         <input style={styles.input} type="tel" required value={formData.mobile_number} onChange={e => setFormData({ ...formData, mobile_number: e.target.value })} />
-
                         <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Full Address</label>
                         <textarea style={{ ...styles.input, resize: 'vertical', minHeight: '80px' }} required value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
-
                         <button type="submit" style={styles.btnPrimary} disabled={loading}>
                             {loading ? 'Saving...' : 'Update Details'}
                         </button>
@@ -285,9 +267,9 @@ function AccountView({ user, setCart, setActiveTab }) {
 }
 
 // ==========================================
-// 🍛 MENU & ORDERING VIEW
+// 🍛 MENU & ORDERING VIEW (FIXED)
 // ==========================================
-function MenuAndOrderView({ menuItems, cart, setCart, user }) {
+function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
     const [customerInfo, setCustomerInfo] = useState({ name: '', email: '' });
     const [loading, setLoading] = useState(false);
 
@@ -335,6 +317,8 @@ function MenuAndOrderView({ menuItems, cart, setCart, user }) {
         }
     };
 
+    const availableItems = menuItems.filter(i => i.is_available !== false);
+
     return (
         <div>
             <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
@@ -346,21 +330,35 @@ function MenuAndOrderView({ menuItems, cart, setCart, user }) {
                     />
 
                     <h2 style={{ marginTop: 0 }}>Our Menu</h2>
+
+                    {/* ✅ FIXED: Display by category in order: Starter → Main → Desserts → Drinks */}
                     <div style={styles.grid}>
-                        {menuItems.filter(i => i.is_available !== false).map(item => (
-                            <div key={item.id} style={styles.card}>
-                                {item.image_url && <img src={item.image_url} alt={item.name} style={styles.menuImg} />}
-                                <div style={{ marginTop: '10px', display: 'inline-block', backgroundColor: '#fed7aa', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', color: '#9a3412' }}>
-                                    {item.category}
+                        {categories.map(category => {
+                            const itemsInCategory = availableItems.filter(item => item.category === category.name);
+                            if (itemsInCategory.length === 0) return null;
+
+                            return (
+                                <div key={category.id} style={styles.categorySection}>
+                                    <h3 style={styles.categoryTitle}>{category.name}</h3>
+                                    <div style={styles.grid}>
+                                        {itemsInCategory.map(item => (
+                                            <div key={item.id} style={styles.card}>
+                                                {item.image_url && <img src={item.image_url} alt={item.name} style={styles.menuImg} />}
+                                                <div style={{ marginTop: '10px', display: 'inline-block', backgroundColor: '#fed7aa', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', color: '#9a3412' }}>
+                                                    {item.category}
+                                                </div>
+                                                <h3 style={{ marginBottom: '5px', marginTop: '5px' }}>{item.name}</h3>
+                                                <p style={{ color: '#666', fontSize: '14px', marginTop: 0 }}>{item.description}</p>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontWeight: 'bold', fontSize: '18px' }}>£{item.price.toFixed(2)}</span>
+                                                    <button onClick={() => addToCart(item)} style={{ ...styles.btnPrimary, width: 'auto', padding: '5px 15px' }}>Add</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                                <h3 style={{ marginBottom: '5px', marginTop: '5px' }}>{item.name}</h3>
-                                <p style={{ color: '#666', fontSize: '14px', marginTop: 0 }}>{item.description}</p>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: 'bold', fontSize: '18px' }}>£{item.price.toFixed(2)}</span>
-                                    <button onClick={() => addToCart(item)} style={{ ...styles.btnPrimary, width: 'auto', padding: '5px 15px' }}>Add</button>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -462,13 +460,10 @@ function LocationView() {
 }
 
 // ==========================================
-// ⚙️ ADMIN VIEW (Menu & Category Management)
+// ⚙️ ADMIN VIEW
 // ==========================================
 function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
-    // 🚀 NEW: Editing State
     const [editingItemId, setEditingItemId] = useState(null);
-
-    // Default form values
     const initialFormState = {
         name: '',
         description: '',
@@ -476,28 +471,23 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
         category: categories.length > 0 ? categories[0].name : 'Main',
         image_url: ''
     };
-
     const [formItem, setFormItem] = useState(initialFormState);
     const [imageFile, setImageFile] = useState(null);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [loading, setLoading] = useState({ menu: false, category: false });
 
-    // Ensure dropdown defaults to a valid category if categories array updates
     useEffect(() => {
         if (!formItem.category && categories.length > 0) {
             setFormItem(prev => ({ ...prev, category: categories[0].name }));
         }
     }, [categories]);
 
-    // ---- CATEGORY MANAGEMENT ----
     const handleAddCategory = async (e) => {
         e.preventDefault();
         if (!newCategoryName.trim()) return;
         setLoading(prev => ({ ...prev, category: true }));
-
         const { error } = await supabase.from('menu_categories').insert([{ name: newCategoryName.trim() }]);
         setLoading(prev => ({ ...prev, category: false }));
-
         if (error) alert("Error adding category: " + error.message);
         else {
             setNewCategoryName('');
@@ -506,20 +496,17 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
     };
 
     const handleDeleteCategory = async (id, name) => {
-        // Prevent deleting a category if items currently use it
         const inUse = menuItems.some(item => item.category === name);
         if (inUse) {
             alert(`Cannot delete '${name}' because menu items are actively using it.`);
             return;
         }
-
         if (window.confirm(`Delete category '${name}'?`)) {
             await supabase.from('menu_categories').delete().eq('id', id);
             fetchCategories();
         }
     };
 
-    // ---- MENU MANAGEMENT ----
     const startEditItem = (item) => {
         setEditingItemId(item.id);
         setFormItem({
@@ -553,7 +540,6 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
         if (imageFile) {
             const fileExt = imageFile.name.split('.').pop();
             const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-
             const { error: uploadError } = await supabase.storage
                 .from('menu-images')
                 .upload(fileName, imageFile);
@@ -564,10 +550,7 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
                 return;
             }
 
-            const { data } = supabase.storage
-                .from('menu-images')
-                .getPublicUrl(fileName);
-
+            const { data } = supabase.storage.from('menu-images').getPublicUrl(fileName);
             finalImageUrl = data.publicUrl;
         }
 
@@ -580,12 +563,10 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
         };
 
         if (editingItemId) {
-            // Update existing
             const { error } = await supabase.from('menu_items').update(itemPayload).eq('id', editingItemId);
             if (error) alert("Error updating item: " + error.message);
             else alert("Item updated successfully!");
         } else {
-            // Insert new
             const { error } = await supabase.from('menu_items').insert([{ ...itemPayload, is_available: true }]);
             if (error) alert("Error adding item: " + error.message);
             else alert("Item added successfully!");
@@ -613,7 +594,6 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
         <div>
             <h2>Admin Dashboard</h2>
 
-            {/* 🚀 NEW: Categories Manager */}
             <div style={{ ...styles.card, backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
                 <h3>Manage Available Categories</h3>
                 <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
@@ -621,7 +601,6 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
                         <input style={{ ...styles.input, marginBottom: 0 }} type="text" placeholder="New Category Name" required value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} />
                         <button type="submit" style={{ ...styles.btnPrimary, width: 'auto' }} disabled={loading.category}>Add</button>
                     </form>
-
                     <div style={{ flex: '2', minWidth: '300px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         {categories.map(cat => (
                             <div key={cat.id} style={{ display: 'flex', alignItems: 'center', backgroundColor: 'white', padding: '5px 10px', borderRadius: '20px', border: '1px solid #ccc' }}>
@@ -633,52 +612,37 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
                 </div>
             </div>
 
-            {/* 🚀 UPDATED: Item Manager Form (Handles Add & Edit) */}
             <div style={styles.card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ color: editingItemId ? '#c2410c' : '#333' }}>
                         {editingItemId ? `✏️ Editing: ${formItem.name}` : '➕ Add New Menu Item'}
                     </h3>
-                    {editingItemId && (
-                        <button onClick={cancelEditItem} style={{ border: '1px solid #ccc', background: 'transparent', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Cancel Edit</button>
-                    )}
+                    {editingItemId && <button onClick={cancelEditItem} style={{ border: '1px solid #ccc', background: 'transparent', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Cancel Edit</button>}
                 </div>
 
                 <form onSubmit={handleSaveItem} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     <input style={{ ...styles.input, flex: '1', minWidth: '200px' }} type="text" placeholder="Dish Name" required value={formItem.name} onChange={e => setFormItem({ ...formItem, name: e.target.value })} />
                     <input style={{ ...styles.input, flex: '1', minWidth: '100px' }} type="number" step="0.01" placeholder="Price (£)" required value={formItem.price} onChange={e => setFormItem({ ...formItem, price: e.target.value })} />
-
-                    {/* 🚀 NEW: Category Dropdown */}
                     <select style={{ ...styles.input, flex: '1', minWidth: '150px' }} required value={formItem.category} onChange={e => setFormItem({ ...formItem, category: e.target.value })}>
                         {categories.length === 0 && <option value="">No categories...</option>}
                         {categories.map(cat => (
                             <option key={cat.id} value={cat.name}>{cat.name}</option>
                         ))}
                     </select>
-
                     <input style={{ ...styles.input, width: '100%' }} type="text" placeholder="Description" required value={formItem.description} onChange={e => setFormItem({ ...formItem, description: e.target.value })} />
-
                     <div style={{ width: '100%', marginBottom: '15px' }}>
                         <label style={{ fontSize: '14px', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Image Upload (Optional)</label>
-                        <input
-                            id="image-upload-input"
-                            style={{ ...styles.input, marginBottom: '5px' }}
-                            type="file"
-                            accept="image/*"
-                            onChange={e => setImageFile(e.target.files[0])}
-                        />
+                        <input id="image-upload-input" style={{ ...styles.input, marginBottom: '5px' }} type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} />
                         {editingItemId && formItem.image_url && !imageFile && (
                             <span style={{ fontSize: '12px', color: '#666' }}>Leaving this empty will keep the existing image.</span>
                         )}
                     </div>
-
                     <button type="submit" style={styles.btnPrimary} disabled={loading.menu || categories.length === 0}>
                         {loading.menu ? 'Saving...' : (editingItemId ? 'Update Menu Item' : 'Add Menu Item')}
                     </button>
                 </form>
             </div>
 
-            {/* Menu Items Table */}
             <div style={styles.card}>
                 <h3>Manage Menu Items</h3>
                 <div style={{ overflowX: 'auto', maxHeight: '500px', overflowY: 'auto' }}>
@@ -720,7 +684,6 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
 function AuthForm({ onSuccess, onCancel }) {
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
-
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [firstName, setFirstName] = useState('');
@@ -777,25 +740,20 @@ function AuthForm({ onSuccess, onCancel }) {
                         <input style={styles.input} type="text" placeholder="Last Name" required={!isLogin} value={lastName} onChange={e => setLastName(e.target.value)} />
                     </div>
                 )}
-
                 <input style={styles.input} type="text" placeholder={isLogin ? "Email Address or Username" : "Email Address"} required value={identifier} onChange={e => setIdentifier(e.target.value)} />
                 <input style={styles.input} type="password" placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} />
-
                 {!isLogin && (
                     <>
                         <input style={styles.input} type="tel" placeholder="Mobile Number" required={!isLogin} value={mobile} onChange={e => setMobile(e.target.value)} />
                         <input style={styles.input} type="text" placeholder="Full Address" required={!isLogin} value={address} onChange={e => setAddress(e.target.value)} />
                     </>
                 )}
-
                 <button type="submit" style={styles.btnPrimary} disabled={loading}>
                     {loading ? 'Processing...' : (isLogin ? 'Login' : 'Sign Up')}
                 </button>
-
                 <button type="button" onClick={() => setIsLogin(!isLogin)} style={{ width: '100%', background: 'none', border: 'none', color: '#c2410c', marginTop: '15px', cursor: 'pointer', fontWeight: 'bold' }}>
                     {isLogin ? "Don't have an account? Sign up" : "Already have an account? Log in"}
                 </button>
-
                 <button type="button" onClick={onCancel} style={{ ...styles.btnPrimary, backgroundColor: 'transparent', color: '#666', marginTop: '10px', border: '1px solid #ccc' }}>Cancel</button>
             </form>
         </div>
