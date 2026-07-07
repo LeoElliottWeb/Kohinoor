@@ -32,7 +32,8 @@ const styles = {
     heroImage: { width: '100%', height: '350px', objectFit: 'cover', borderRadius: '8px', marginBottom: '30px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
     modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' },
-    footer: { backgroundColor: '#c2410c', color: 'white', textAlign: 'center', padding: '15px', marginTop: 'auto' },
+    // 🚀 FIX: Added 50px bottom padding to the footer to clear mobile browser UI bars
+    footer: { backgroundColor: '#c2410c', color: 'white', textAlign: 'center', padding: '15px 15px 50px 15px', marginTop: 'auto' },
     socialLink: { color: 'white', textDecoration: 'underline', fontWeight: 'bold' }
 };
 
@@ -318,8 +319,7 @@ function MenuAndOrderView({ menuItems, cart, setCart, user }) {
     return (
         <div>
             <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '2', minWidth: '300px' }}>
-                    {/* 📸 HERO IMAGE - MOVED INTO LEFT COLUMN */}
+                <div style={{ flex: '2.8', minWidth: '300px' }}>
                     <img
                         src={`${import.meta.env.BASE_URL}home.jpg`}
                         alt="Delicious Indian Food Spread"
