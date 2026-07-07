@@ -4,7 +4,42 @@ import { supabase } from './supabaseClient';
 // ==========================================
 // 🛠️ CONFIGURATION
 // ==========================================
-const ADMIN_EMAIL = 'admin@kohinoor.com';
+const ADMIN_EMAIL = 'sales@noirsoft.net';
+const RESEND_API_KEY = 're_2wyv6n3S_N1Gu8SMcwaSx1Yehzemf4JfT'; // ⚠️ Replace with your actual Resend API Key
+
+// ==========================================
+// 📧 EMAIL HELPER
+// ==========================================
+const sendEmail = async (toEmail, subject, htmlContent) => {
+    if (!RESEND_API_KEY || RESEND_API_KEY === 'YOUR_RESEND_API_KEY_HERE') {
+        console.warn("Resend API key missing. Email not sent.");
+        return;
+    }
+
+    try {
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${RESEND_API_KEY}`
+            },
+            body: JSON.stringify({
+                // "onboarding@resend.dev" only allows sending to the email address you signed up with.
+                // To send to customers, you must add and verify your own domain in Resend.
+                from: 'Kohinoor Restaurant <onboarding@resend.dev>',
+                to: [toEmail],
+                subject: subject,
+                html: htmlContent
+            })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Email failed');
+        console.log("✅ Email sent successfully:", data);
+    } catch (error) {
+        console.error("❌ Error sending email:", error);
+    }
+};
 
 // ==========================================
 // 🎨 STYLES
@@ -98,10 +133,6 @@ export default function App() {
     return (
         <div style={styles.app}>
             <header style={styles.header}>
-                {/* 
-                  ✅ WRAPPED TITLE AND SUBTITLE IN A FLEX COLUMN DIV 
-                  so they stack vertically instead of messing up the header layout
-                */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant</h1>
                     <span style={{ fontSize: '14px', fontStyle: 'italic', color: '#ffedd5', margin: 0 }}>
@@ -277,7 +308,7 @@ function AccountView({ user, setCart, setActiveTab }) {
 }
 
 // ==========================================
-// 🍛 MENU & ORDERING VIEW (FIXED)
+// 🍛 MENU & ORDERING VIEW
 // ==========================================
 function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
     const [customerInfo, setCustomerInfo] = useState({ name: '', email: '' });
@@ -309,21 +340,56 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
         e.preventDefault();
         if (cart.length === 0) return alert("Your cart is empty!");
         setLoading(true);
+
         const { error } = await supabase.from('orders').insert([{
             customer_name: customerInfo.name,
             email: customerInfo.email,
             items: cart,
             total_amount: cartTotal
         }]);
-        setLoading(false);
+
         if (error) {
             alert("Error placing order: " + error.message);
-        } else {
-            alert("Order placed successfully!");
-            setCart([]);
-            if (!user) {
-                setCustomerInfo({ name: '', email: '' });
-            }
+            setLoading(false);
+            return;
+        }
+
+        // 📧 1. SEND CUSTOMER CONFIRMATION EMAIL
+        const customerEmailHtml = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #c2410c;">Order Confirmed!</h2>
+                <p>Hi ${customerInfo.name},</p>
+                <p>Thank you for your order from Kohinoor Indian Restaurant. We are preparing it right now!</p>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                    ${cart.map(item => `
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${item.qty}x</strong> ${item.name}</td>
+                            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">£${(item.price * item.qty).toFixed(2)}</td>
+                        </tr>
+                    `).join('')}
+                    <tr>
+                        <td style="padding: 10px; font-weight: bold; font-size: 18px;">Total:</td>
+                        <td style="padding: 10px; font-weight: bold; font-size: 18px; text-align: right;">£${cartTotal.toFixed(2)}</td>
+                    </tr>
+                </table>
+            </div>
+        `;
+        await sendEmail(customerInfo.email, "Your Kohinoor Order Confirmation", customerEmailHtml);
+
+        // 📧 2. SEND ADMIN NOTIFICATION EMAIL
+        const adminEmailHtml = `
+            <h3>New Order Received!</h3>
+            <p><strong>Customer:</strong> ${customerInfo.name} (${customerInfo.email})</p>
+            <p><strong>Total Amount:</strong> £${cartTotal.toFixed(2)}</p>
+            <p>Check the admin dashboard for full details.</p>
+        `;
+        await sendEmail(ADMIN_EMAIL, "New Kohinoor Order!", adminEmailHtml);
+
+        setLoading(false);
+        alert("Order placed successfully! We've sent you a confirmation email.");
+        setCart([]);
+        if (!user) {
+            setCustomerInfo({ name: '', email: '' });
         }
     };
 
@@ -341,7 +407,6 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
 
                     <h2 style={{ marginTop: 0 }}>Our Menu</h2>
 
-                    {/* ✅ FIXED: Display by category in order: Starter → Main → Desserts → Drinks */}
                     <div style={styles.grid}>
                         {categories.map(category => {
                             const itemsInCategory = availableItems.filter(item => item.category === category.name);
@@ -419,12 +484,43 @@ function ReservationView() {
             customer_name: form.name, email: form.email, phone: form.phone,
             date: form.date, time: form.time, party_size: form.party
         }]);
-        setLoading(false);
-        if (error) alert("Error booking table: " + error.message);
-        else {
-            alert("Table booked successfully! We will see you soon.");
-            setForm({ name: '', email: '', phone: '', date: '', time: '', party: 2 });
+
+        if (error) {
+            alert("Error booking table: " + error.message);
+            setLoading(false);
+            return;
         }
+
+        // 📧 1. SEND CUSTOMER BOOKING CONFIRMATION EMAIL
+        const bookingHtml = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #c2410c;">Table Reservation Confirmed!</h2>
+                <p>Hi ${form.name},</p>
+                <p>Your table has been successfully booked at Kohinoor Indian Restaurant.</p>
+                <ul>
+                    <li><strong>Date:</strong> ${form.date}</li>
+                    <li><strong>Time:</strong> ${form.time}</li>
+                    <li><strong>Party Size:</strong> ${form.party} guests</li>
+                </ul>
+                <p>We look forward to serving you soon!</p>
+            </div>
+        `;
+        await sendEmail(form.email, "Kohinoor Reservation Confirmed", bookingHtml);
+
+        // 📧 2. SEND ADMIN NOTIFICATION EMAIL
+        const adminHtml = `
+            <h3>New Table Reservation</h3>
+            <p><strong>Name:</strong> ${form.name}</p>
+            <p><strong>Email:</strong> ${form.email}</p>
+            <p><strong>Phone:</strong> ${form.phone}</p>
+            <p><strong>When:</strong> ${form.date} at ${form.time}</p>
+            <p><strong>Guests:</strong> ${form.party}</p>
+        `;
+        await sendEmail(ADMIN_EMAIL, `New Booking for ${form.date}`, adminHtml);
+
+        setLoading(false);
+        alert("Table booked successfully! We've sent you a confirmation email.");
+        setForm({ name: '', email: '', phone: '', date: '', time: '', party: 2 });
     };
 
     return (
@@ -485,12 +581,30 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
     const [imageFile, setImageFile] = useState(null);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [loading, setLoading] = useState({ menu: false, category: false });
+    const [allOrders, setAllOrders] = useState([]);
 
     useEffect(() => {
         if (!formItem.category && categories.length > 0) {
             setFormItem(prev => ({ ...prev, category: categories[0].name }));
         }
     }, [categories]);
+
+    useEffect(() => {
+        fetchAllOrders();
+    }, []);
+
+    const fetchAllOrders = async () => {
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (!error && data) {
+            setAllOrders(data);
+        } else {
+            console.error("Error fetching all orders:", error?.message);
+        }
+    };
 
     const handleAddCategory = async (e) => {
         e.preventDefault();
@@ -683,6 +797,44 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            <div style={styles.card}>
+                <h3>All Customer Orders</h3>
+                {allOrders.length === 0 ? (
+                    <p>No orders have been placed yet.</p>
+                ) : (
+                    <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '10px' }}>
+                        {allOrders.map(order => (
+                            <div key={order.id} style={{ border: '1px solid #ddd', padding: '15px', borderRadius: '8px', marginBottom: '15px', backgroundColor: '#fafafa' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
+                                    <div>
+                                        <strong style={{ fontSize: '16px' }}>Date: {new Date(order.created_at).toLocaleString()}</strong>
+                                        <div style={{ color: '#555', marginTop: '4px' }}>
+                                            <strong>Customer:</strong> {order.customer_name} ({order.email})
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#c2410c', fontSize: '20px' }}>
+                                            £{order.total_amount?.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: '14px', color: '#333' }}>
+                                    <strong>Items Ordered:</strong>
+                                    <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+                                        {order.items?.map((item, idx) => (
+                                            <li key={idx} style={{ marginBottom: '3px' }}>
+                                                <span style={{ fontWeight: 'bold' }}>{item.qty}x</span> {item.name}
+                                                <span style={{ color: '#888', marginLeft: '5px' }}>(£{(item.price * item.qty).toFixed(2)})</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
