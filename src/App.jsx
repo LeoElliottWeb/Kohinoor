@@ -98,7 +98,17 @@ export default function App() {
     return (
         <div style={styles.app}>
             <header style={styles.header}>
-                <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant</h1>
+                {/* 
+                  ✅ WRAPPED TITLE AND SUBTITLE IN A FLEX COLUMN DIV 
+                  so they stack vertically instead of messing up the header layout
+                */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant</h1>
+                    <span style={{ fontSize: '14px', fontStyle: 'italic', color: '#ffedd5', margin: 0 }}>
+                        All dishes can be prepared to your taste: Mild, Medium or Spicy
+                    </span>
+                </div>
+
                 <nav style={styles.nav}>
                     <button style={styles.navBtn(activeTab === 'menu')} onClick={() => setActiveTab('menu')}>Menu & Order</button>
                     <button style={styles.navBtn(activeTab === 'reservation')} onClick={() => setActiveTab('reservation')}>Book Table</button>
