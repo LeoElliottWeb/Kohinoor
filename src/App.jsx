@@ -4,13 +4,22 @@ import { supabase } from './supabaseClient';
 // ==========================================
 // 🛠️ CONFIGURATION
 // ==========================================
-const ADMIN_EMAIL = 'admin@kohinoor.com'; // Change to your admin email
+const ADMIN_EMAIL = 'admin@kohinoor.com'; // Fallback Supabase admin email
 
 // ==========================================
 // 🎨 STYLES
 // ==========================================
 const styles = {
-    app: { fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#fed7aa', minHeight: '100vh', color: '#333', display: 'flex', flexDirection: 'column' },
+    app: {
+        fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+        backgroundColor: '#fed7aa',
+        height: '100vh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        color: '#333',
+        display: 'flex',
+        flexDirection: 'column'
+    },
     header: { backgroundColor: '#c2410c', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
     nav: { display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' },
     navBtn: (isActive) => ({ padding: '10px 15px', backgroundColor: isActive ? '#9a3412' : 'transparent', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }),
@@ -32,6 +41,7 @@ const styles = {
 // ==========================================
 export default function App() {
     const [user, setUser] = useState(null);
+    const [hardcodedAdmin, setHardcodedAdmin] = useState(false);
     const [activeTab, setActiveTab] = useState('menu');
     const [menuItems, setMenuItems] = useState([]);
     const [cart, setCart] = useState([]);
@@ -46,7 +56,6 @@ export default function App() {
         }
     }, []);
 
-    // Initial Auth & Data Load
     useEffect(() => {
         fetchMenu();
 
@@ -61,7 +70,16 @@ export default function App() {
         return () => subscription.unsubscribe();
     }, [fetchMenu]);
 
-    const isAdmin = user?.email === ADMIN_EMAIL;
+    const isAdmin = hardcodedAdmin || user?.email === ADMIN_EMAIL;
+
+    const handleLogout = () => {
+        if (hardcodedAdmin) {
+            setHardcodedAdmin(false);
+        } else {
+            supabase.auth.signOut();
+        }
+        setActiveTab('menu');
+    };
 
     return (
         <div style={styles.app}>
@@ -76,11 +94,21 @@ export default function App() {
                     <button style={styles.navBtn(activeTab === 'location')} onClick={() => setActiveTab('location')}>Location</button>
                     {isAdmin && <button style={styles.navBtn(activeTab === 'admin')} onClick={() => setActiveTab('admin')}>Admin Dashboard</button>}
 
-                    {user ? (
+                    {user && !hardcodedAdmin && (
                         <>
+                            <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>
+                                Welcome, {user.user_metadata?.first_name || ''}
+                            </span>
                             <button style={styles.navBtn(activeTab === 'account')} onClick={() => setActiveTab('account')}>My Account</button>
-                            <button style={styles.navBtn(false)} onClick={() => { supabase.auth.signOut(); setActiveTab('menu'); }}>Logout</button>
                         </>
+                    )}
+
+                    {hardcodedAdmin && (
+                        <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>Welcome, AdminK</span>
+                    )}
+
+                    {user || hardcodedAdmin ? (
+                        <button style={styles.navBtn(false)} onClick={handleLogout}>Logout</button>
                     ) : (
                         <button style={styles.navBtn(false)} onClick={() => setShowAuthModal(true)}>Login / Signup</button>
                     )}
@@ -93,7 +121,7 @@ export default function App() {
                 {activeTab === 'reservation' && <ReservationView />}
                 {activeTab === 'location' && <LocationView />}
                 {activeTab === 'admin' && isAdmin && <AdminView menuItems={menuItems} fetchMenu={fetchMenu} />}
-                {activeTab === 'account' && user && <AccountView user={user} setCart={setCart} setActiveTab={setActiveTab} />}
+                {activeTab === 'account' && user && !hardcodedAdmin && <AccountView user={user} setCart={setCart} setActiveTab={setActiveTab} />}
             </main>
 
             {/* 🛑 FOOTER */}
@@ -108,7 +136,16 @@ export default function App() {
             {showAuthModal && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
-                        <AuthForm onSuccess={() => setShowAuthModal(false)} onCancel={() => setShowAuthModal(false)} />
+                        <AuthForm
+                            onSuccess={(data) => {
+                                if (data?.isHardcodedAdmin) {
+                                    setHardcodedAdmin(true);
+                                    setActiveTab('admin');
+                                }
+                                setShowAuthModal(false);
+                            }}
+                            onCancel={() => setShowAuthModal(false)}
+                        />
                     </div>
                 </div>
             )}
@@ -123,7 +160,6 @@ function AccountView({ user, setCart, setActiveTab }) {
     const [loading, setLoading] = useState(false);
     const [orders, setOrders] = useState([]);
 
-    // Form state initialized from user metadata
     const [formData, setFormData] = useState({
         first_name: user?.user_metadata?.first_name || '',
         last_name: user?.user_metadata?.last_name || '',
@@ -137,7 +173,6 @@ function AccountView({ user, setCart, setActiveTab }) {
 
     const fetchOrderHistory = async () => {
         if (!user?.email) return;
-        // Fetch orders associated with this user's email
         const { data, error } = await supabase
             .from('orders')
             .select('*')
@@ -172,7 +207,6 @@ function AccountView({ user, setCart, setActiveTab }) {
 
     return (
         <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
-            {/* Left Col: Profile Details */}
             <div style={{ flex: '1', minWidth: '300px' }}>
                 <div style={styles.card}>
                     <h2>My Profile</h2>
@@ -196,32 +230,33 @@ function AccountView({ user, setCart, setActiveTab }) {
                 </div>
             </div>
 
-            {/* Right Col: Order History */}
             <div style={{ flex: '2', minWidth: '300px' }}>
                 <div style={styles.card}>
                     <h2>Order History</h2>
                     {orders.length === 0 ? (
                         <p>You haven't placed any orders yet.</p>
                     ) : (
-                        orders.map(order => (
-                            <div key={order.id} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                    <strong>Date: {new Date(order.created_at).toLocaleDateString()}</strong>
-                                    <span style={{ fontWeight: 'bold', color: '#c2410c' }}>£{order.total_amount.toFixed(2)}</span>
+                        <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '10px' }}>
+                            {orders.map(order => (
+                                <div key={order.id} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                        <strong>Date: {new Date(order.created_at).toLocaleDateString()}</strong>
+                                        <span style={{ fontWeight: 'bold', color: '#c2410c' }}>£{order.total_amount.toFixed(2)}</span>
+                                    </div>
+                                    <ul style={{ margin: '0 0 15px 0', paddingLeft: '20px', color: '#555' }}>
+                                        {order.items.map((item, idx) => (
+                                            <li key={idx}>{item.qty}x {item.name}</li>
+                                        ))}
+                                    </ul>
+                                    <button
+                                        onClick={() => handleRepeatOrder(order.items)}
+                                        style={{ ...styles.btnPrimary, width: 'auto', padding: '8px 15px', fontSize: '14px' }}
+                                    >
+                                        Repeat Order
+                                    </button>
                                 </div>
-                                <ul style={{ margin: '0 0 15px 0', paddingLeft: '20px', color: '#555' }}>
-                                    {order.items.map((item, idx) => (
-                                        <li key={idx}>{item.qty}x {item.name}</li>
-                                    ))}
-                                </ul>
-                                <button
-                                    onClick={() => handleRepeatOrder(order.items)}
-                                    style={{ ...styles.btnPrimary, width: 'auto', padding: '8px 15px', fontSize: '14px' }}
-                                >
-                                    Repeat Order
-                                </button>
-                            </div>
-                        ))
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>
@@ -236,7 +271,6 @@ function MenuAndOrderView({ menuItems, cart, setCart, user }) {
     const [customerInfo, setCustomerInfo] = useState({ name: '', email: '' });
     const [loading, setLoading] = useState(false);
 
-    // Auto-fill customer info if logged in
     useEffect(() => {
         if (user) {
             const firstName = user.user_metadata?.first_name || '';
@@ -283,21 +317,24 @@ function MenuAndOrderView({ menuItems, cart, setCart, user }) {
 
     return (
         <div>
-            {/* 📸 HERO IMAGE */}
-            <img
-                src={`${import.meta.env.BASE_URL}home.jpg`}
-                alt="Delicious Indian Food Spread"
-                style={styles.heroImage}
-            />
-
             <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
                 <div style={{ flex: '2', minWidth: '300px' }}>
+                    {/* 📸 HERO IMAGE - MOVED INTO LEFT COLUMN */}
+                    <img
+                        src={`${import.meta.env.BASE_URL}home.jpg`}
+                        alt="Delicious Indian Food Spread"
+                        style={styles.heroImage}
+                    />
+
                     <h2 style={{ marginTop: 0 }}>Our Menu</h2>
                     <div style={styles.grid}>
                         {menuItems.filter(i => i.is_available !== false).map(item => (
                             <div key={item.id} style={styles.card}>
                                 {item.image_url && <img src={item.image_url} alt={item.name} style={styles.menuImg} />}
-                                <h3 style={{ marginBottom: '5px' }}>{item.name}</h3>
+                                <div style={{ marginTop: '10px', display: 'inline-block', backgroundColor: '#fed7aa', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', color: '#9a3412' }}>
+                                    {item.category}
+                                </div>
+                                <h3 style={{ marginBottom: '5px', marginTop: '5px' }}>{item.name}</h3>
                                 <p style={{ color: '#666', fontSize: '14px', marginTop: 0 }}>{item.description}</p>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontWeight: 'bold', fontSize: '18px' }}>£{item.price.toFixed(2)}</span>
@@ -312,7 +349,7 @@ function MenuAndOrderView({ menuItems, cart, setCart, user }) {
                     <div style={{ ...styles.card, position: 'sticky', top: '20px' }}>
                         <h2 style={{ marginTop: 0 }}>Your Order</h2>
                         {cart.length === 0 ? <p>Cart is empty</p> : (
-                            <div style={{ marginBottom: '20px' }}>
+                            <div style={{ marginBottom: '20px', maxHeight: '400px', overflowY: 'auto' }}>
                                 {cart.map(item => (
                                     <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                                         <span>{item.qty}x {item.name}</span>
@@ -406,25 +443,56 @@ function LocationView() {
 }
 
 // ==========================================
-// ⚙️ ADMIN VIEW (Menu Management)
+// ⚙️ ADMIN VIEW (Menu & Category Management)
 // ==========================================
 function AdminView({ menuItems, fetchMenu }) {
-    const [newItem, setNewItem] = useState({ name: '', description: '', price: '', image_url: '', category: 'Main' });
+    const [newItem, setNewItem] = useState({ name: '', description: '', price: '', category: 'Main' });
+    const [imageFile, setImageFile] = useState(null);
     const [loading, setLoading] = useState(false);
 
     const handleAddItem = async (e) => {
         e.preventDefault();
         setLoading(true);
+
+        let finalImageUrl = '';
+
+        if (imageFile) {
+            const fileExt = imageFile.name.split('.').pop();
+            const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('menu-images')
+                .upload(fileName, imageFile);
+
+            if (uploadError) {
+                alert("Error uploading image: " + uploadError.message);
+                setLoading(false);
+                return;
+            }
+
+            const { data } = supabase.storage
+                .from('menu-images')
+                .getPublicUrl(fileName);
+
+            finalImageUrl = data.publicUrl;
+        }
+
         const { error } = await supabase.from('menu_items').insert([{
             ...newItem,
             price: parseFloat(newItem.price),
+            image_url: finalImageUrl,
             is_available: true
         }]);
+
         setLoading(false);
-        if (error) alert("Error adding item: " + error.message);
-        else {
-            alert("Item added!");
-            setNewItem({ name: '', description: '', price: '', image_url: '', category: 'Main' });
+
+        if (error) {
+            alert("Error adding item: " + error.message);
+        } else {
+            alert("Item added successfully!");
+            setNewItem({ name: '', description: '', price: '', category: 'Main' });
+            setImageFile(null);
+            document.getElementById('image-upload-input').value = "";
             fetchMenu();
         }
     };
@@ -444,44 +512,59 @@ function AdminView({ menuItems, fetchMenu }) {
 
     return (
         <div>
-            <h2>Admin Dashboard</h2>
+            <h2>Admin Dashboard (Menu & Categories)</h2>
             <div style={styles.card}>
                 <h3>Add New Menu Item</h3>
+                <p style={{ fontSize: '14px', color: '#666' }}>Note: Categories are created automatically. Just type a new category name below to create a new category grouping.</p>
                 <form onSubmit={handleAddItem} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     <input style={{ ...styles.input, flex: '1', minWidth: '200px' }} type="text" placeholder="Dish Name" required value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
                     <input style={{ ...styles.input, flex: '1', minWidth: '100px' }} type="number" step="0.01" placeholder="Price (£)" required value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
-                    <input style={{ ...styles.input, flex: '1', minWidth: '150px' }} type="text" placeholder="Category (e.g. Starter)" required value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })} />
+                    <input style={{ ...styles.input, flex: '1', minWidth: '150px' }} type="text" placeholder="Category (e.g. Starter, Main, Dessert)" required value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })} />
                     <input style={{ ...styles.input, width: '100%' }} type="text" placeholder="Description" required value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} />
-                    <input style={{ ...styles.input, width: '100%' }} type="url" placeholder="Image URL (optional)" value={newItem.image_url} onChange={e => setNewItem({ ...newItem, image_url: e.target.value })} />
-                    <button type="submit" style={styles.btnPrimary} disabled={loading}>{loading ? 'Adding...' : 'Add Menu Item'}</button>
+
+                    <input
+                        id="image-upload-input"
+                        style={{ ...styles.input, width: '100%' }}
+                        type="file"
+                        accept="image/*"
+                        onChange={e => setImageFile(e.target.files[0])}
+                    />
+
+                    <button type="submit" style={styles.btnPrimary} disabled={loading}>
+                        {loading ? 'Uploading & Adding...' : 'Add Menu Item'}
+                    </button>
                 </form>
             </div>
 
             <div style={styles.card}>
-                <h3>Manage Menu</h3>
-                <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ borderBottom: '2px solid #eee' }}>
-                            <th style={{ padding: '10px' }}>Name</th>
-                            <th>Price</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {menuItems.map(item => (
-                            <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                                <td style={{ padding: '10px' }}>{item.name}</td>
-                                <td>£{item.price.toFixed(2)}</td>
-                                <td>{item.is_available !== false ? '🟢 Active' : '🔴 Hidden'}</td>
-                                <td>
-                                    <button onClick={() => toggleAvailability(item.id, item.is_available)} style={{ marginRight: '10px', padding: '5px', cursor: 'pointer' }}>Toggle</button>
-                                    <button onClick={() => deleteItem(item.id)} style={{ padding: '5px', color: 'white', backgroundColor: '#dc2626', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Delete</button>
-                                </td>
+                <h3>Manage Menu Categories & Items</h3>
+                <div style={{ overflowX: 'auto', maxHeight: '500px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                        <thead style={{ position: 'sticky', top: 0, backgroundColor: 'white', zIndex: 1 }}>
+                            <tr style={{ borderBottom: '2px solid #eee' }}>
+                                <th style={{ padding: '10px' }}>Category</th>
+                                <th>Name</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {menuItems.map(item => (
+                                <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                                    <td style={{ padding: '10px', fontWeight: 'bold', color: '#c2410c' }}>{item.category}</td>
+                                    <td>{item.name}</td>
+                                    <td>£{item.price.toFixed(2)}</td>
+                                    <td>{item.is_available !== false ? '🟢 Active' : '🔴 Hidden'}</td>
+                                    <td>
+                                        <button onClick={() => toggleAvailability(item.id, item.is_available)} style={{ marginRight: '10px', padding: '5px', cursor: 'pointer' }}>Toggle</button>
+                                        <button onClick={() => deleteItem(item.id)} style={{ padding: '5px', color: 'white', backgroundColor: '#dc2626', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Delete</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -494,8 +577,7 @@ function AuthForm({ onSuccess, onCancel }) {
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
 
-    // Form fields
-    const [email, setEmail] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
@@ -507,15 +589,19 @@ function AuthForm({ onSuccess, onCancel }) {
         setLoading(true);
 
         if (isLogin) {
-            // Login Logic
-            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (identifier === 'AdminK' && password === 'dkskoddlks££1') {
+                setLoading(false);
+                onSuccess({ isHardcodedAdmin: true });
+                return;
+            }
+
+            const { error } = await supabase.auth.signInWithPassword({ email: identifier, password });
             setLoading(false);
             if (error) alert(error.message);
-            else onSuccess();
+            else onSuccess({ isHardcodedAdmin: false });
         } else {
-            // Signup Logic
             const { error } = await supabase.auth.signUp({
-                email,
+                email: identifier,
                 password,
                 options: {
                     data: {
@@ -532,7 +618,7 @@ function AuthForm({ onSuccess, onCancel }) {
                 alert(error.message);
             } else {
                 alert("Account created successfully! Please check your email to confirm your account.");
-                onSuccess();
+                onSuccess({ isHardcodedAdmin: false });
             }
         }
     };
@@ -548,7 +634,7 @@ function AuthForm({ onSuccess, onCancel }) {
                     </div>
                 )}
 
-                <input style={styles.input} type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(e.target.value)} />
+                <input style={styles.input} type="text" placeholder={isLogin ? "Email Address or Username" : "Email Address"} required value={identifier} onChange={e => setIdentifier(e.target.value)} />
                 <input style={styles.input} type="password" placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} />
 
                 {!isLogin && (
