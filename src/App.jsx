@@ -144,8 +144,33 @@ const styles = {
     modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' },
     footer: { backgroundColor: '#c2410c', color: 'white', textAlign: 'center', padding: '15px 15px 50px 15px', marginTop: 'auto' },
     socialLink: { color: 'white', textDecoration: 'underline', fontWeight: 'bold' },
+
+    // ✅ NEW: Tab styles
+    tabContainer: {
+        display: 'flex',
+        gap: '5px',
+        marginBottom: '20px',
+        borderBottom: '2px solid #e0e0e0',
+        paddingBottom: '5px',
+        flexWrap: 'wrap'
+    },
+    tabButton: (isActive) => ({
+        padding: '12px 24px',
+        backgroundColor: isActive ? '#c2410c' : '#f5f5f5',
+        color: isActive ? 'white' : '#333',
+        border: 'none',
+        borderRadius: '8px 8px 0 0',
+        cursor: 'pointer',
+        fontWeight: isActive ? 'bold' : 'normal',
+        fontSize: '16px',
+        transition: 'all 0.3s ease',
+        boxShadow: isActive ? '0 -2px 6px rgba(0,0,0,0.1)' : 'none'
+    }),
+    tabContent: {
+        display: 'block'
+    },
     categorySection: { width: '100%', gridColumn: '1 / -1' },
-    categoryTitle: { margin: '30px 0 15px 0', borderBottom: '2px solid #c2410c', paddingBottom: '8px', color: '#c2410c' }
+    categoryTitle: { margin: '0 0 15px 0', borderBottom: '2px solid #c2410c', paddingBottom: '8px', color: '#c2410c' }
 };
 
 // ==========================================
@@ -429,13 +454,16 @@ function AccountView({ user, setCart, setActiveTab }) {
 }
 
 // ==========================================
-// 🍛 MENU & ORDERING VIEW (FIXED)
+// 🍛 MENU & ORDERING VIEW (WITH TABS)
 // ==========================================
 function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingTimes }) {
     const [customerInfo, setCustomerInfo] = useState({ name: '', email: '' });
     const [loading, setLoading] = useState(false);
     const [spiceLevel, setSpiceLevel] = useState('Medium');
     const [orderNotes, setOrderNotes] = useState('');
+
+    // ✅ NEW: State for active category tab
+    const [activeCategory, setActiveCategory] = useState('');
 
     useEffect(() => {
         if (user) {
@@ -446,7 +474,12 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
                 email: user.email || ''
             });
         }
-    }, [user]);
+
+        // ✅ Set first category as active when categories load
+        if (categories.length > 0 && !activeCategory) {
+            setActiveCategory(categories[0].name);
+        }
+    }, [user, categories]);
 
     const addToCart = (item) => {
         const existing = cart.find(c => c.id === item.id);
@@ -462,7 +495,6 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
     const handleCheckout = async (e) => {
         e.preventDefault();
 
-        // ✅ Check if cart is empty
         if (cart.length === 0) {
             alert("Your cart is empty!");
             return;
@@ -471,7 +503,6 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
         setLoading(true);
 
         try {
-            // ✅ Step 1: Insert order into database
             const { error: orderError } = await supabase.from('orders').insert([{
                 customer_name: customerInfo.name,
                 email: customerInfo.email,
@@ -488,7 +519,6 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
                 return;
             }
 
-            // ✅ Step 2: Send customer confirmation email
             const customerEmailHtml = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                     <div style="text-align: center; border-bottom: 2px solid #c2410c; padding-bottom: 10px; margin-bottom: 20px;">
@@ -538,10 +568,8 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
                 await sendEmail(customerInfo.email, "Your Kohinoor Order Confirmation", customerEmailHtml);
             } catch (emailError) {
                 console.error("❌ Customer email error:", emailError);
-                // Don't fail the order if email fails, just log it
             }
 
-            // ✅ Step 3: Send admin notification email
             const adminEmailHtml = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                     <h2 style="color: #c2410c;">🆕 New Order Received!</h2>
@@ -564,11 +592,9 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
                 await sendEmail(ADMIN_EMAIL, "New Kohinoor Order!", adminEmailHtml);
             } catch (emailError) {
                 console.error("❌ Admin email error:", emailError);
-                // Don't fail the order if email fails, just log it
             }
 
-            // ✅ Step 4: Success - reset everything
-            alert("Order placed successfully! We've sent you a confirmation email.");
+            alert("Order placed successfully! We've sent you a confirmation email. If you do not see the email please check your spam folder");
             setCart([]);
             setSpiceLevel('Medium');
             setOrderNotes('');
@@ -581,7 +607,6 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
             console.error("❌ Checkout error:", error);
             alert("An error occurred while placing your order. Please try again.");
         } finally {
-            // ✅ ALWAYS set loading to false when done
             setLoading(false);
         }
     };
@@ -613,15 +638,39 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
 
             <h2 style={{ marginTop: 0 }}>Our Menu</h2>
 
+            {/* ✅ NEW: Category Tabs */}
+            {categories.length > 0 && (
+                <div style={styles.tabContainer}>
+                    {categories.map(category => (
+                        <button
+                            key={category.id}
+                            style={styles.tabButton(activeCategory === category.name)}
+                            onClick={() => setActiveCategory(category.name)}
+                        >
+                            {category.name}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
                 <div style={{ flex: '2.8', minWidth: '300px' }}>
-                    <div style={styles.grid}>
+                    {/* ✅ NEW: Tab Content - only show active category */}
+                    <div style={styles.tabContent}>
                         {categories.map(category => {
+                            if (activeCategory !== category.name) return null;
+
                             const itemsInCategory = availableItems.filter(item => item.category === category.name);
-                            if (itemsInCategory.length === 0) return null;
+                            if (itemsInCategory.length === 0) {
+                                return (
+                                    <div key={category.id} style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                                        No items available in this category.
+                                    </div>
+                                );
+                            }
 
                             return (
-                                <div key={category.id} style={styles.categorySection}>
+                                <div key={category.id}>
                                     <h3 style={styles.categoryTitle}>{category.name}</h3>
                                     <div style={styles.grid}>
                                         {itemsInCategory.map(item => (
@@ -721,7 +770,6 @@ function ReservationView() {
                 return;
             }
 
-            // Send confirmation email
             const bookingHtml = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                     <div style="text-align: center; border-bottom: 2px solid #c2410c; padding-bottom: 10px; margin-bottom: 20px;">
@@ -750,7 +798,6 @@ function ReservationView() {
                 console.error("❌ Email error:", emailError);
             }
 
-            // Admin notification
             const adminHtml = `
                 <h3>New Table Reservation</h3>
                 <p><strong>Name:</strong> ${form.name}</p>
