@@ -5,36 +5,25 @@ import { supabase } from './supabaseClient';
 // 🛠️ CONFIGURATION
 // ==========================================
 const ADMIN_EMAIL = 'sales@noirsoft.net';
-const RESEND_API_KEY = 're_2wyv6n3S_N1Gu8SMcwaSx1Yehzemf4JfT'; // ⚠️ Replace with your actual Resend API Key
+// ⚠️ RESEND_API_KEY removed for security. It should only exist in Supabase Secrets.
 
 // ==========================================
 // 📧 EMAIL HELPER
 // ==========================================
 const sendEmail = async (toEmail, subject, htmlContent) => {
-    if (!RESEND_API_KEY || RESEND_API_KEY === 'YOUR_RESEND_API_KEY_HERE') {
-        console.warn("Resend API key missing. Email not sent.");
-        return;
-    }
-
     try {
-        const response = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${RESEND_API_KEY}`
-            },
-            body: JSON.stringify({
-                // "onboarding@resend.dev" only allows sending to the email address you signed up with.
-                // To send to customers, you must add and verify your own domain in Resend.
-                from: 'Kohinoor Restaurant <onboarding@resend.dev>',
-                to: [toEmail],
-                subject: subject,
-                html: htmlContent
-            })
+        const { data, error } = await supabase.functions.invoke('send-email', {
+            body: {
+                to: toEmail,          // Maps to 'to' in your Edge Function
+                subject: subject,     // Maps to 'subject'
+                html: htmlContent     // Maps to 'html' in your Edge Function
+            }
         });
 
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Email failed');
+        if (error) {
+            throw new Error(error.message);
+        }
+
         console.log("✅ Email sent successfully:", data);
     } catch (error) {
         console.error("❌ Error sending email:", error);
