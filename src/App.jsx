@@ -5,6 +5,8 @@ import { supabase } from './supabaseClient';
 // 🛠️ CONFIGURATION
 // ==========================================
 const ADMIN_EMAIL = 'sales@noirsoft.net';
+const FROM_EMAIL = 'noreply@kohinoor.es';
+const FROM_NAME = 'Kohinoor Restaurant';
 
 // ==========================================
 // 📧 EMAIL HELPER
@@ -15,17 +17,21 @@ const sendEmail = async (toEmail, subject, htmlContent) => {
             body: {
                 to: toEmail,
                 subject: subject,
-                html: htmlContent
+                html: htmlContent,
+                from: `${FROM_NAME} <${FROM_EMAIL}>`
             }
         });
 
         if (error) {
+            console.error("❌ Edge Function error:", error);
             throw new Error(error.message);
         }
 
         console.log("✅ Email sent successfully:", data);
+        return data;
     } catch (error) {
         console.error("❌ Error sending email:", error);
+        throw error;
     }
 };
 
@@ -423,7 +429,7 @@ function AccountView({ user, setCart, setActiveTab }) {
 }
 
 // ==========================================
-// 🍛 MENU & ORDERING VIEW (with Opening Times on Left)
+// 🍛 MENU & ORDERING VIEW (FIXED)
 // ==========================================
 function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingTimes }) {
     const [customerInfo, setCustomerInfo] = useState({ name: '', email: '' });
@@ -455,69 +461,128 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
 
     const handleCheckout = async (e) => {
         e.preventDefault();
-        if (cart.length === 0) return alert("Your cart is empty!");
-        setLoading(true);
 
-        const { error } = await supabase.from('orders').insert([{
-            customer_name: customerInfo.name,
-            email: customerInfo.email,
-            items: cart,
-            total_amount: cartTotal,
-            spice_level: spiceLevel,
-            notes: orderNotes
-        }]);
-
-        if (error) {
-            alert("Error placing order: " + error.message);
-            setLoading(false);
+        // ✅ Check if cart is empty
+        if (cart.length === 0) {
+            alert("Your cart is empty!");
             return;
         }
 
-        const customerEmailHtml = `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #c2410c;">Order Confirmed!</h2>
-                <p>Hi ${customerInfo.name},</p>
-                <p>Thank you for your order from Kohinoor Indian Restaurant. We are preparing it right now!</p>
-                
-                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                    <p style="margin: 0 0 10px 0;"><strong>Spice Preference:</strong> ${spiceLevel}</p>
-                    ${orderNotes ? `<p style="margin: 0;"><strong>Order Notes:</strong> ${orderNotes}</p>` : ''}
+        setLoading(true);
+
+        try {
+            // ✅ Step 1: Insert order into database
+            const { error: orderError } = await supabase.from('orders').insert([{
+                customer_name: customerInfo.name,
+                email: customerInfo.email,
+                items: cart,
+                total_amount: cartTotal,
+                spice_level: spiceLevel,
+                notes: orderNotes
+            }]);
+
+            if (orderError) {
+                console.error("❌ Order insertion error:", orderError);
+                alert("Error placing order: " + orderError.message);
+                setLoading(false);
+                return;
+            }
+
+            // ✅ Step 2: Send customer confirmation email
+            const customerEmailHtml = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="text-align: center; border-bottom: 2px solid #c2410c; padding-bottom: 10px; margin-bottom: 20px;">
+                        <h1 style="color: #c2410c; margin: 0;">Kohinoor Indian Restaurant</h1>
+                        <p style="color: #666; margin: 5px 0 0 0;">Calle Trasera San Blas, 38639 Santa Cruz de Tenerife</p>
+                    </div>
+                    
+                    <h2 style="color: #c2410c;">Order Confirmed! 🎉</h2>
+                    <p>Hi ${customerInfo.name},</p>
+                    <p>Thank you for your order from Kohinoor Indian Restaurant. We are preparing it right now!</p>
+                    
+                    <div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #fed7aa;">
+                        <p style="margin: 0 0 10px 0;"><strong>🌶️ Spice Preference:</strong> ${spiceLevel}</p>
+                        ${orderNotes ? `<p style="margin: 0;"><strong>📝 Order Notes:</strong> ${orderNotes}</p>` : ''}
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                        <thead>
+                            <tr style="background-color: #c2410c; color: white;">
+                                <th style="padding: 10px; text-align: left;">Item</th>
+                                <th style="padding: 10px; text-align: right;">Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${cart.map(item => `
+                                <tr>
+                                    <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${item.qty}x</strong> ${item.name}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">£${(item.price * item.qty).toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                            <tr>
+                                <td style="padding: 10px; font-weight: bold; font-size: 18px; border-top: 2px solid #c2410c;">Total:</td>
+                                <td style="padding: 10px; font-weight: bold; font-size: 18px; text-align: right; border-top: 2px solid #c2410c;">£${cartTotal.toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                        <p style="color: #666; font-size: 14px;">We look forward to serving you!</p>
+                        <p style="color: #666; font-size: 14px;">📞 +34 922 73 86 36</p>
+                        <p style="color: #666; font-size: 14px;">📍 Calle Trasera San Blas, 38639 Santa Cruz de Tenerife</p>
+                    </div>
                 </div>
+            `;
 
-                <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-                    ${cart.map(item => `
-                        <tr>
-                            <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${item.qty}x</strong> ${item.name}</td>
-                            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">£${(item.price * item.qty).toFixed(2)}</td>
-                        </tr>
-                    `).join('')}
-                    <tr>
-                        <td style="padding: 10px; font-weight: bold; font-size: 18px;">Total:</td>
-                        <td style="padding: 10px; font-weight: bold; font-size: 18px; text-align: right;">£${cartTotal.toFixed(2)}</td>
-                    </tr>
-                </table>
-            </div>
-        `;
-        await sendEmail(customerInfo.email, "Your Kohinoor Order Confirmation", customerEmailHtml);
+            try {
+                await sendEmail(customerInfo.email, "Your Kohinoor Order Confirmation", customerEmailHtml);
+            } catch (emailError) {
+                console.error("❌ Customer email error:", emailError);
+                // Don't fail the order if email fails, just log it
+            }
 
-        const adminEmailHtml = `
-            <h3>New Order Received!</h3>
-            <p><strong>Customer:</strong> ${customerInfo.name} (${customerInfo.email})</p>
-            <p><strong>Total Amount:</strong> £${cartTotal.toFixed(2)}</p>
-            <p><strong>Spice Preference:</strong> ${spiceLevel}</p>
-            ${orderNotes ? `<p><strong>Order Notes:</strong> ${orderNotes}</p>` : ''}
-            <p>Check the admin dashboard for full details.</p>
-        `;
-        await sendEmail(ADMIN_EMAIL, "New Kohinoor Order!", adminEmailHtml);
+            // ✅ Step 3: Send admin notification email
+            const adminEmailHtml = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #c2410c;">🆕 New Order Received!</h2>
+                    <p><strong>Customer:</strong> ${customerInfo.name}</p>
+                    <p><strong>Email:</strong> ${customerInfo.email}</p>
+                    <p><strong>Total Amount:</strong> £${cartTotal.toFixed(2)}</p>
+                    <p><strong>🌶️ Spice Preference:</strong> ${spiceLevel}</p>
+                    ${orderNotes ? `<p><strong>📝 Order Notes:</strong> ${orderNotes}</p>` : ''}
+                    
+                    <h3>Items Ordered:</h3>
+                    <ul>
+                        ${cart.map(item => `<li>${item.qty}x ${item.name} - £${(item.price * item.qty).toFixed(2)}</li>`).join('')}
+                    </ul>
+                    <p><strong>Total:</strong> £${cartTotal.toFixed(2)}</p>
+                    <p style="color: #666; font-size: 14px;">Check the admin dashboard for full details.</p>
+                </div>
+            `;
 
-        setLoading(false);
-        alert("Order placed successfully! We've sent you a confirmation email.");
-        setCart([]);
-        setSpiceLevel('Medium');
-        setOrderNotes('');
+            try {
+                await sendEmail(ADMIN_EMAIL, "New Kohinoor Order!", adminEmailHtml);
+            } catch (emailError) {
+                console.error("❌ Admin email error:", emailError);
+                // Don't fail the order if email fails, just log it
+            }
 
-        if (!user) {
-            setCustomerInfo({ name: '', email: '' });
+            // ✅ Step 4: Success - reset everything
+            alert("Order placed successfully! We've sent you a confirmation email.");
+            setCart([]);
+            setSpiceLevel('Medium');
+            setOrderNotes('');
+
+            if (!user) {
+                setCustomerInfo({ name: '', email: '' });
+            }
+
+        } catch (error) {
+            console.error("❌ Checkout error:", error);
+            alert("An error occurred while placing your order. Please try again.");
+        } finally {
+            // ✅ ALWAYS set loading to false when done
+            setLoading(false);
         }
     };
 
@@ -525,7 +590,7 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
 
     return (
         <div>
-            {/* ✅ HERO SECTION WITH OPENING TIMES ON THE LEFT */}
+            {/* Hero Section with Opening Times */}
             <div style={styles.heroSection}>
                 <div style={styles.heroImageWrapper}>
                     <img
@@ -535,7 +600,6 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
                     />
                 </div>
 
-                {/* ✅ OPENING TIMES BOX - ON THE LEFT NEXT TO THE FOOD PICTURE */}
                 <div style={styles.openingTimesBox}>
                     <div style={styles.openingTimesTitle}>🕐 Opening Times</div>
                     {openingTimes.map((item, index) => (
@@ -623,7 +687,7 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingT
                             <input style={styles.input} type="text" placeholder="Your Name" required value={customerInfo.name} onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })} />
                             <input style={styles.input} type="email" placeholder="Email Address" required value={customerInfo.email} onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })} />
 
-                            <button type="submit" style={styles.btnPrimary} disabled={loading || cart.length === 0}>
+                            <button type="submit" style={styles.btnPrimary} disabled={loading}>
                                 {loading ? 'Processing...' : 'Place Order'}
                             </button>
                         </form>
@@ -644,45 +708,73 @@ function ReservationView() {
     const handleBooking = async (e) => {
         e.preventDefault();
         setLoading(true);
-        const { error } = await supabase.from('reservations').insert([{
-            customer_name: form.name, email: form.email, phone: form.phone,
-            date: form.date, time: form.time, party_size: form.party
-        }]);
 
-        if (error) {
-            alert("Error booking table: " + error.message);
+        try {
+            const { error } = await supabase.from('reservations').insert([{
+                customer_name: form.name, email: form.email, phone: form.phone,
+                date: form.date, time: form.time, party_size: form.party
+            }]);
+
+            if (error) {
+                alert("Error booking table: " + error.message);
+                setLoading(false);
+                return;
+            }
+
+            // Send confirmation email
+            const bookingHtml = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="text-align: center; border-bottom: 2px solid #c2410c; padding-bottom: 10px; margin-bottom: 20px;">
+                        <h1 style="color: #c2410c; margin: 0;">Kohinoor Indian Restaurant</h1>
+                        <p style="color: #666; margin: 5px 0 0 0;">Calle Trasera San Blas, 38639 Santa Cruz de Tenerife</p>
+                    </div>
+                    
+                    <h2 style="color: #c2410c;">Table Reservation Confirmed! 🍽️</h2>
+                    <p>Hi ${form.name},</p>
+                    <p>Your table has been successfully booked at Kohinoor Indian Restaurant.</p>
+                    
+                    <div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #fed7aa;">
+                        <p style="margin: 5px 0;"><strong>📅 Date:</strong> ${form.date}</p>
+                        <p style="margin: 5px 0;"><strong>⏰ Time:</strong> ${form.time}</p>
+                        <p style="margin: 5px 0;"><strong>👥 Party Size:</strong> ${form.party} guests</p>
+                    </div>
+                    
+                    <p>We look forward to serving you soon!</p>
+                    <p style="color: #666; font-size: 14px;">📞 +34 922 73 86 36</p>
+                </div>
+            `;
+
+            try {
+                await sendEmail(form.email, "Kohinoor Reservation Confirmed", bookingHtml);
+            } catch (emailError) {
+                console.error("❌ Email error:", emailError);
+            }
+
+            // Admin notification
+            const adminHtml = `
+                <h3>New Table Reservation</h3>
+                <p><strong>Name:</strong> ${form.name}</p>
+                <p><strong>Email:</strong> ${form.email}</p>
+                <p><strong>Phone:</strong> ${form.phone}</p>
+                <p><strong>When:</strong> ${form.date} at ${form.time}</p>
+                <p><strong>Guests:</strong> ${form.party}</p>
+            `;
+
+            try {
+                await sendEmail(ADMIN_EMAIL, `New Booking for ${form.date}`, adminHtml);
+            } catch (emailError) {
+                console.error("❌ Admin email error:", emailError);
+            }
+
+            alert("Table booked successfully! We've sent you a confirmation email.");
+            setForm({ name: '', email: '', phone: '', date: '', time: '', party: 2 });
+
+        } catch (error) {
+            console.error("❌ Booking error:", error);
+            alert("An error occurred. Please try again.");
+        } finally {
             setLoading(false);
-            return;
         }
-
-        const bookingHtml = `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #c2410c;">Table Reservation Confirmed!</h2>
-                <p>Hi ${form.name},</p>
-                <p>Your table has been successfully booked at Kohinoor Indian Restaurant.</p>
-                <ul>
-                    <li><strong>Date:</strong> ${form.date}</li>
-                    <li><strong>Time:</strong> ${form.time}</li>
-                    <li><strong>Party Size:</strong> ${form.party} guests</li>
-                </ul>
-                <p>We look forward to serving you soon!</p>
-            </div>
-        `;
-        await sendEmail(form.email, "Kohinoor Reservation Confirmed", bookingHtml);
-
-        const adminHtml = `
-            <h3>New Table Reservation</h3>
-            <p><strong>Name:</strong> ${form.name}</p>
-            <p><strong>Email:</strong> ${form.email}</p>
-            <p><strong>Phone:</strong> ${form.phone}</p>
-            <p><strong>When:</strong> ${form.date} at ${form.time}</p>
-            <p><strong>Guests:</strong> ${form.party}</p>
-        `;
-        await sendEmail(ADMIN_EMAIL, `New Booking for ${form.date}`, adminHtml);
-
-        setLoading(false);
-        alert("Table booked successfully! We've sent you a confirmation email.");
-        setForm({ name: '', email: '', phone: '', date: '', time: '', party: 2 });
     };
 
     return (
@@ -698,7 +790,9 @@ function ReservationView() {
                         <input style={styles.input} type="time" required value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
                     </div>
                     <input style={styles.input} type="number" min="1" max="20" placeholder="Party Size" required value={form.party} onChange={e => setForm({ ...form, party: e.target.value })} />
-                    <button type="submit" style={styles.btnPrimary} disabled={loading}>{loading ? 'Booking...' : 'Confirm Reservation'}</button>
+                    <button type="submit" style={styles.btnPrimary} disabled={loading}>
+                        {loading ? 'Booking...' : 'Confirm Reservation'}
+                    </button>
                 </form>
             </div>
         </div>
