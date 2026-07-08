@@ -5,7 +5,6 @@ import { supabase } from './supabaseClient';
 // 🛠️ CONFIGURATION
 // ==========================================
 const ADMIN_EMAIL = 'sales@noirsoft.net';
-// ⚠️ RESEND_API_KEY removed for security. It should only exist in Supabase Secrets.
 
 // ==========================================
 // 📧 EMAIL HELPER
@@ -14,9 +13,9 @@ const sendEmail = async (toEmail, subject, htmlContent) => {
     try {
         const { data, error } = await supabase.functions.invoke('send-email', {
             body: {
-                to: toEmail,          // Maps to 'to' in your Edge Function
-                subject: subject,     // Maps to 'subject'
-                html: htmlContent     // Maps to 'html' in your Edge Function
+                to: toEmail,
+                subject: subject,
+                html: htmlContent
             }
         });
 
@@ -44,16 +43,97 @@ const styles = {
         display: 'flex',
         flexDirection: 'column'
     },
-    header: { backgroundColor: '#c2410c', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
-    nav: { display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' },
-    navBtn: (isActive) => ({ padding: '10px 15px', backgroundColor: isActive ? '#9a3412' : 'transparent', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }),
+    header: {
+        backgroundColor: '#c2410c',
+        color: 'white',
+        padding: '20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+        flexWrap: 'wrap',
+        gap: '10px'
+    },
+    headerLeft: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+    },
+    nav: {
+        display: 'flex',
+        gap: '15px',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        backgroundColor: '#9a3412',
+        padding: '10px 20px',
+        borderBottom: '2px solid #7a2a0e'
+    },
+    navBtn: (isActive) => ({
+        padding: '10px 15px',
+        backgroundColor: isActive ? '#7a2a0e' : 'transparent',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold'
+    }),
     container: { maxWidth: '1200px', margin: '0 auto', padding: '20px', flexGrow: 1, width: '100%', boxSizing: 'border-box' },
     card: { backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '20px' },
     input: { width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' },
     btnPrimary: { backgroundColor: '#c2410c', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', width: '100%' },
     grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' },
     menuImg: { width: '100%', height: '180px', objectFit: 'cover', borderRadius: '4px' },
-    heroImage: { width: '100%', height: '350px', objectFit: 'cover', borderRadius: '8px', marginBottom: '30px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
+    heroSection: {
+        display: 'flex',
+        gap: '30px',
+        marginBottom: '30px',
+        flexWrap: 'wrap',
+        alignItems: 'stretch'
+    },
+    heroImageWrapper: {
+        flex: '2',
+        minWidth: '300px'
+    },
+    heroImage: {
+        width: '100%',
+        height: '350px',
+        objectFit: 'cover',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+    },
+    openingTimesBox: {
+        flex: '1',
+        minWidth: '200px',
+        backgroundColor: 'white',
+        padding: '20px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center'
+    },
+    openingTimesTitle: {
+        fontWeight: 'bold',
+        fontSize: '18px',
+        color: '#c2410c',
+        marginBottom: '15px',
+        borderBottom: '2px solid #c2410c',
+        paddingBottom: '8px',
+        textAlign: 'center'
+    },
+    openingTimesRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '6px 0',
+        borderBottom: '1px solid #f0f0f0'
+    },
+    openingDay: {
+        fontWeight: '500',
+        color: '#333'
+    },
+    openingHours: {
+        color: '#666'
+    },
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
     modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' },
     footer: { backgroundColor: '#c2410c', color: 'white', textAlign: 'center', padding: '15px 15px 50px 15px', marginTop: 'auto' },
@@ -61,6 +141,19 @@ const styles = {
     categorySection: { width: '100%', gridColumn: '1 / -1' },
     categoryTitle: { margin: '30px 0 15px 0', borderBottom: '2px solid #c2410c', paddingBottom: '8px', color: '#c2410c' }
 };
+
+// ==========================================
+// 📋 OPENING TIMES DATA
+// ==========================================
+const OPENING_TIMES = [
+    { day: 'Monday', hours: '2:30 PM – 11:00 PM' },
+    { day: 'Tuesday', hours: '2:30 PM – 11:00 PM' },
+    { day: 'Wednesday', hours: '2:30 PM – 11:00 PM' },
+    { day: 'Thursday', hours: '2:30 PM – 11:00 PM' },
+    { day: 'Friday', hours: '2:30 PM – 11:00 PM' },
+    { day: 'Saturday', hours: '2:30 PM – 11:00 PM' },
+    { day: 'Sunday', hours: '2:30 PM – 11:00 PM' }
+];
 
 // ==========================================
 // 🚀 MAIN APPLICATION
@@ -122,35 +215,56 @@ export default function App() {
     return (
         <div style={styles.app}>
             <header style={styles.header}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={styles.headerLeft}>
                     <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant</h1>
                     <span style={{ fontSize: '14px', fontStyle: 'italic', color: '#ffedd5', margin: 0 }}>
                         All dishes can be prepared to your taste: Mild, Medium or Spicy
                     </span>
                 </div>
 
-                <nav style={styles.nav}>
-                    <button style={styles.navBtn(activeTab === 'menu')} onClick={() => setActiveTab('menu')}>Menu & Order</button>
-                    <button style={styles.navBtn(activeTab === 'reservation')} onClick={() => setActiveTab('reservation')}>Book Table</button>
-                    <button style={styles.navBtn(activeTab === 'location')} onClick={() => setActiveTab('location')}>Location</button>
-                    {isAdmin && <button style={styles.navBtn(activeTab === 'admin')} onClick={() => setActiveTab('admin')}>Admin Dashboard</button>}
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#ffedd5' }}>
+                            📞 +34 922 73 86 36
+                        </span>
+                    </div>
                     {user && !hardcodedAdmin && (
-                        <>
-                            <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>Welcome, {user.user_metadata?.first_name || ''}</span>
-                            <button style={styles.navBtn(activeTab === 'account')} onClick={() => setActiveTab('account')}>My Account</button>
-                        </>
+                        <span style={{ fontWeight: 'bold', color: '#ffedd5' }}>
+                            Welcome, {user.user_metadata?.first_name || ''}
+                        </span>
                     )}
-                    {hardcodedAdmin && <span style={{ fontWeight: 'bold', marginLeft: '10px' }}>Welcome, AdminK</span>}
+                    {hardcodedAdmin && (
+                        <span style={{ fontWeight: 'bold', color: '#ffedd5' }}>Welcome, AdminK</span>
+                    )}
                     {user || hardcodedAdmin ? (
                         <button style={styles.navBtn(false)} onClick={handleLogout}>Logout</button>
                     ) : (
                         <button style={styles.navBtn(false)} onClick={() => setShowAuthModal(true)}>Login / Signup</button>
                     )}
-                </nav>
+                </div>
             </header>
 
+            <nav style={styles.nav}>
+                <button style={styles.navBtn(activeTab === 'menu')} onClick={() => setActiveTab('menu')}>Menu & Order</button>
+                <button style={styles.navBtn(activeTab === 'reservation')} onClick={() => setActiveTab('reservation')}>Book Table</button>
+                <button style={styles.navBtn(activeTab === 'location')} onClick={() => setActiveTab('location')}>Location</button>
+                {isAdmin && <button style={styles.navBtn(activeTab === 'admin')} onClick={() => setActiveTab('admin')}>Admin Dashboard</button>}
+                {user && !hardcodedAdmin && (
+                    <button style={styles.navBtn(activeTab === 'account')} onClick={() => setActiveTab('account')}>My Account</button>
+                )}
+            </nav>
+
             <main style={styles.container}>
-                {activeTab === 'menu' && <MenuAndOrderView menuItems={menuItems} categories={categories} cart={cart} setCart={setCart} user={user} />}
+                {activeTab === 'menu' && (
+                    <MenuAndOrderView
+                        menuItems={menuItems}
+                        categories={categories}
+                        cart={cart}
+                        setCart={setCart}
+                        user={user}
+                        openingTimes={OPENING_TIMES}
+                    />
+                )}
                 {activeTab === 'reservation' && <ReservationView />}
                 {activeTab === 'location' && <LocationView />}
                 {activeTab === 'admin' && isAdmin && (
@@ -275,6 +389,18 @@ function AccountView({ user, setCart, setActiveTab }) {
                                         <strong>Date: {new Date(order.created_at).toLocaleDateString()}</strong>
                                         <span style={{ fontWeight: 'bold', color: '#c2410c' }}>£{order.total_amount.toFixed(2)}</span>
                                     </div>
+
+                                    {order.spice_level && (
+                                        <div style={{ fontSize: '14px', marginBottom: '5px' }}>
+                                            <strong>Spice Level:</strong> {order.spice_level}
+                                        </div>
+                                    )}
+                                    {order.notes && (
+                                        <div style={{ fontSize: '14px', marginBottom: '10px', color: '#666' }}>
+                                            <strong>Notes:</strong> {order.notes}
+                                        </div>
+                                    )}
+
                                     <ul style={{ margin: '0 0 15px 0', paddingLeft: '20px', color: '#555' }}>
                                         {order.items.map((item, idx) => (
                                             <li key={idx}>{item.qty}x {item.name}</li>
@@ -297,11 +423,13 @@ function AccountView({ user, setCart, setActiveTab }) {
 }
 
 // ==========================================
-// 🍛 MENU & ORDERING VIEW
+// 🍛 MENU & ORDERING VIEW (with Opening Times on Left)
 // ==========================================
-function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
+function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingTimes }) {
     const [customerInfo, setCustomerInfo] = useState({ name: '', email: '' });
     const [loading, setLoading] = useState(false);
+    const [spiceLevel, setSpiceLevel] = useState('Medium');
+    const [orderNotes, setOrderNotes] = useState('');
 
     useEffect(() => {
         if (user) {
@@ -334,7 +462,9 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
             customer_name: customerInfo.name,
             email: customerInfo.email,
             items: cart,
-            total_amount: cartTotal
+            total_amount: cartTotal,
+            spice_level: spiceLevel,
+            notes: orderNotes
         }]);
 
         if (error) {
@@ -343,12 +473,17 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
             return;
         }
 
-        // 📧 1. SEND CUSTOMER CONFIRMATION EMAIL
         const customerEmailHtml = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #c2410c;">Order Confirmed!</h2>
                 <p>Hi ${customerInfo.name},</p>
                 <p>Thank you for your order from Kohinoor Indian Restaurant. We are preparing it right now!</p>
+                
+                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                    <p style="margin: 0 0 10px 0;"><strong>Spice Preference:</strong> ${spiceLevel}</p>
+                    ${orderNotes ? `<p style="margin: 0;"><strong>Order Notes:</strong> ${orderNotes}</p>` : ''}
+                </div>
+
                 <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
                     ${cart.map(item => `
                         <tr>
@@ -365,11 +500,12 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
         `;
         await sendEmail(customerInfo.email, "Your Kohinoor Order Confirmation", customerEmailHtml);
 
-        // 📧 2. SEND ADMIN NOTIFICATION EMAIL
         const adminEmailHtml = `
             <h3>New Order Received!</h3>
             <p><strong>Customer:</strong> ${customerInfo.name} (${customerInfo.email})</p>
             <p><strong>Total Amount:</strong> £${cartTotal.toFixed(2)}</p>
+            <p><strong>Spice Preference:</strong> ${spiceLevel}</p>
+            ${orderNotes ? `<p><strong>Order Notes:</strong> ${orderNotes}</p>` : ''}
             <p>Check the admin dashboard for full details.</p>
         `;
         await sendEmail(ADMIN_EMAIL, "New Kohinoor Order!", adminEmailHtml);
@@ -377,6 +513,9 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
         setLoading(false);
         alert("Order placed successfully! We've sent you a confirmation email.");
         setCart([]);
+        setSpiceLevel('Medium');
+        setOrderNotes('');
+
         if (!user) {
             setCustomerInfo({ name: '', email: '' });
         }
@@ -386,16 +525,32 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
 
     return (
         <div>
-            <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '2.8', minWidth: '300px' }}>
+            {/* ✅ HERO SECTION WITH OPENING TIMES ON THE LEFT */}
+            <div style={styles.heroSection}>
+                <div style={styles.heroImageWrapper}>
                     <img
                         src={`${import.meta.env.BASE_URL}home.jpg`}
                         alt="Delicious Indian Food Spread"
                         style={styles.heroImage}
                     />
+                </div>
 
-                    <h2 style={{ marginTop: 0 }}>Our Menu</h2>
+                {/* ✅ OPENING TIMES BOX - ON THE LEFT NEXT TO THE FOOD PICTURE */}
+                <div style={styles.openingTimesBox}>
+                    <div style={styles.openingTimesTitle}>🕐 Opening Times</div>
+                    {openingTimes.map((item, index) => (
+                        <div key={index} style={styles.openingTimesRow}>
+                            <span style={styles.openingDay}>{item.day}</span>
+                            <span style={styles.openingHours}>{item.hours}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
+            <h2 style={{ marginTop: 0 }}>Our Menu</h2>
+
+            <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+                <div style={{ flex: '2.8', minWidth: '300px' }}>
                     <div style={styles.grid}>
                         {categories.map(category => {
                             const itemsInCategory = availableItems.filter(item => item.category === category.name);
@@ -430,7 +585,7 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
                     <div style={{ ...styles.card, position: 'sticky', top: '20px' }}>
                         <h2 style={{ marginTop: 0 }}>Your Order</h2>
                         {cart.length === 0 ? <p>Cart is empty</p> : (
-                            <div style={{ marginBottom: '20px', maxHeight: '400px', overflowY: 'auto' }}>
+                            <div style={{ marginBottom: '20px', maxHeight: '350px', overflowY: 'auto' }}>
                                 {cart.map(item => (
                                     <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                                         <span>{item.qty}x {item.name}</span>
@@ -446,8 +601,28 @@ function MenuAndOrderView({ menuItems, categories, cart, setCart, user }) {
                         )}
 
                         <form onSubmit={handleCheckout}>
+                            {cart.length > 0 && (
+                                <div style={{ backgroundColor: '#fff7ed', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #fed7aa' }}>
+                                    <label style={{ fontSize: '14px', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Spice Preference:</label>
+                                    <select style={styles.input} value={spiceLevel} onChange={e => setSpiceLevel(e.target.value)}>
+                                        <option value="Mild">🌶️ Mild</option>
+                                        <option value="Medium">🌶️🌶️ Medium</option>
+                                        <option value="Spicy">🌶️🌶️🌶️ Spicy</option>
+                                    </select>
+
+                                    <label style={{ fontSize: '14px', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Order Notes (Optional):</label>
+                                    <textarea
+                                        style={{ ...styles.input, resize: 'vertical', minHeight: '60px', marginBottom: '0' }}
+                                        placeholder="Any special requests or allergy information?"
+                                        value={orderNotes}
+                                        onChange={e => setOrderNotes(e.target.value)}
+                                    />
+                                </div>
+                            )}
+
                             <input style={styles.input} type="text" placeholder="Your Name" required value={customerInfo.name} onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })} />
                             <input style={styles.input} type="email" placeholder="Email Address" required value={customerInfo.email} onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })} />
+
                             <button type="submit" style={styles.btnPrimary} disabled={loading || cart.length === 0}>
                                 {loading ? 'Processing...' : 'Place Order'}
                             </button>
@@ -480,7 +655,6 @@ function ReservationView() {
             return;
         }
 
-        // 📧 1. SEND CUSTOMER BOOKING CONFIRMATION EMAIL
         const bookingHtml = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #c2410c;">Table Reservation Confirmed!</h2>
@@ -496,7 +670,6 @@ function ReservationView() {
         `;
         await sendEmail(form.email, "Kohinoor Reservation Confirmed", bookingHtml);
 
-        // 📧 2. SEND ADMIN NOTIFICATION EMAIL
         const adminHtml = `
             <h3>New Table Reservation</h3>
             <p><strong>Name:</strong> ${form.name}</p>
@@ -809,6 +982,18 @@ function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
                                         </span>
                                     </div>
                                 </div>
+
+                                {order.spice_level && (
+                                    <div style={{ fontSize: '14px', marginBottom: '3px' }}>
+                                        <strong>Spice Level:</strong> {order.spice_level}
+                                    </div>
+                                )}
+                                {order.notes && (
+                                    <div style={{ fontSize: '14px', color: '#d97706' }}>
+                                        <strong>Notes:</strong> {order.notes}
+                                    </div>
+                                )}
+
                                 <div style={{ fontSize: '14px', color: '#333' }}>
                                     <strong>Items Ordered:</strong>
                                     <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
