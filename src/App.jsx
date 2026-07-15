@@ -1,1238 +1,540 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
+import './App.css';
 
 // ==========================================
-// 🛠️ CONFIGURATION
+// 🛡️ MAIN CHAT COMPONENT
 // ==========================================
-const ADMIN_EMAIL = 'sales@noirsoft.net';
-const FROM_EMAIL = 'noreply@kohinoor.es';
-const FROM_NAME = 'Kohinoor Restaurant';
+function ChatApp({ user, onLogout }) {
+    const userEmail = user?.email || '';
+    const [onlineUsers, setOnlineUsers] = useState([]);
+    const [savedContacts, setSavedContacts] = useState([]);
+    const [selectedContact, setSelectedContact] = useState(null);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatInput, setChatInput] = useState('');
+    const [lobbyChannel, setLobbyChannel] = useState(null);
 
-// ==========================================
-// 📧 EMAIL HELPER
-// ==========================================
-const sendEmail = async (toEmail, subject, htmlContent) => {
-    try {
-        const { data, error } = await supabase.functions.invoke('send-email', {
-            body: {
-                to: toEmail,
-                subject: subject,
-                html: htmlContent,
-                from: `${FROM_NAME} <${FROM_EMAIL}>`
+    // WebRTC States
+    const [inVoiceCall, setInVoiceCall] = useState(false);
+    const [incomingCall, setIncomingCall] = useState(null);
+    const [remoteMediaStream, setRemoteMediaStream] = useState(null);
+    const [localMediaStream, setLocalMediaStream] = useState(null);
+
+    const chatContainerRef = useRef(null);
+    const peerConnectionRef = useRef(null);
+    const localStreamRef = useRef(null);
+    const remoteVideoRef = useRef(null);
+    const localVideoRef = useRef(null);
+    const iceCandidateQueueRef = useRef([]);
+    const mySocketId = useRef(Math.random().toString(36).substring(7));
+
+    // Load saved contacts from LocalStorage on mount
+    useEffect(() => {
+        const stored = localStorage.getItem('totalRecallContacts');
+        if (stored) {
+            try {
+                setSavedContacts(JSON.parse(stored));
+            } catch (e) {
+                console.error("Failed to parse saved contacts", e);
             }
-        });
-
-        if (error) {
-            console.error("❌ Edge Function error:", error);
-            throw new Error(error.message);
         }
+    }, []);
 
-        console.log("✅ Email sent successfully:", data);
-        return data;
-    } catch (error) {
-        console.error("❌ Error sending email:", error);
-        throw error;
-    }
-};
+    // Auto-scroll chat
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [chatMessages]);
+
+    // Attach video streams
+    useEffect(() => {
+        if (remoteVideoRef.current && remoteMediaStream) remoteVideoRef.current.srcObject = remoteMediaStream;
+    }, [remoteMediaStream, inVoiceCall]);
+
+    useEffect(() => {
+        if (localVideoRef.current && localMediaStream) localVideoRef.current.srcObject = localMediaStream;
+    }, [localMediaStream, inVoiceCall]);
+
+    // Fetch message history when contact changes
+    useEffect(() => {
+        if (!selectedContact || !userEmail) return;
+        const fetchHistory = async () => {
+            const { data } = await supabase
+                .from('messages')
+                .select('*')
+                .or(`and(sender_email.eq.${userEmail},receiver_email.eq.${selectedContact}),and(sender_email.eq.${selectedContact},receiver_email.eq.${userEmail})`)
+                .order('created_at', { ascending: true })
+                .limit(50);
+
+            if (data) setChatMessages(data);
+        };
+        fetchHistory();
+    }, [selectedContact, userEmail]);
+
+    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    // ==========================================
+    // 📡 SUPABASE PRESENCE & WEBRTC SIGNALING
+    // ==========================================
+    useEffect(() => {
+        if (!userEmail) return;
+        const channel = supabase.channel('whatsapp-lobby');
+        setLobbyChannel(channel);
+
+        channel
+            .on('presence', { event: 'sync' }, () => {
+                const state = channel.presenceState();
+                const userMap = new Map();
+                for (const key in state) {
+                    state[key].forEach(p => {
+                        if (p.email && p.email !== userEmail) userMap.set(p.email, p);
+                    });
+                }
+                setOnlineUsers(Array.from(userMap.values()));
+            })
+            // Receive Real-Time Messages
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                const newMsg = payload.new;
+                if (
+                    (newMsg.sender_email === selectedContact && newMsg.receiver_email === userEmail) ||
+                    (newMsg.sender_email === userEmail && newMsg.receiver_email === selectedContact)
+                ) {
+                    setChatMessages(prev => [...prev, newMsg]);
+                }
+            })
+            // WebRTC Signaling
+            .on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
+                if (payload.targetEmail === userEmail) {
+                    setIncomingCall(payload);
+                }
+            })
+            .on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
+                if (payload.targetEmail === userEmail && peerConnectionRef.current) {
+                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                    while (iceCandidateQueueRef.current.length > 0) {
+                        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(iceCandidateQueueRef.current.shift()));
+                    }
+                }
+            })
+            .on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
+                if (payload.targetEmail === userEmail) {
+                    if (peerConnectionRef.current?.remoteDescription) {
+                        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                    } else {
+                        iceCandidateQueueRef.current.push(payload.candidate);
+                    }
+                }
+            })
+            .on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
+                if (payload.targetEmail === userEmail) endVoiceCall(false);
+            })
+            .subscribe(async (s) => {
+                if (s === 'SUBSCRIBED') {
+                    await channel.track({ email: userEmail, socketId: mySocketId.current, online: true });
+                }
+            });
+
+        return () => {
+            channel.untrack();
+            supabase.removeChannel(channel);
+        };
+    }, [userEmail, selectedContact]);
+
+    // ==========================================
+    // 📇 CONTACT IMPORT LOGIC
+    // ==========================================
+    const handleImportContacts = async () => {
+        const supported = ('contacts' in navigator && 'ContactsManager' in window);
+
+        const updateContactsList = (newContacts) => {
+            setSavedContacts(prev => {
+                const merged = [...prev, ...newContacts];
+                // Deduplicate by email
+                const unique = merged.filter((v, i, a) => a.findIndex(t => (t.email === v.email)) === i);
+                localStorage.setItem('totalRecallContacts', JSON.stringify(unique));
+                return unique;
+            });
+        };
+
+        if (supported) {
+            try {
+                const props = ['name', 'email'];
+                const contacts = await navigator.contacts.select(props, { multiple: true });
+
+                // Filter out contacts without emails, since the app routes via email
+                const validContacts = contacts
+                    .filter(c => c.email && c.email.length > 0)
+                    .map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
+
+                if (validContacts.length === 0) {
+                    alert('No contacts with email addresses were found.');
+                    return;
+                }
+                updateContactsList(validContacts);
+            } catch (err) {
+                console.error("Contact selection failed", err);
+            }
+        } else {
+            // Fallback for desktop / unsupported browsers
+            const emailInput = prompt("Your browser doesn't support the native Contact Picker. Enter an email address to add a contact manually:");
+            if (emailInput && emailInput.trim()) {
+                const newContact = { name: emailInput.split('@')[0], email: emailInput.trim() };
+                updateContactsList([newContact]);
+            }
+        }
+    };
+
+    // ==========================================
+    // 💬 CHAT LOGIC
+    // ==========================================
+    const sendMessage = async (e) => {
+        e.preventDefault();
+        if (!chatInput.trim() || !selectedContact) return;
+
+        const textToSend = chatInput;
+        setChatInput('');
+
+        // Optimistic UI update
+        const tempMsg = { sender_email: userEmail, receiver_email: selectedContact, text: textToSend, created_at: new Date().toISOString() };
+        setChatMessages(prev => [...prev, tempMsg]);
+
+        await supabase.from('messages').insert([
+            { sender_email: userEmail, receiver_email: selectedContact, text: textToSend }
+        ]);
+    };
+
+    // ==========================================
+    // 📹 WEBRTC VIDEO LOGIC
+    // ==========================================
+    const startCall = async () => {
+        if (!selectedContact) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localStreamRef.current = stream;
+            setLocalMediaStream(stream);
+
+            const pc = new RTCPeerConnection(rtcConfig);
+            peerConnectionRef.current = pc;
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+            pc.onicecandidate = (e) => {
+                if (e.candidate && lobbyChannel) {
+                    lobbyChannel.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: selectedContact, candidate: e.candidate, sender: userEmail } });
+                }
+            };
+
+            pc.ontrack = (e) => {
+                setRemoteMediaStream(e.streams[0] || new MediaStream([e.track]));
+            };
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            lobbyChannel.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: selectedContact, offer, sender: userEmail } });
+            setInVoiceCall(true);
+        } catch (err) {
+            alert("Camera/Mic access required.");
+        }
+    };
+
+    const acceptCall = async () => {
+        if (!incomingCall) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localStreamRef.current = stream;
+            setLocalMediaStream(stream);
+
+            const pc = new RTCPeerConnection(rtcConfig);
+            peerConnectionRef.current = pc;
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+            pc.onicecandidate = (e) => {
+                if (e.candidate && lobbyChannel) {
+                    lobbyChannel.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: incomingCall.sender, candidate: e.candidate, sender: userEmail } });
+                }
+            };
+
+            pc.ontrack = (e) => setRemoteMediaStream(e.streams[0] || new MediaStream([e.track]));
+
+            await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            lobbyChannel.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: incomingCall.sender, answer, sender: userEmail } });
+
+            setInVoiceCall(true);
+            setSelectedContact(incomingCall.sender);
+            setIncomingCall(null);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const endVoiceCall = (broadcast = true) => {
+        if (peerConnectionRef.current) {
+            peerConnectionRef.current.close();
+            peerConnectionRef.current = null;
+        }
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => track.stop());
+            localStreamRef.current = null;
+        }
+        setRemoteMediaStream(null);
+        setLocalMediaStream(null);
+        setInVoiceCall(false);
+        setIncomingCall(null);
+
+        if (broadcast && selectedContact && lobbyChannel) {
+            lobbyChannel.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: selectedContact } });
+        }
+    };
+
+    return (
+        <div style={{ display: 'flex', height: '100vh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif' }}>
+
+            {/* INCOMING CALL MODAL */}
+            {incomingCall && !inVoiceCall && (
+                <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                    <h4 style={{ margin: '0 0 10px 0' }}>📹 Incoming Call</h4>
+                    <p style={{ margin: '0 0 15px 0', fontSize: '14px' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button onClick={acceptCall} style={{ flex: 1, backgroundColor: '#00a884', border: 'none', padding: '8px', borderRadius: '4px', color: '#111', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
+                        <button onClick={() => setIncomingCall(null)} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
+                    </div>
+                </div>
+            )}
+
+            {/* SIDEBAR - CONTACTS */}
+            <div style={{ width: '30%', minWidth: '250px', borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21' }}>
+                <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <b style={{ color: '#00a884' }}>TotalRecall</b>
+                    <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer', fontSize: '14px' }}>Logout</button>
+                </div>
+
+                <div style={{ padding: '10px', backgroundColor: '#111b21', borderBottom: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#8696a0', fontSize: '14px', fontWeight: 'bold' }}>Contacts</span>
+                    <button onClick={handleImportContacts} style={{ backgroundColor: '#2a3942', color: '#00a884', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                        + Add Contact                     </button>
+                </div>
+
+                <div style={{ flexGrow: 1, overflowY: 'auto' }}>
+                    {/* Render Saved Contacts First */}
+                    {savedContacts.length > 0 && (
+                        <div style={{ padding: '10px', backgroundColor: '#202c33', color: '#8696a0', fontSize: '12px', textTransform: 'uppercase' }}>
+                            Saved Contacts
+                        </div>
+                    )}
+                    {savedContacts.map(c => (
+                        <div
+                            key={c.email}
+                            onClick={() => setSelectedContact(c.email)}
+                            style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
+                        >
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
+                                {c.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '16px' }}>{c.name}</span>
+                                <span style={{ fontSize: '12px', color: '#8696a0' }}>{c.email}</span>
+                            </div>
+                        </div>
+                    ))}
+
+                    <div style={{ padding: '10px', backgroundColor: '#202c33', color: '#8696a0', fontSize: '12px', textTransform: 'uppercase' }}>
+                        Online Now
+                    </div>
+                    {onlineUsers.length === 0 ? (
+                        <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No users online.</div>
+                    ) : (
+                        onlineUsers.map(u => (
+                            <div
+                                key={u.email}
+                                onClick={() => setSelectedContact(u.email)}
+                                style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
+                            >
+                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
+                                    {u.email.charAt(0).toUpperCase()}
+                                </div>
+                                <span style={{ fontSize: '16px' }}>{u.email.split('@')[0]}</span>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {/* CHAT AREA */}
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', position: 'relative' }}>
+                {selectedContact ? (
+                    <>
+                        {/* Chat Header */}
+                        <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
+                                    {selectedContact.charAt(0).toUpperCase()}
+                                </div>
+                                <b>{savedContacts.find(c => c.email === selectedContact)?.name || selectedContact.split('@')[0]}</b>
+                            </div>
+                            <div>
+                                {!inVoiceCall ? (
+                                    <button onClick={startCall} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
+                                ) : (
+                                    <button onClick={() => endVoiceCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>🔴 End Call</button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Video Overlay */}
+                        {inVoiceCall && (
+                            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 60, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '80%', maxHeight: '80%', borderRadius: '8px', border: '2px solid #00a884' }} />
+                                <video ref={localVideoRef} autoPlay playsInline muted style={{ position: 'absolute', bottom: '20px', right: '20px', width: '150px', borderRadius: '8px', border: '2px solid #fff' }} />
+                            </div>
+                        )}
+
+                        {/* Message History */}
+                        <div ref={chatContainerRef} style={{ flexGrow: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)', backgroundSize: 'contain' }}>
+                            {chatMessages.map((m, i) => {
+                                const isMine = m.sender_email === userEmail;
+                                return (
+                                    <div key={i} style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', backgroundColor: isMine ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: '8px', maxWidth: '65%', fontSize: '14.5px', boxShadow: '0 1px 0.5px rgba(11,20,26,.13)' }}>
+                                        <div>{m.text}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Input Area */}
+                        <form onSubmit={sendMessage} style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                type="text"
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                placeholder="Type a message"
+                                style={{ flexGrow: 1, padding: '12px', backgroundColor: '#2a3942', border: 'none', borderRadius: '8px', color: 'white', outline: 'none', fontSize: '15px' }}
+                            />
+                            <button type="submit" disabled={!chatInput.trim()} style={{ marginLeft: '10px', backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: chatInput.trim() ? 'pointer' : 'default' }}>
+                                ➢
+                            </button>
+                        </form>
+                    </>
+                ) : (
+                    <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', flexDirection: 'column', color: '#8696a0' }}>
+                        <h2>TotalRecall</h2>
+                        <p>Select a contact from the sidebar to start messaging.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 // ==========================================
-// 🎨 STYLES
-// ==========================================
-const styles = {
-    app: {
-        fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
-        backgroundColor: '#fed7aa',
-        height: '100vh',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        color: '#333',
-        display: 'flex',
-        flexDirection: 'column'
-    },
-    header: {
-        backgroundColor: '#c2410c',
-        color: 'white',
-        padding: '20px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-        flexWrap: 'wrap',
-        gap: '10px'
-    },
-    headerLeft: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px'
-    },
-    nav: {
-        display: 'flex',
-        gap: '15px',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        backgroundColor: '#9a3412',
-        padding: '10px 20px',
-        borderBottom: '2px solid #7a2a0e'
-    },
-    navBtn: (isActive) => ({
-        padding: '10px 15px',
-        backgroundColor: isActive ? '#7a2a0e' : 'transparent',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontWeight: 'bold'
-    }),
-    container: { maxWidth: '1200px', margin: '0 auto', padding: '20px', flexGrow: 1, width: '100%', boxSizing: 'border-box' },
-    card: { backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '20px' },
-    input: { width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' },
-    btnPrimary: { backgroundColor: '#c2410c', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', width: '100%' },
-    grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' },
-    menuImg: { width: '100%', height: '180px', objectFit: 'cover', borderRadius: '4px' },
-    heroSection: {
-        display: 'flex',
-        gap: '30px',
-        marginBottom: '30px',
-        flexWrap: 'wrap',
-        alignItems: 'stretch'
-    },
-    heroImageWrapper: {
-        flex: '2',
-        minWidth: '300px'
-    },
-    heroImage: {
-        width: '100%',
-        height: '350px',
-        objectFit: 'cover',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-    },
-    openingTimesBox: {
-        flex: '1',
-        minWidth: '200px',
-        backgroundColor: 'white',
-        padding: '20px',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center'
-    },
-    openingTimesTitle: {
-        fontWeight: 'bold',
-        fontSize: '18px',
-        color: '#c2410c',
-        marginBottom: '15px',
-        borderBottom: '2px solid #c2410c',
-        paddingBottom: '8px',
-        textAlign: 'center'
-    },
-    openingTimesRow: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '6px 0',
-        borderBottom: '1px solid #f0f0f0'
-    },
-    openingDay: {
-        fontWeight: '500',
-        color: '#333'
-    },
-    openingHours: {
-        color: '#666'
-    },
-    modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-    modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' },
-    footer: { backgroundColor: '#c2410c', color: 'white', textAlign: 'center', padding: '15px 15px 50px 15px', marginTop: 'auto' },
-    socialLink: { color: 'white', textDecoration: 'underline', fontWeight: 'bold' },
-
-    // ✅ NEW: Tab styles
-    tabContainer: {
-        display: 'flex',
-        gap: '5px',
-        marginBottom: '20px',
-        borderBottom: '2px solid #e0e0e0',
-        paddingBottom: '5px',
-        flexWrap: 'wrap'
-    },
-    tabButton: (isActive) => ({
-        padding: '12px 24px',
-        backgroundColor: isActive ? '#c2410c' : '#f5f5f5',
-        color: isActive ? 'white' : '#333',
-        border: 'none',
-        borderRadius: '8px 8px 0 0',
-        cursor: 'pointer',
-        fontWeight: isActive ? 'bold' : 'normal',
-        fontSize: '16px',
-        transition: 'all 0.3s ease',
-        boxShadow: isActive ? '0 -2px 6px rgba(0,0,0,0.1)' : 'none'
-    }),
-    tabContent: {
-        display: 'block'
-    },
-    categorySection: { width: '100%', gridColumn: '1 / -1' },
-    categoryTitle: { margin: '0 0 15px 0', borderBottom: '2px solid #c2410c', paddingBottom: '8px', color: '#c2410c' }
-};
-
-// ==========================================
-// 📋 OPENING TIMES DATA
-// ==========================================
-const OPENING_TIMES = [
-    { day: 'Monday', hours: '2:30 PM – 11:00 PM' },
-    { day: 'Tuesday', hours: '2:30 PM – 11:00 PM' },
-    { day: 'Wednesday', hours: '2:30 PM – 11:00 PM' },
-    { day: 'Thursday', hours: '2:30 PM – 11:00 PM' },
-    { day: 'Friday', hours: '2:30 PM – 11:00 PM' },
-    { day: 'Saturday', hours: '2:30 PM – 11:00 PM' },
-    { day: 'Sunday', hours: '2:30 PM – 11:00 PM' }
-];
-
-// ==========================================
-// 🚀 MAIN APPLICATION
+// 🛡️ AUTHENTICATION WRAPPER
 // ==========================================
 export default function App() {
     const [user, setUser] = useState(null);
-    const [hardcodedAdmin, setHardcodedAdmin] = useState(false);
-    const [activeTab, setActiveTab] = useState('menu');
-    const [menuItems, setMenuItems] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [cart, setCart] = useState([]);
-    const [showAuthModal, setShowAuthModal] = useState(false);
-
-    const fetchMenu = useCallback(async () => {
-        const { data, error } = await supabase.from('menu_items').select('*').order('category');
-        if (error) {
-            console.error("❌ Supabase Error:", error.message);
-        } else if (data) {
-            setMenuItems(data);
-        }
-    }, []);
-
-    const fetchCategories = useCallback(async () => {
-        const { data, error } = await supabase
-            .from('menu_categories')
-            .select('*')
-            .order('display_order', { ascending: true });
-
-        if (error) console.error("❌ Category Fetch Error:", error.message);
-        else if (data) setCategories(data);
-    }, []);
-
-    useEffect(() => {
-        fetchMenu();
-        fetchCategories();
-
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user || null);
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user || null);
-        });
-
-        return () => subscription.unsubscribe();
-    }, [fetchMenu, fetchCategories]);
-
-    const isAdmin = hardcodedAdmin || user?.email === ADMIN_EMAIL;
-
-    const handleLogout = () => {
-        if (hardcodedAdmin) {
-            setHardcodedAdmin(false);
-        } else {
-            supabase.auth.signOut();
-        }
-        setActiveTab('menu');
-    };
-
-    return (
-        <div style={styles.app}>
-            <header style={styles.header}>
-                <div style={styles.headerLeft}>
-                    <h1 style={{ margin: 0 }}>Kohinoor Indian Restaurant</h1>
-                    <span style={{ fontSize: '14px', fontStyle: 'italic', color: '#ffedd5', margin: 0 }}>
-                        All dishes can be prepared to your taste: Mild, Medium or Spicy
-                    </span>
-                </div>
-
-                <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#ffedd5' }}>
-                            📞 +34 922 73 86 36
-                        </span>
-                    </div>
-                    {user && !hardcodedAdmin && (
-                        <span style={{ fontWeight: 'bold', color: '#ffedd5' }}>
-                            Welcome, {user.user_metadata?.first_name || ''}
-                        </span>
-                    )}
-                    {hardcodedAdmin && (
-                        <span style={{ fontWeight: 'bold', color: '#ffedd5' }}>Welcome, AdminK</span>
-                    )}
-                    {user || hardcodedAdmin ? (
-                        <button style={styles.navBtn(false)} onClick={handleLogout}>Logout</button>
-                    ) : (
-                        <button style={styles.navBtn(false)} onClick={() => setShowAuthModal(true)}>Login / Signup</button>
-                    )}
-                </div>
-            </header>
-
-            <nav style={styles.nav}>
-                <button style={styles.navBtn(activeTab === 'menu')} onClick={() => setActiveTab('menu')}>Menu & Order</button>
-                <button style={styles.navBtn(activeTab === 'reservation')} onClick={() => setActiveTab('reservation')}>Book Table</button>
-                <button style={styles.navBtn(activeTab === 'location')} onClick={() => setActiveTab('location')}>Location</button>
-                {isAdmin && <button style={styles.navBtn(activeTab === 'admin')} onClick={() => setActiveTab('admin')}>Admin Dashboard</button>}
-                {user && !hardcodedAdmin && (
-                    <button style={styles.navBtn(activeTab === 'account')} onClick={() => setActiveTab('account')}>My Account</button>
-                )}
-            </nav>
-
-            <main style={styles.container}>
-                {activeTab === 'menu' && (
-                    <MenuAndOrderView
-                        menuItems={menuItems}
-                        categories={categories}
-                        cart={cart}
-                        setCart={setCart}
-                        user={user}
-                        openingTimes={OPENING_TIMES}
-                    />
-                )}
-                {activeTab === 'reservation' && <ReservationView />}
-                {activeTab === 'location' && <LocationView />}
-                {activeTab === 'admin' && isAdmin && (
-                    <AdminView
-                        menuItems={menuItems}
-                        fetchMenu={fetchMenu}
-                        categories={categories}
-                        fetchCategories={fetchCategories}
-                    />
-                )}
-                {activeTab === 'account' && user && !hardcodedAdmin && <AccountView user={user} setCart={setCart} setActiveTab={setActiveTab} />}
-            </main>
-
-            <footer style={styles.footer}>
-                <p style={{ margin: '0 0 10px 0' }}>© {new Date().getFullYear()} Kohinoor Indian Restaurant. All rights reserved.</p>
-                <p style={{ margin: 0 }}>Follow us on <a href="https://www.facebook.com/IndianRestaurantsTenerife" target="_blank" rel="noopener noreferrer" style={styles.socialLink}>Facebook</a></p>
-            </footer>
-
-            {showAuthModal && (
-                <div style={styles.modalOverlay}>
-                    <div style={styles.modalContent}>
-                        <AuthForm
-                            onSuccess={(data) => {
-                                if (data?.isHardcodedAdmin) {
-                                    setHardcodedAdmin(true);
-                                    setActiveTab('admin');
-                                }
-                                setShowAuthModal(false);
-                            }}
-                            onCancel={() => setShowAuthModal(false)}
-                        />
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ==========================================
-// 👤 ACCOUNT VIEW
-// ==========================================
-function AccountView({ user, setCart, setActiveTab }) {
-    const [loading, setLoading] = useState(false);
-    const [orders, setOrders] = useState([]);
-
-    const [formData, setFormData] = useState({
-        first_name: user?.user_metadata?.first_name || '',
-        last_name: user?.user_metadata?.last_name || '',
-        address: user?.user_metadata?.address || '',
-        mobile_number: user?.user_metadata?.mobile_number || ''
-    });
-
-    useEffect(() => {
-        fetchOrderHistory();
-    }, [user]);
-
-    const fetchOrderHistory = async () => {
-        if (!user?.email) return;
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('email', user.email)
-            .order('created_at', { ascending: false });
-
-        if (!error && data) {
-            setOrders(data);
-        }
-    };
-
-    const handleProfileUpdate = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        const { error } = await supabase.auth.updateUser({
-            data: formData
-        });
-        setLoading(false);
-
-        if (error) {
-            alert("Error updating profile: " + error.message);
-        } else {
-            alert("Profile updated successfully!");
-        }
-    };
-
-    const handleRepeatOrder = (items) => {
-        setCart(items);
-        setActiveTab('menu');
-        alert("Previous order items have been added to your cart!");
-    };
-
-    return (
-        <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1', minWidth: '300px' }}>
-                <div style={styles.card}>
-                    <h2>My Profile</h2>
-                    <form onSubmit={handleProfileUpdate}>
-                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>First Name</label>
-                        <input style={styles.input} type="text" required value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} />
-                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Last Name</label>
-                        <input style={styles.input} type="text" required value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} />
-                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Mobile Number</label>
-                        <input style={styles.input} type="tel" required value={formData.mobile_number} onChange={e => setFormData({ ...formData, mobile_number: e.target.value })} />
-                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Full Address</label>
-                        <textarea style={{ ...styles.input, resize: 'vertical', minHeight: '80px' }} required value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
-                        <button type="submit" style={styles.btnPrimary} disabled={loading}>
-                            {loading ? 'Saving...' : 'Update Details'}
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <div style={{ flex: '2', minWidth: '300px' }}>
-                <div style={styles.card}>
-                    <h2>Order History</h2>
-                    {orders.length === 0 ? (
-                        <p>You haven't placed any orders yet.</p>
-                    ) : (
-                        <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '10px' }}>
-                            {orders.map(order => (
-                                <div key={order.id} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                        <strong>Date: {new Date(order.created_at).toLocaleDateString()}</strong>
-                                        <span style={{ fontWeight: 'bold', color: '#c2410c' }}>£{order.total_amount.toFixed(2)}</span>
-                                    </div>
-
-                                    {order.spice_level && (
-                                        <div style={{ fontSize: '14px', marginBottom: '5px' }}>
-                                            <strong>Spice Level:</strong> {order.spice_level}
-                                        </div>
-                                    )}
-                                    {order.notes && (
-                                        <div style={{ fontSize: '14px', marginBottom: '10px', color: '#666' }}>
-                                            <strong>Notes:</strong> {order.notes}
-                                        </div>
-                                    )}
-
-                                    <ul style={{ margin: '0 0 15px 0', paddingLeft: '20px', color: '#555' }}>
-                                        {order.items.map((item, idx) => (
-                                            <li key={idx}>{item.qty}x {item.name}</li>
-                                        ))}
-                                    </ul>
-                                    <button
-                                        onClick={() => handleRepeatOrder(order.items)}
-                                        style={{ ...styles.btnPrimary, width: 'auto', padding: '8px 15px', fontSize: '14px' }}
-                                    >
-                                        Repeat Order
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ==========================================
-// 🍛 MENU & ORDERING VIEW (WITH TABS)
-// ==========================================
-function MenuAndOrderView({ menuItems, categories, cart, setCart, user, openingTimes }) {
-    const [customerInfo, setCustomerInfo] = useState({ name: '', email: '' });
-    const [loading, setLoading] = useState(false);
-    const [spiceLevel, setSpiceLevel] = useState('Medium');
-    const [orderNotes, setOrderNotes] = useState('');
-
-    // ✅ NEW: State for active category tab
-    const [activeCategory, setActiveCategory] = useState('');
-
-    useEffect(() => {
-        if (user) {
-            const firstName = user.user_metadata?.first_name || '';
-            const lastName = user.user_metadata?.last_name || '';
-            setCustomerInfo({
-                name: `${firstName} ${lastName}`.trim(),
-                email: user.email || ''
-            });
-        }
-
-        // ✅ Set first category as active when categories load
-        if (categories.length > 0 && !activeCategory) {
-            setActiveCategory(categories[0].name);
-        }
-    }, [user, categories]);
-
-    const addToCart = (item) => {
-        const existing = cart.find(c => c.id === item.id);
-        if (existing) {
-            setCart(cart.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c));
-        } else {
-            setCart([...cart, { ...item, qty: 1 }]);
-        }
-    };
-
-    const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-
-    const handleCheckout = async (e) => {
-        e.preventDefault();
-
-        if (cart.length === 0) {
-            alert("Your cart is empty!");
-            return;
-        }
-
-        setLoading(true);
-
-        try {
-            const { error: orderError } = await supabase.from('orders').insert([{
-                customer_name: customerInfo.name,
-                email: customerInfo.email,
-                items: cart,
-                total_amount: cartTotal,
-                spice_level: spiceLevel,
-                notes: orderNotes
-            }]);
-
-            if (orderError) {
-                console.error("❌ Order insertion error:", orderError);
-                alert("Error placing order: " + orderError.message);
-                setLoading(false);
-                return;
-            }
-
-            const customerEmailHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="text-align: center; border-bottom: 2px solid #c2410c; padding-bottom: 10px; margin-bottom: 20px;">
-                        <h1 style="color: #c2410c; margin: 0;">Kohinoor Indian Restaurant</h1>
-                        <p style="color: #666; margin: 5px 0 0 0;">Calle Trasera San Blas, 38639 Santa Cruz de Tenerife</p>
-                    </div>
-                    
-                    <h2 style="color: #c2410c;">Order Confirmed! 🎉</h2>
-                    <p>Hi ${customerInfo.name},</p>
-                    <p>Thank you for your order from Kohinoor Indian Restaurant. We are preparing it right now!</p>
-                    
-                    <div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #fed7aa;">
-                        <p style="margin: 0 0 10px 0;"><strong>🌶️ Spice Preference:</strong> ${spiceLevel}</p>
-                        ${orderNotes ? `<p style="margin: 0;"><strong>📝 Order Notes:</strong> ${orderNotes}</p>` : ''}
-                    </div>
-
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-                        <thead>
-                            <tr style="background-color: #c2410c; color: white;">
-                                <th style="padding: 10px; text-align: left;">Item</th>
-                                <th style="padding: 10px; text-align: right;">Price</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${cart.map(item => `
-                                <tr>
-                                    <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${item.qty}x</strong> ${item.name}</td>
-                                    <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">£${(item.price * item.qty).toFixed(2)}</td>
-                                </tr>
-                            `).join('')}
-                            <tr>
-                                <td style="padding: 10px; font-weight: bold; font-size: 18px; border-top: 2px solid #c2410c;">Total:</td>
-                                <td style="padding: 10px; font-weight: bold; font-size: 18px; text-align: right; border-top: 2px solid #c2410c;">£${cartTotal.toFixed(2)}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
-                        <p style="color: #666; font-size: 14px;">We look forward to serving you!</p>
-                        <p style="color: #666; font-size: 14px;">📞 +34 922 73 86 36</p>
-                        <p style="color: #666; font-size: 14px;">📍 Calle Trasera San Blas, 38639 Santa Cruz de Tenerife</p>
-                    </div>
-                </div>
-            `;
-
-            try {
-                await sendEmail(customerInfo.email, "Your Kohinoor Order Confirmation", customerEmailHtml);
-            } catch (emailError) {
-                console.error("❌ Customer email error:", emailError);
-            }
-
-            const adminEmailHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #c2410c;">🆕 New Order Received!</h2>
-                    <p><strong>Customer:</strong> ${customerInfo.name}</p>
-                    <p><strong>Email:</strong> ${customerInfo.email}</p>
-                    <p><strong>Total Amount:</strong> £${cartTotal.toFixed(2)}</p>
-                    <p><strong>🌶️ Spice Preference:</strong> ${spiceLevel}</p>
-                    ${orderNotes ? `<p><strong>📝 Order Notes:</strong> ${orderNotes}</p>` : ''}
-                    
-                    <h3>Items Ordered:</h3>
-                    <ul>
-                        ${cart.map(item => `<li>${item.qty}x ${item.name} - £${(item.price * item.qty).toFixed(2)}</li>`).join('')}
-                    </ul>
-                    <p><strong>Total:</strong> £${cartTotal.toFixed(2)}</p>
-                    <p style="color: #666; font-size: 14px;">Check the admin dashboard for full details.</p>
-                </div>
-            `;
-
-            try {
-                await sendEmail(ADMIN_EMAIL, "New Kohinoor Order!", adminEmailHtml);
-            } catch (emailError) {
-                console.error("❌ Admin email error:", emailError);
-            }
-
-            alert("Order placed successfully! We've sent you a confirmation email. If you do not see the email please check your spam folder");
-            setCart([]);
-            setSpiceLevel('Medium');
-            setOrderNotes('');
-
-            if (!user) {
-                setCustomerInfo({ name: '', email: '' });
-            }
-
-        } catch (error) {
-            console.error("❌ Checkout error:", error);
-            alert("An error occurred while placing your order. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const availableItems = menuItems.filter(i => i.is_available !== false);
-
-    return (
-        <div>
-            {/* Hero Section with Opening Times */}
-            <div style={styles.heroSection}>
-                <div style={styles.heroImageWrapper}>
-                    <img
-                        src={`${import.meta.env.BASE_URL}home.jpg`}
-                        alt="Delicious Indian Food Spread"
-                        style={styles.heroImage}
-                    />
-                </div>
-
-                <div style={styles.openingTimesBox}>
-                    <div style={styles.openingTimesTitle}>🕐 Opening Times</div>
-                    {openingTimes.map((item, index) => (
-                        <div key={index} style={styles.openingTimesRow}>
-                            <span style={styles.openingDay}>{item.day}</span>
-                            <span style={styles.openingHours}>{item.hours}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            <h2 style={{ marginTop: 0 }}>Our Menu</h2>
-
-            {/* ✅ NEW: Category Tabs */}
-            {categories.length > 0 && (
-                <div style={styles.tabContainer}>
-                    {categories.map(category => (
-                        <button
-                            key={category.id}
-                            style={styles.tabButton(activeCategory === category.name)}
-                            onClick={() => setActiveCategory(category.name)}
-                        >
-                            {category.name}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '2.8', minWidth: '300px' }}>
-                    {/* ✅ NEW: Tab Content - only show active category */}
-                    <div style={styles.tabContent}>
-                        {categories.map(category => {
-                            if (activeCategory !== category.name) return null;
-
-                            const itemsInCategory = availableItems.filter(item => item.category === category.name);
-                            if (itemsInCategory.length === 0) {
-                                return (
-                                    <div key={category.id} style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                                        No items available in this category.
-                                    </div>
-                                );
-                            }
-
-                            return (
-                                <div key={category.id}>
-                                    <h3 style={styles.categoryTitle}>{category.name}</h3>
-                                    <div style={styles.grid}>
-                                        {itemsInCategory.map(item => (
-                                            <div key={item.id} style={styles.card}>
-                                                {item.image_url && <img src={item.image_url} alt={item.name} style={styles.menuImg} />}
-                                                <div style={{ marginTop: '10px', display: 'inline-block', backgroundColor: '#fed7aa', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', color: '#9a3412' }}>
-                                                    {item.category}
-                                                </div>
-                                                <h3 style={{ marginBottom: '5px', marginTop: '5px' }}>{item.name}</h3>
-                                                <p style={{ color: '#666', fontSize: '14px', marginTop: 0 }}>{item.description}</p>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span style={{ fontWeight: 'bold', fontSize: '18px' }}>£{item.price.toFixed(2)}</span>
-                                                    <button onClick={() => addToCart(item)} style={{ ...styles.btnPrimary, width: 'auto', padding: '5px 15px' }}>Add</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <div style={{ flex: '1', minWidth: '300px' }}>
-                    <div style={{ ...styles.card, position: 'sticky', top: '20px' }}>
-                        <h2 style={{ marginTop: 0 }}>Your Order</h2>
-                        {cart.length === 0 ? <p>Cart is empty</p> : (
-                            <div style={{ marginBottom: '20px', maxHeight: '350px', overflowY: 'auto' }}>
-                                {cart.map(item => (
-                                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                                        <span>{item.qty}x {item.name}</span>
-                                        <span>£{(item.price * item.qty).toFixed(2)}</span>
-                                    </div>
-                                ))}
-                                <hr />
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px' }}>
-                                    <span>Total:</span>
-                                    <span>£{cartTotal.toFixed(2)}</span>
-                                </div>
-                            </div>
-                        )}
-
-                        <form onSubmit={handleCheckout}>
-                            {cart.length > 0 && (
-                                <div style={{ backgroundColor: '#fff7ed', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #fed7aa' }}>
-                                    <label style={{ fontSize: '14px', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Spice Preference:</label>
-                                    <select style={styles.input} value={spiceLevel} onChange={e => setSpiceLevel(e.target.value)}>
-                                        <option value="Mild">🌶️ Mild</option>
-                                        <option value="Medium">🌶️🌶️ Medium</option>
-                                        <option value="Spicy">🌶️🌶️🌶️ Spicy</option>
-                                    </select>
-
-                                    <label style={{ fontSize: '14px', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Order Notes (Optional):</label>
-                                    <textarea
-                                        style={{ ...styles.input, resize: 'vertical', minHeight: '60px', marginBottom: '0' }}
-                                        placeholder="Any special requests or allergy information?"
-                                        value={orderNotes}
-                                        onChange={e => setOrderNotes(e.target.value)}
-                                    />
-                                </div>
-                            )}
-
-                            <input style={styles.input} type="text" placeholder="Your Name" required value={customerInfo.name} onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })} />
-                            <input style={styles.input} type="email" placeholder="Email Address" required value={customerInfo.email} onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })} />
-
-                            <button type="submit" style={styles.btnPrimary} disabled={loading}>
-                                {loading ? 'Processing...' : 'Place Order'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ==========================================
-// 📅 RESERVATION VIEW
-// ==========================================
-function ReservationView() {
-    const [form, setForm] = useState({ name: '', email: '', phone: '', date: '', time: '', party: 2 });
-    const [loading, setLoading] = useState(false);
-
-    const handleBooking = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-
-        try {
-            const { error } = await supabase.from('reservations').insert([{
-                customer_name: form.name, email: form.email, phone: form.phone,
-                date: form.date, time: form.time, party_size: form.party
-            }]);
-
-            if (error) {
-                alert("Error booking table: " + error.message);
-                setLoading(false);
-                return;
-            }
-
-            const bookingHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="text-align: center; border-bottom: 2px solid #c2410c; padding-bottom: 10px; margin-bottom: 20px;">
-                        <h1 style="color: #c2410c; margin: 0;">Kohinoor Indian Restaurant</h1>
-                        <p style="color: #666; margin: 5px 0 0 0;">Calle Trasera San Blas, 38639 Santa Cruz de Tenerife</p>
-                    </div>
-                    
-                    <h2 style="color: #c2410c;">Table Reservation Confirmed! 🍽️</h2>
-                    <p>Hi ${form.name},</p>
-                    <p>Your table has been successfully booked at Kohinoor Indian Restaurant.</p>
-                    
-                    <div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #fed7aa;">
-                        <p style="margin: 5px 0;"><strong>📅 Date:</strong> ${form.date}</p>
-                        <p style="margin: 5px 0;"><strong>⏰ Time:</strong> ${form.time}</p>
-                        <p style="margin: 5px 0;"><strong>👥 Party Size:</strong> ${form.party} guests</p>
-                    </div>
-                    
-                    <p>We look forward to serving you soon!</p>
-                    <p style="color: #666; font-size: 14px;">📞 +34 922 73 86 36</p>
-                </div>
-            `;
-
-            try {
-                await sendEmail(form.email, "Kohinoor Reservation Confirmed", bookingHtml);
-            } catch (emailError) {
-                console.error("❌ Email error:", emailError);
-            }
-
-            const adminHtml = `
-                <h3>New Table Reservation</h3>
-                <p><strong>Name:</strong> ${form.name}</p>
-                <p><strong>Email:</strong> ${form.email}</p>
-                <p><strong>Phone:</strong> ${form.phone}</p>
-                <p><strong>When:</strong> ${form.date} at ${form.time}</p>
-                <p><strong>Guests:</strong> ${form.party}</p>
-            `;
-
-            try {
-                await sendEmail(ADMIN_EMAIL, `New Booking for ${form.date}`, adminHtml);
-            } catch (emailError) {
-                console.error("❌ Admin email error:", emailError);
-            }
-
-            alert("Table booked successfully! We've sent you a confirmation email.");
-            setForm({ name: '', email: '', phone: '', date: '', time: '', party: 2 });
-
-        } catch (error) {
-            console.error("❌ Booking error:", error);
-            alert("An error occurred. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-            <div style={styles.card}>
-                <h2>Book a Table</h2>
-                <form onSubmit={handleBooking}>
-                    <input style={styles.input} type="text" placeholder="Full Name" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-                    <input style={styles.input} type="email" placeholder="Email Address" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                    <input style={styles.input} type="tel" placeholder="Phone Number" required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <input style={styles.input} type="date" required value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-                        <input style={styles.input} type="time" required value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
-                    </div>
-                    <input style={styles.input} type="number" min="1" max="20" placeholder="Party Size" required value={form.party} onChange={e => setForm({ ...form, party: e.target.value })} />
-                    <button type="submit" style={styles.btnPrimary} disabled={loading}>
-                        {loading ? 'Booking...' : 'Confirm Reservation'}
-                    </button>
-                </form>
-            </div>
-        </div>
-    );
-}
-
-// ==========================================
-// 📍 LOCATION VIEW
-// ==========================================
-function LocationView() {
-    return (
-        <div style={styles.card}>
-            <h2>Find Us</h2>
-            <p>Calle Trasera San Blas, 38639 Santa Cruz de Tenerife, Spain</p>
-            <iframe
-                title="Kohinoor Location"
-                src="https://maps.google.com/maps?q=Calle%20Trasera%20San%20Blas,%2038639%20Santa%20Cruz%20de%20Tenerife,%20Spain&t=&z=16&ie=UTF8&iwloc=&output=embed"
-                width="100%"
-                height="450"
-                style={{ border: 0, borderRadius: '8px' }}
-                allowFullScreen=""
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade">
-            </iframe>
-        </div>
-    );
-}
-
-// ==========================================
-// ⚙️ ADMIN VIEW
-// ==========================================
-function AdminView({ menuItems, fetchMenu, categories, fetchCategories }) {
-    const [editingItemId, setEditingItemId] = useState(null);
-    const initialFormState = {
-        name: '',
-        description: '',
-        price: '',
-        category: categories.length > 0 ? categories[0].name : 'Main',
-        image_url: ''
-    };
-    const [formItem, setFormItem] = useState(initialFormState);
-    const [imageFile, setImageFile] = useState(null);
-    const [newCategoryName, setNewCategoryName] = useState('');
-    const [loading, setLoading] = useState({ menu: false, category: false });
-    const [allOrders, setAllOrders] = useState([]);
-
-    useEffect(() => {
-        if (!formItem.category && categories.length > 0) {
-            setFormItem(prev => ({ ...prev, category: categories[0].name }));
-        }
-    }, [categories]);
-
-    useEffect(() => {
-        fetchAllOrders();
-    }, []);
-
-    const fetchAllOrders = async () => {
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (!error && data) {
-            setAllOrders(data);
-        } else {
-            console.error("Error fetching all orders:", error?.message);
-        }
-    };
-
-    const handleAddCategory = async (e) => {
-        e.preventDefault();
-        if (!newCategoryName.trim()) return;
-        setLoading(prev => ({ ...prev, category: true }));
-        const { error } = await supabase.from('menu_categories').insert([{ name: newCategoryName.trim() }]);
-        setLoading(prev => ({ ...prev, category: false }));
-        if (error) alert("Error adding category: " + error.message);
-        else {
-            setNewCategoryName('');
-            fetchCategories();
-        }
-    };
-
-    const handleDeleteCategory = async (id, name) => {
-        const inUse = menuItems.some(item => item.category === name);
-        if (inUse) {
-            alert(`Cannot delete '${name}' because menu items are actively using it.`);
-            return;
-        }
-        if (window.confirm(`Delete category '${name}'?`)) {
-            await supabase.from('menu_categories').delete().eq('id', id);
-            fetchCategories();
-        }
-    };
-
-    const startEditItem = (item) => {
-        setEditingItemId(item.id);
-        setFormItem({
-            name: item.name,
-            description: item.description,
-            price: item.price,
-            category: item.category,
-            image_url: item.image_url || ''
-        });
-        setImageFile(null);
-        if (document.getElementById('image-upload-input')) {
-            document.getElementById('image-upload-input').value = "";
-        }
-    };
-
-    const cancelEditItem = () => {
-        setEditingItemId(null);
-        setFormItem(initialFormState);
-        setImageFile(null);
-        if (document.getElementById('image-upload-input')) {
-            document.getElementById('image-upload-input').value = "";
-        }
-    };
-
-    const handleSaveItem = async (e) => {
-        e.preventDefault();
-        setLoading(prev => ({ ...prev, menu: true }));
-
-        let finalImageUrl = formItem.image_url;
-
-        if (imageFile) {
-            const fileExt = imageFile.name.split('.').pop();
-            const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-            const { error: uploadError } = await supabase.storage
-                .from('menu-images')
-                .upload(fileName, imageFile);
-
-            if (uploadError) {
-                alert("Error uploading image: " + uploadError.message);
-                setLoading(prev => ({ ...prev, menu: false }));
-                return;
-            }
-
-            const { data } = supabase.storage.from('menu-images').getPublicUrl(fileName);
-            finalImageUrl = data.publicUrl;
-        }
-
-        const itemPayload = {
-            name: formItem.name,
-            description: formItem.description,
-            price: parseFloat(formItem.price),
-            category: formItem.category,
-            image_url: finalImageUrl
-        };
-
-        if (editingItemId) {
-            const { error } = await supabase.from('menu_items').update(itemPayload).eq('id', editingItemId);
-            if (error) alert("Error updating item: " + error.message);
-            else alert("Item updated successfully!");
-        } else {
-            const { error } = await supabase.from('menu_items').insert([{ ...itemPayload, is_available: true }]);
-            if (error) alert("Error adding item: " + error.message);
-            else alert("Item added successfully!");
-        }
-
-        setLoading(prev => ({ ...prev, menu: false }));
-        cancelEditItem();
-        fetchMenu();
-    };
-
-    const toggleAvailability = async (id, currentStatus) => {
-        const isCurrentlyAvailable = currentStatus !== false;
-        await supabase.from('menu_items').update({ is_available: !isCurrentlyAvailable }).eq('id', id);
-        fetchMenu();
-    };
-
-    const deleteItem = async (id) => {
-        if (window.confirm("Are you sure you want to delete this menu item?")) {
-            await supabase.from('menu_items').delete().eq('id', id);
-            fetchMenu();
-        }
-    };
-
-    return (
-        <div>
-            <h2>Admin Dashboard</h2>
-
-            <div style={{ ...styles.card, backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
-                <h3>Manage Available Categories</h3>
-                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                    <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '10px', flex: '1', minWidth: '250px' }}>
-                        <input style={{ ...styles.input, marginBottom: 0 }} type="text" placeholder="New Category Name" required value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} />
-                        <button type="submit" style={{ ...styles.btnPrimary, width: 'auto' }} disabled={loading.category}>Add</button>
-                    </form>
-                    <div style={{ flex: '2', minWidth: '300px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        {categories.map(cat => (
-                            <div key={cat.id} style={{ display: 'flex', alignItems: 'center', backgroundColor: 'white', padding: '5px 10px', borderRadius: '20px', border: '1px solid #ccc' }}>
-                                <span style={{ marginRight: '10px', fontSize: '14px', fontWeight: 'bold' }}>{cat.name}</span>
-                                <button type="button" onClick={() => handleDeleteCategory(cat.id, cat.name)} style={{ border: 'none', background: 'transparent', color: 'red', cursor: 'pointer', fontWeight: 'bold' }}>×</button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            <div style={styles.card}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ color: editingItemId ? '#c2410c' : '#333' }}>
-                        {editingItemId ? `✏️ Editing: ${formItem.name}` : '➕ Add New Menu Item'}
-                    </h3>
-                    {editingItemId && <button onClick={cancelEditItem} style={{ border: '1px solid #ccc', background: 'transparent', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Cancel Edit</button>}
-                </div>
-
-                <form onSubmit={handleSaveItem} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <input style={{ ...styles.input, flex: '1', minWidth: '200px' }} type="text" placeholder="Dish Name" required value={formItem.name} onChange={e => setFormItem({ ...formItem, name: e.target.value })} />
-                    <input style={{ ...styles.input, flex: '1', minWidth: '100px' }} type="number" step="0.01" placeholder="Price (£)" required value={formItem.price} onChange={e => setFormItem({ ...formItem, price: e.target.value })} />
-                    <select style={{ ...styles.input, flex: '1', minWidth: '150px' }} required value={formItem.category} onChange={e => setFormItem({ ...formItem, category: e.target.value })}>
-                        {categories.length === 0 && <option value="">No categories...</option>}
-                        {categories.map(cat => (
-                            <option key={cat.id} value={cat.name}>{cat.name}</option>
-                        ))}
-                    </select>
-                    <input style={{ ...styles.input, width: '100%' }} type="text" placeholder="Description" required value={formItem.description} onChange={e => setFormItem({ ...formItem, description: e.target.value })} />
-                    <div style={{ width: '100%', marginBottom: '15px' }}>
-                        <label style={{ fontSize: '14px', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Image Upload (Optional)</label>
-                        <input id="image-upload-input" style={{ ...styles.input, marginBottom: '5px' }} type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} />
-                        {editingItemId && formItem.image_url && !imageFile && (
-                            <span style={{ fontSize: '12px', color: '#666' }}>Leaving this empty will keep the existing image.</span>
-                        )}
-                    </div>
-                    <button type="submit" style={styles.btnPrimary} disabled={loading.menu || categories.length === 0}>
-                        {loading.menu ? 'Saving...' : (editingItemId ? 'Update Menu Item' : 'Add Menu Item')}
-                    </button>
-                </form>
-            </div>
-
-            <div style={styles.card}>
-                <h3>Manage Menu Items</h3>
-                <div style={{ overflowX: 'auto', maxHeight: '500px', overflowY: 'auto' }}>
-                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                        <thead style={{ position: 'sticky', top: 0, backgroundColor: 'white', zIndex: 1 }}>
-                            <tr style={{ borderBottom: '2px solid #eee' }}>
-                                <th style={{ padding: '10px' }}>Category</th>
-                                <th>Name</th>
-                                <th>Price</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {menuItems.map(item => (
-                                <tr key={item.id} style={{ borderBottom: '1px solid #eee', backgroundColor: editingItemId === item.id ? '#fff7ed' : 'transparent' }}>
-                                    <td style={{ padding: '10px', fontWeight: 'bold', color: '#c2410c' }}>{item.category}</td>
-                                    <td>{item.name}</td>
-                                    <td>£{item.price.toFixed(2)}</td>
-                                    <td>{item.is_available !== false ? '🟢 Active' : '🔴 Hidden'}</td>
-                                    <td>
-                                        <button onClick={() => startEditItem(item)} style={{ marginRight: '5px', padding: '5px 10px', cursor: 'pointer', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '3px' }}>Edit</button>
-                                        <button onClick={() => toggleAvailability(item.id, item.is_available)} style={{ marginRight: '5px', padding: '5px 10px', cursor: 'pointer' }}>Toggle</button>
-                                        <button onClick={() => deleteItem(item.id)} style={{ padding: '5px 10px', color: 'white', backgroundColor: '#dc2626', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Delete</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div style={styles.card}>
-                <h3>All Customer Orders</h3>
-                {allOrders.length === 0 ? (
-                    <p>No orders have been placed yet.</p>
-                ) : (
-                    <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '10px' }}>
-                        {allOrders.map(order => (
-                            <div key={order.id} style={{ border: '1px solid #ddd', padding: '15px', borderRadius: '8px', marginBottom: '15px', backgroundColor: '#fafafa' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
-                                    <div>
-                                        <strong style={{ fontSize: '16px' }}>Date: {new Date(order.created_at).toLocaleString()}</strong>
-                                        <div style={{ color: '#555', marginTop: '4px' }}>
-                                            <strong>Customer:</strong> {order.customer_name} ({order.email})
-                                        </div>
-                                    </div>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#c2410c', fontSize: '20px' }}>
-                                            £{order.total_amount?.toFixed(2)}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {order.spice_level && (
-                                    <div style={{ fontSize: '14px', marginBottom: '3px' }}>
-                                        <strong>Spice Level:</strong> {order.spice_level}
-                                    </div>
-                                )}
-                                {order.notes && (
-                                    <div style={{ fontSize: '14px', color: '#d97706' }}>
-                                        <strong>Notes:</strong> {order.notes}
-                                    </div>
-                                )}
-
-                                <div style={{ fontSize: '14px', color: '#333' }}>
-                                    <strong>Items Ordered:</strong>
-                                    <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
-                                        {order.items?.map((item, idx) => (
-                                            <li key={idx} style={{ marginBottom: '3px' }}>
-                                                <span style={{ fontWeight: 'bold' }}>{item.qty}x</span> {item.name}
-                                                <span style={{ color: '#888', marginLeft: '5px' }}>(£{(item.price * item.qty).toFixed(2)})</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// ==========================================
-// 🔐 AUTHENTICATION FORM
-// ==========================================
-function AuthForm({ onSuccess, onCancel }) {
-    const [isLogin, setIsLogin] = useState(true);
-    const [loading, setLoading] = useState(false);
-    const [identifier, setIdentifier] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [address, setAddress] = useState('');
-    const [mobile, setMobile] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [showConfirmation, setShowConfirmation] = useState(false); // Track email confirmation state
 
-    const handleSubmit = async (e) => {
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user || null));
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const handleAuth = async (e, type) => {
         e.preventDefault();
+
+        // Manual Validation check so the user understands why it's not proceeding
+        if (!email || !password) {
+            alert("Please fill in both the Email and Password fields before proceeding.");
+            return;
+        }
+
         setLoading(true);
-
-        if (isLogin) {
-            if (identifier === 'AdminK' && password === 'dkskoddlks££1') {
-                setLoading(false);
-                onSuccess({ isHardcodedAdmin: true });
-                return;
-            }
-
-            const { error } = await supabase.auth.signInWithPassword({ email: identifier, password });
-            setLoading(false);
-            if (error) alert(error.message);
-            else onSuccess({ isHardcodedAdmin: false });
-        } else {
-            const { error } = await supabase.auth.signUp({
-                email: identifier,
-                password,
-                options: {
-                    data: {
-                        first_name: firstName,
-                        last_name: lastName,
-                        address: address,
-                        mobile_number: mobile
-                    }
-                }
-            });
-            setLoading(false);
-
-            if (error) {
-                alert(error.message);
+        try {
+            if (type === 'login') {
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) throw error;
             } else {
-                alert("Account created successfully! Please check your email to confirm your account.");
-                onSuccess({ isHardcodedAdmin: false });
+                const { data, error } = await supabase.auth.signUp({ email, password });
+                if (error) throw error;
+
+                // Supabase returns a user but NO session if email confirmation is turned on
+                if (data?.user && !data?.session) {
+                    setShowConfirmation(true);
+                    setEmail('');
+                    setPassword('');
+                } else if (data?.session) {
+                    // Fallback in case Email Confirmations are disabled in your Supabase project settings
+                    alert("Account created! Logging you in.");
+                }
             }
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
+    if (user) {
+        return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
+    }
+
     return (
-        <div>
-            <h2 style={{ marginTop: 0 }}>{isLogin ? 'Login' : 'Create an Account'}</h2>
-            <form onSubmit={handleSubmit}>
-                {!isLogin && (
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <input style={styles.input} type="text" placeholder="First Name" required={!isLogin} value={firstName} onChange={e => setFirstName(e.target.value)} />
-                        <input style={styles.input} type="text" placeholder="Last Name" required={!isLogin} value={lastName} onChange={e => setLastName(e.target.value)} />
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
+            <div style={{ backgroundColor: '#202c33', padding: '40px', borderRadius: '8px', width: '350px', textAlign: 'center', boxShadow: '0 17px 50px 0 rgba(11,20,26,.19)' }}>
+                <h2 style={{ color: '#00a884', marginBottom: '30px' }}>TotalRecall</h2>
+
+                {showConfirmation ? (
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '48px', marginBottom: '16px' }}>📧</div>
+                        <h3 style={{ margin: '0 0 12px 0', color: 'white' }}>Confirm Your Email</h3>
+                        <p style={{ color: '#8696a0', lineHeight: '1.5', marginBottom: '25px', fontSize: '14px' }}>
+                            We've sent a confirmation link to your email address. Please check your inbox (and spam folder) to verify your account before logging in.
+                        </p>
+                        <button onClick={() => setShowConfirmation(false)} style={{ width: '100%', padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
+                            Back to Login
+                        </button>
                     </div>
+                ) : (
+                    <form onSubmit={(e) => e.preventDefault()}>
+                        <input
+                            type="email"
+                            placeholder="Email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            style={{ width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '4px', border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
+                        />
+                        <input
+                            type="password"
+                            placeholder="Password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '4px', border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
+                        />
+                        <button
+                            type="button"
+                            onClick={(e) => handleAuth(e, 'login')}
+                            disabled={loading}
+                            style={{ width: '100%', padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginBottom: '10px' }}
+                        >
+                            {loading ? 'Processing...' : 'Log In'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => handleAuth(e, 'signup')}
+                            disabled={loading}
+                            style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: '4px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
+                        >
+                            {loading ? 'Processing...' : 'Sign Up'}
+                        </button>
+                    </form>
                 )}
-                <input style={styles.input} type="text" placeholder={isLogin ? "Email Address or Username" : "Email Address"} required value={identifier} onChange={e => setIdentifier(e.target.value)} />
-                <input style={styles.input} type="password" placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} />
-                {!isLogin && (
-                    <>
-                        <input style={styles.input} type="tel" placeholder="Mobile Number" required={!isLogin} value={mobile} onChange={e => setMobile(e.target.value)} />
-                        <input style={styles.input} type="text" placeholder="Full Address" required={!isLogin} value={address} onChange={e => setAddress(e.target.value)} />
-                    </>
-                )}
-                <button type="submit" style={styles.btnPrimary} disabled={loading}>
-                    {loading ? 'Processing...' : (isLogin ? 'Login' : 'Sign Up')}
-                </button>
-                <button type="button" onClick={() => setIsLogin(!isLogin)} style={{ width: '100%', background: 'none', border: 'none', color: '#c2410c', marginTop: '15px', cursor: 'pointer', fontWeight: 'bold' }}>
-                    {isLogin ? "Don't have an account? Sign up" : "Already have an account? Log in"}
-                </button>
-                <button type="button" onClick={onCancel} style={{ ...styles.btnPrimary, backgroundColor: 'transparent', color: '#666', marginTop: '10px', border: '1px solid #ccc' }}>Cancel</button>
-            </form>
+            </div>
         </div>
     );
 }
