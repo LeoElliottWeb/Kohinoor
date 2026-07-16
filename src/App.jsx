@@ -169,7 +169,6 @@ function ChatApp({ user, onLogout }) {
         // MESH NETWORK: WEBRTC SIGNALING
         channel.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                // If it's a mesh background join AND we are already in a call -> auto accept
                 if (payload.isAutoJoin && localStreamRef.current && autoAcceptOfferRef.current) {
                     autoAcceptOfferRef.current(payload);
                 } else {
@@ -259,15 +258,49 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // ==========================================
+    // 📇 CONTACT IMPORT & SUPABASE EDGE FUNCTION
+    // ==========================================
     const handleImportContacts = async () => {
         const supported = ('contacts' in navigator && 'ContactsManager' in window);
-        const updateContactsList = (newContacts) => {
-            setSavedContacts(prev => {
-                const merged = [...prev, ...newContacts];
-                const unique = merged.filter((v, i, a) => a.findIndex(t => (t.email === v.email)) === i);
-                localStorage.setItem('totalRecallContacts', JSON.stringify(unique));
-                return unique;
-            });
+
+        const processNewContacts = async (newContacts) => {
+            const existingEmails = new Set(savedContacts.map(c => c.email));
+            const trulyNewContacts = newContacts.filter(c => !existingEmails.has(c.email));
+
+            if (trulyNewContacts.length > 0) {
+
+                // 1. Update UI and local storage
+                setSavedContacts(prev => {
+                    const merged = [...prev, ...trulyNewContacts];
+                    localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
+                    return merged;
+                });
+
+                // 2. Trigger Email via Supabase Edge Function
+                for (const contact of trulyNewContacts) {
+                    try {
+                        const { data, error } = await supabase.functions.invoke('send-email', {
+                            body: {
+                                to: contact.email,
+                                subject: "Let's connect on TotalRecall!",
+                                html: `<p>Hi ${contact.name},</p><p>I just added you to my contacts on TotalRecall. Join me here to start chatting and video calling: <a href="${window.location.origin}">${window.location.origin}</a></p><p>Best,<br/>${displayName}</p>`
+                            }
+                        });
+
+                        if (error) {
+                            console.error(`Failed to send invite to ${contact.email}:`, error);
+                        } else {
+                            console.log(`Invite successfully sent to ${contact.email}`);
+                        }
+                    } catch (error) {
+                        console.error(`Error invoking edge function for ${contact.email}:`, error);
+                    }
+                }
+
+            } else {
+                alert("Contact(s) already exist in your list.");
+            }
         };
 
         if (supported) {
@@ -276,12 +309,14 @@ function ChatApp({ user, onLogout }) {
                 const validContacts = contacts
                     .filter(c => c.email && c.email.length > 0)
                     .map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
-                if (validContacts.length > 0) updateContactsList(validContacts);
+
+                if (validContacts.length > 0) await processNewContacts(validContacts);
             } catch (err) { console.error("Contact selection failed", err); }
         } else {
             const emailInput = prompt("Enter an email address to add a contact manually:");
             if (emailInput && emailInput.trim()) {
-                updateContactsList([{ name: emailInput.split('@')[0], email: emailInput.trim() }]);
+                const targetEmail = emailInput.trim();
+                await processNewContacts([{ name: targetEmail.split('@')[0], email: targetEmail }]);
             }
         }
     };
@@ -310,10 +345,8 @@ function ChatApp({ user, onLogout }) {
         peersRef.current[targetEmail] = pc;
         iceCandidateQueues.current[targetEmail] = [];
 
-        // Add local tracks (webcam or screen share)
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => {
-                // If screen sharing is active, replace video track during setup
                 if (track.kind === 'video' && isScreenSharingRef.current && screenStreamRef.current) {
                     pc.addTrack(screenStreamRef.current.getVideoTracks()[0], localStreamRef.current);
                 } else {
@@ -359,13 +392,11 @@ function ChatApp({ user, onLogout }) {
         });
         delete iceCandidateQueues.current[email];
 
-        // If no peers are left, end the call
         if (Object.keys(peersRef.current).length === 0) {
             endVoiceCall(false);
         }
     };
 
-    // Ref to handle initiating calls to avoid stale closures
     useEffect(() => {
         initiateCallRef.current = async (targetEmail, isAutoJoin = false, peersToShare = []) => {
             if (!channelRef.current) return;
@@ -393,7 +424,6 @@ function ChatApp({ user, onLogout }) {
         };
     });
 
-    // Ref to handle background mesh joining
     useEffect(() => {
         autoAcceptOfferRef.current = async (payload) => {
             if (!channelRef.current || !localStreamRef.current) return;
@@ -424,7 +454,7 @@ function ChatApp({ user, onLogout }) {
 
     const acceptCall = async () => {
         const currentIncomingCall = incomingCall;
-        setIncomingCall(null); // Close modal immediately
+        setIncomingCall(null);
 
         if (!currentIncomingCall || !channelRef.current) return;
 
@@ -457,11 +487,9 @@ function ChatApp({ user, onLogout }) {
             setInVoiceCall(true);
             setSelectedContact(senderEmail);
 
-            // AUTO MESH JOIN: Call everyone else who is already in this session
             if (currentIncomingCall.existingPeers && currentIncomingCall.existingPeers.length > 0) {
                 currentIncomingCall.existingPeers.forEach(peerEmail => {
                     if (peerEmail !== userEmail && initiateCallRef.current) {
-                        // Wait a split second to prevent immediate ICE glare
                         setTimeout(() => {
                             initiateCallRef.current(peerEmail, true, []);
                         }, 500);
@@ -477,7 +505,6 @@ function ChatApp({ user, onLogout }) {
     };
 
     const endVoiceCall = (broadcast = true) => {
-        // Disconnect from all peers
         Object.keys(peersRef.current).forEach(email => {
             if (peersRef.current[email]) peersRef.current[email].close();
             if (broadcast && channelRef.current) {
@@ -487,7 +514,6 @@ function ChatApp({ user, onLogout }) {
 
         peersRef.current = {};
 
-        // Stop local media
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
             localStreamRef.current = null;
@@ -516,7 +542,6 @@ function ChatApp({ user, onLogout }) {
 
                 screenTrack.onended = () => stopScreenShare();
 
-                // Replace track on ALL active peer connections in the mesh
                 Object.values(peersRef.current).forEach(pc => {
                     const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
                     if (videoSender) videoSender.replaceTrack(screenTrack);
@@ -545,7 +570,6 @@ function ChatApp({ user, onLogout }) {
         if (localStreamRef.current) {
             const webcamTrack = localStreamRef.current.getVideoTracks()[0];
 
-            // Revert track on ALL active peer connections
             Object.values(peersRef.current).forEach(pc => {
                 const videoSender = pc.getSenders().find(s => s.track?.kind === 'video' || s.track === null);
                 if (videoSender && webcamTrack) {
@@ -566,13 +590,11 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // Helper functions for UI Buttons
     const handleStartCall = () => {
         initiateCallRef.current(selectedContact, false, []);
     };
 
     const handleAddToCall = () => {
-        // Pass array of everyone currently in the call so the new user can auto-connect to them
         const currentPeers = Object.keys(peersRef.current);
         initiateCallRef.current(selectedContact, false, currentPeers);
     };
@@ -635,7 +657,6 @@ function ChatApp({ user, onLogout }) {
                                 <span style={{ fontSize: '16px' }}>{c.name}</span>
                                 <span style={{ fontSize: '12px', color: '#8696a0' }}>{c.email}</span>
                             </div>
-                            {/* Show a mini indicator if they are currently in the call */}
                             {Object.keys(remoteStreams).includes(c.email) && (
                                 <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
                             )}
@@ -683,7 +704,6 @@ function ChatApp({ user, onLogout }) {
                                     <button onClick={handleStartCall} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
                                 ) : (
                                     <>
-                                        {/* Multi-party: Add additional users to call */}
                                         {!isSelectedContactInCall && (
                                             <button onClick={handleAddToCall} style={{ backgroundColor: '#00a884', color: '#111', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', marginRight: '10px' }}>
                                                 ➕ Add to Call
