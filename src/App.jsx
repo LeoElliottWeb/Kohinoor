@@ -3,6 +3,30 @@ import { supabase } from './supabaseClient';
 import './App.css';
 
 // ==========================================
+// 📺 REMOTE VIDEO COMPONENT (For Multiple Users)
+// ==========================================
+function RemoteVideo({ stream, email, savedContacts }) {
+    const videoRef = useRef(null);
+
+    useEffect(() => {
+        if (videoRef.current && stream) {
+            videoRef.current.srcObject = stream;
+        }
+    }, [stream]);
+
+    const contactName = savedContacts.find(c => c.email === email)?.name || email.split('@')[0];
+
+    return (
+        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
+            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px', color: '#fff' }}>
+                {contactName}
+            </span>
+        </div>
+    );
+}
+
+// ==========================================
 // 🛡️ MAIN CHAT COMPONENT
 // ==========================================
 function ChatApp({ user, onLogout }) {
@@ -19,26 +43,37 @@ function ChatApp({ user, onLogout }) {
     const channelRef = useRef(null);
     const presenceKeyRef = useRef(null);
 
-    // WebRTC States
+    // WebRTC States (Multi-party)
     const [inVoiceCall, setInVoiceCall] = useState(false);
     const [incomingCall, setIncomingCall] = useState(null);
-    const [remoteMediaStream, setRemoteMediaStream] = useState(null);
-    const [localMediaStream, setLocalMediaStream] = useState(null);
 
-    // Screen Share States
+    const [localMediaStream, setLocalMediaStream] = useState(null);
+    const [remoteStreams, setRemoteStreams] = useState({}); // { [email]: MediaStream }
+
+    const peersRef = useRef({}); // { [email]: RTCPeerConnection }
+    const iceCandidateQueues = useRef({}); // { [email]: [] }
+
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const screenStreamRef = useRef(null);
+    const localStreamRef = useRef(null); // Holds the permanent webcam/mic stream
+    const isScreenSharingRef = useRef(false); // Ref for closures
 
     const chatContainerRef = useRef(null);
-    const peerConnectionRef = useRef(null);
-    const localStreamRef = useRef(null); // Holds the permanent webcam/mic stream
-    const remoteVideoRef = useRef(null);
     const localVideoRef = useRef(null);
-    const iceCandidateQueueRef = useRef([]);
+
+    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    // Function Refs for Websocket Closures
+    const autoAcceptOfferRef = useRef(null);
+    const initiateCallRef = useRef(null);
 
     useEffect(() => {
         selectedContactRef.current = selectedContact;
     }, [selectedContact]);
+
+    useEffect(() => {
+        isScreenSharingRef.current = isScreenSharing;
+    }, [isScreenSharing]);
 
     // Load saved contacts
     useEffect(() => {
@@ -56,15 +91,12 @@ function ChatApp({ user, onLogout }) {
         }
     }, [chatMessages]);
 
-    // Attach video streams safely
+    // Attach local video stream
     useEffect(() => {
-        if (remoteVideoRef.current && remoteMediaStream) {
-            remoteVideoRef.current.srcObject = remoteMediaStream;
-        }
         if (localVideoRef.current && localMediaStream) {
             localVideoRef.current.srcObject = localMediaStream;
         }
-    }, [remoteMediaStream, localMediaStream, inVoiceCall]);
+    }, [localMediaStream, inVoiceCall]);
 
     // ==========================================
     // 📨 FETCH MESSAGE HISTORY
@@ -85,8 +117,6 @@ function ChatApp({ user, onLogout }) {
         };
         fetchHistory();
     }, [selectedContact, userEmail]);
-
-    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
     // ==========================================
     // 📡 UNIFIED SUPABASE CHANNEL
@@ -136,36 +166,52 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
+        // MESH NETWORK: WEBRTC SIGNALING
         channel.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
-            if (payload.targetEmail === userEmail) setIncomingCall(payload);
+            if (payload.targetEmail === userEmail) {
+                // If it's a mesh background join AND we are already in a call -> auto accept
+                if (payload.isAutoJoin && localStreamRef.current && autoAcceptOfferRef.current) {
+                    autoAcceptOfferRef.current(payload);
+                } else {
+                    setIncomingCall(payload);
+                }
+            }
         });
 
         channel.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
-            if (payload.targetEmail === userEmail && peerConnectionRef.current) {
-                try {
-                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
-                    while (iceCandidateQueueRef.current.length > 0) {
-                        const candidate = iceCandidateQueueRef.current.shift();
-                        try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)); }
-                        catch (err) { console.error("ICE error:", err); }
-                    }
-                } catch (err) { console.error("Failed handling answer:", err); }
+            if (payload.targetEmail === userEmail) {
+                const pc = peersRef.current[payload.sender];
+                if (pc) {
+                    try {
+                        await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                        const queue = iceCandidateQueues.current[payload.sender] || [];
+                        while (queue.length > 0) {
+                            const candidate = queue.shift();
+                            try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+                            catch (err) { console.error("ICE error:", err); }
+                        }
+                    } catch (err) { console.error("Failed handling answer:", err); }
+                }
             }
         });
 
         channel.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
-                    try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate)); }
+                const pc = peersRef.current[payload.sender];
+                if (pc && pc.remoteDescription) {
+                    try { await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); }
                     catch (err) { console.error("ICE error:", err); }
                 } else {
-                    iceCandidateQueueRef.current.push(payload.candidate);
+                    if (!iceCandidateQueues.current[payload.sender]) iceCandidateQueues.current[payload.sender] = [];
+                    iceCandidateQueues.current[payload.sender].push(payload.candidate);
                 }
             }
         });
 
         channel.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) endVoiceCall(false);
+            if (payload.targetEmail === userEmail) {
+                handlePeerDisconnect(payload.sender);
+            }
         });
 
         channel.subscribe(async (status) => {
@@ -241,50 +287,241 @@ function ChatApp({ user, onLogout }) {
     };
 
     // ==========================================
-    // 📹 WEBRTC HELPERS & SCREEN SHARE
+    // 📹 WEBRTC & FULL MESH NETWORK LOGIC
     // ==========================================
     const getMediaStream = async () => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("Your browser does not support WebRTC or you are not on a secure HTTPS connection.");
+            throw new Error("Your browser does not support WebRTC or you are not on a secure connection.");
         }
         try {
             return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         } catch (err) {
-            console.warn("Could not get both video/audio. Attempting video only.", err);
+            console.warn("Could not get both video/audio. Attempting video only.");
             try {
                 return await navigator.mediaDevices.getUserMedia({ video: true });
             } catch (err2) {
-                console.warn("Video only failed. Attempting audio only.", err2);
                 return await navigator.mediaDevices.getUserMedia({ audio: true });
             }
         }
     };
 
-    const toggleScreenShare = async () => {
-        if (!peerConnectionRef.current) return;
+    const createPeerConnection = (targetEmail) => {
+        const pc = new RTCPeerConnection(rtcConfig);
+        peersRef.current[targetEmail] = pc;
+        iceCandidateQueues.current[targetEmail] = [];
 
+        // Add local tracks (webcam or screen share)
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => {
+                // If screen sharing is active, replace video track during setup
+                if (track.kind === 'video' && isScreenSharingRef.current && screenStreamRef.current) {
+                    pc.addTrack(screenStreamRef.current.getVideoTracks()[0], localStreamRef.current);
+                } else {
+                    pc.addTrack(track, localStreamRef.current);
+                }
+            });
+        }
+
+        pc.onicecandidate = (e) => {
+            if (e.candidate && channelRef.current) {
+                channelRef.current.send({
+                    type: 'broadcast', event: 'webrtc-ice',
+                    payload: { targetEmail, candidate: e.candidate, sender: userEmail }
+                });
+            }
+        };
+
+        pc.ontrack = (e) => {
+            setRemoteStreams(prev => {
+                const stream = e.streams[0] || new MediaStream([e.track]);
+                return { ...prev, [targetEmail]: stream };
+            });
+        };
+
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                handlePeerDisconnect(targetEmail);
+            }
+        };
+
+        return pc;
+    };
+
+    const handlePeerDisconnect = (email) => {
+        if (peersRef.current[email]) {
+            peersRef.current[email].close();
+            delete peersRef.current[email];
+        }
+        setRemoteStreams(prev => {
+            const newStreams = { ...prev };
+            delete newStreams[email];
+            return newStreams;
+        });
+        delete iceCandidateQueues.current[email];
+
+        // If no peers are left, end the call
+        if (Object.keys(peersRef.current).length === 0) {
+            endVoiceCall(false);
+        }
+    };
+
+    // Ref to handle initiating calls to avoid stale closures
+    useEffect(() => {
+        initiateCallRef.current = async (targetEmail, isAutoJoin = false, peersToShare = []) => {
+            if (!channelRef.current) return;
+            try {
+                if (!localStreamRef.current) {
+                    const stream = await getMediaStream();
+                    localStreamRef.current = stream;
+                    setLocalMediaStream(stream);
+                }
+
+                const pc = createPeerConnection(targetEmail);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                channelRef.current.send({
+                    type: 'broadcast', event: 'webrtc-offer',
+                    payload: { targetEmail, offer, sender: userEmail, existingPeers: peersToShare, isAutoJoin }
+                });
+                setInVoiceCall(true);
+
+            } catch (err) {
+                if (!isAutoJoin) alert("Call setup failed: " + err.message);
+                console.error(err);
+            }
+        };
+    });
+
+    // Ref to handle background mesh joining
+    useEffect(() => {
+        autoAcceptOfferRef.current = async (payload) => {
+            if (!channelRef.current || !localStreamRef.current) return;
+            try {
+                const senderEmail = payload.sender;
+                const pc = createPeerConnection(senderEmail);
+
+                await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                channelRef.current.send({
+                    type: 'broadcast', event: 'webrtc-answer',
+                    payload: { targetEmail: senderEmail, answer, sender: userEmail }
+                });
+
+                const queue = iceCandidateQueues.current[senderEmail] || [];
+                while (queue.length > 0) {
+                    const candidate = queue.shift();
+                    try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+                    catch (err) { console.error("ICE error:", err); }
+                }
+            } catch (err) {
+                console.error("Auto accept failed", err);
+            }
+        };
+    });
+
+    const acceptCall = async () => {
+        const currentIncomingCall = incomingCall;
+        setIncomingCall(null); // Close modal immediately
+
+        if (!currentIncomingCall || !channelRef.current) return;
+
+        try {
+            if (!localStreamRef.current) {
+                const stream = await getMediaStream();
+                localStreamRef.current = stream;
+                setLocalMediaStream(stream);
+            }
+
+            const senderEmail = currentIncomingCall.sender;
+            const pc = createPeerConnection(senderEmail);
+
+            await pc.setRemoteDescription(new RTCSessionDescription(currentIncomingCall.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            channelRef.current.send({
+                type: 'broadcast', event: 'webrtc-answer',
+                payload: { targetEmail: senderEmail, answer, sender: userEmail }
+            });
+
+            const queue = iceCandidateQueues.current[senderEmail] || [];
+            while (queue.length > 0) {
+                const candidate = queue.shift();
+                try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+                catch (err) { console.error("ICE error:", err); }
+            }
+
+            setInVoiceCall(true);
+            setSelectedContact(senderEmail);
+
+            // AUTO MESH JOIN: Call everyone else who is already in this session
+            if (currentIncomingCall.existingPeers && currentIncomingCall.existingPeers.length > 0) {
+                currentIncomingCall.existingPeers.forEach(peerEmail => {
+                    if (peerEmail !== userEmail && initiateCallRef.current) {
+                        // Wait a split second to prevent immediate ICE glare
+                        setTimeout(() => {
+                            initiateCallRef.current(peerEmail, true, []);
+                        }, 500);
+                    }
+                });
+            }
+
+        } catch (e) {
+            console.error("Setup Error:", e);
+            alert("Could not establish call connection: " + e.message);
+            if (Object.keys(peersRef.current).length === 0) endVoiceCall(false);
+        }
+    };
+
+    const endVoiceCall = (broadcast = true) => {
+        // Disconnect from all peers
+        Object.keys(peersRef.current).forEach(email => {
+            if (peersRef.current[email]) peersRef.current[email].close();
+            if (broadcast && channelRef.current) {
+                channelRef.current.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } });
+            }
+        });
+
+        peersRef.current = {};
+
+        // Stop local media
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => track.stop());
+            localStreamRef.current = null;
+        }
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(track => track.stop());
+            screenStreamRef.current = null;
+        }
+
+        setIsScreenSharing(false);
+        setRemoteStreams({});
+        setLocalMediaStream(null);
+        setInVoiceCall(false);
+        setIncomingCall(null);
+        iceCandidateQueues.current = {};
+    };
+
+    const toggleScreenShare = async () => {
         if (isScreenSharing) {
-            // Stop sharing screen and revert to webcam
             stopScreenShare();
         } else {
-            // Start screen share
             try {
                 const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 screenStreamRef.current = screenStream;
                 const screenTrack = screenStream.getVideoTracks()[0];
 
-                // If the user clicks the native browser "Stop sharing" bar/button
-                screenTrack.onended = () => {
-                    stopScreenShare();
-                };
+                screenTrack.onended = () => stopScreenShare();
 
-                // Replace the video track being sent to the peer
-                const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
-                if (videoSender) {
-                    await videoSender.replaceTrack(screenTrack);
-                }
+                // Replace track on ALL active peer connections in the mesh
+                Object.values(peersRef.current).forEach(pc => {
+                    const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+                    if (videoSender) videoSender.replaceTrack(screenTrack);
+                });
 
-                // Create a mixed stream for the local video element (Screen Video + Camera Mic)
                 const localAudioTrack = localStreamRef.current?.getAudioTracks()[0];
                 const displayStream = new MediaStream([screenTrack]);
                 if (localAudioTrack) displayStream.addTrack(localAudioTrack);
@@ -300,154 +537,26 @@ function ChatApp({ user, onLogout }) {
     const stopScreenShare = async () => {
         if (!isScreenSharing) return;
 
-        // Stop the screen recording tracks
         if (screenStreamRef.current) {
             screenStreamRef.current.getTracks().forEach(track => track.stop());
             screenStreamRef.current = null;
         }
 
-        // Revert peer connection back to the webcam track
-        if (peerConnectionRef.current && localStreamRef.current) {
+        if (localStreamRef.current) {
             const webcamTrack = localStreamRef.current.getVideoTracks()[0];
-            const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video' || s.track === null);
 
-            if (videoSender && webcamTrack) {
-                try {
-                    await videoSender.replaceTrack(webcamTrack);
-                } catch (err) {
-                    console.error("Error reverting to webcam track:", err);
+            // Revert track on ALL active peer connections
+            Object.values(peersRef.current).forEach(pc => {
+                const videoSender = pc.getSenders().find(s => s.track?.kind === 'video' || s.track === null);
+                if (videoSender && webcamTrack) {
+                    videoSender.replaceTrack(webcamTrack);
                 }
-            }
+            });
 
-            // Revert local video element back to the original webcam/mic stream
             setLocalMediaStream(localStreamRef.current);
         }
 
         setIsScreenSharing(false);
-    };
-
-    const startCall = async () => {
-        if (!selectedContact || !channelRef.current) return;
-
-        try {
-            const stream = await getMediaStream();
-            localStreamRef.current = stream;
-            setLocalMediaStream(stream);
-
-            const pc = new RTCPeerConnection(rtcConfig);
-            peerConnectionRef.current = pc;
-            stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-            pc.onicecandidate = (e) => {
-                if (e.candidate && channelRef.current) {
-                    channelRef.current.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: selectedContact, candidate: e.candidate, sender: userEmail } });
-                }
-            };
-
-            pc.ontrack = (e) => {
-                if (e.streams && e.streams.length > 0) {
-                    setRemoteMediaStream(e.streams[0]);
-                } else {
-                    setRemoteMediaStream(new MediaStream([e.track]));
-                }
-            };
-
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            channelRef.current.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: selectedContact, offer, sender: userEmail } });
-            setInVoiceCall(true);
-
-        } catch (err) {
-            alert("Call setup failed: " + err.message);
-            console.error(err);
-            endVoiceCall(false);
-        }
-    };
-
-    const acceptCall = async () => {
-        // Cache the incoming call details
-        const currentIncomingCall = incomingCall;
-
-        // IMMEDIATE UI UPDATE: Hide modal immediately so it doesn't get stuck during camera permission prompt
-        setIncomingCall(null);
-
-        if (!currentIncomingCall || !channelRef.current) {
-            alert("Lost connection to the caller.");
-            endVoiceCall(false);
-            return;
-        }
-
-        try {
-            // Get user's camera/mic
-            const stream = await getMediaStream();
-            localStreamRef.current = stream;
-            setLocalMediaStream(stream);
-
-            const pc = new RTCPeerConnection(rtcConfig);
-            peerConnectionRef.current = pc;
-            stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-            pc.onicecandidate = (e) => {
-                if (e.candidate && channelRef.current) {
-                    channelRef.current.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: currentIncomingCall.sender, candidate: e.candidate, sender: userEmail } });
-                }
-            };
-
-            pc.ontrack = (e) => {
-                if (e.streams && e.streams.length > 0) {
-                    setRemoteMediaStream(e.streams[0]);
-                } else {
-                    setRemoteMediaStream(new MediaStream([e.track]));
-                }
-            };
-
-            await pc.setRemoteDescription(new RTCSessionDescription(currentIncomingCall.offer));
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-
-            channelRef.current.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: currentIncomingCall.sender, answer, sender: userEmail } });
-
-            while (iceCandidateQueueRef.current.length > 0) {
-                const candidate = iceCandidateQueueRef.current.shift();
-                try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
-                catch (err) { console.error("ICE error:", err); }
-            }
-
-            setInVoiceCall(true);
-            setSelectedContact(currentIncomingCall.sender);
-
-        } catch (e) {
-            console.error("Setup Error:", e);
-            alert("Could not establish call connection: " + e.message);
-            endVoiceCall(false);
-        }
-    };
-
-    const endVoiceCall = (broadcast = true) => {
-        if (peerConnectionRef.current) {
-            peerConnectionRef.current.close();
-            peerConnectionRef.current = null;
-        }
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => track.stop());
-            localStreamRef.current = null;
-        }
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(track => track.stop());
-            screenStreamRef.current = null;
-        }
-
-        setIsScreenSharing(false);
-        setRemoteMediaStream(null);
-        setLocalMediaStream(null);
-        setInVoiceCall(false);
-        setIncomingCall(null);
-        iceCandidateQueueRef.current = [];
-
-        if (broadcast && selectedContact && channelRef.current) {
-            channelRef.current.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: selectedContact } });
-        }
     };
 
     const refreshPresence = async () => {
@@ -457,17 +566,30 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // Helper functions for UI Buttons
+    const handleStartCall = () => {
+        initiateCallRef.current(selectedContact, false, []);
+    };
+
+    const handleAddToCall = () => {
+        // Pass array of everyone currently in the call so the new user can auto-connect to them
+        const currentPeers = Object.keys(peersRef.current);
+        initiateCallRef.current(selectedContact, false, currentPeers);
+    };
+
+    const isSelectedContactInCall = Object.keys(remoteStreams).includes(selectedContact);
+
     return (
         <div style={{ display: 'flex', height: '100vh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif' }}>
 
             {/* INCOMING CALL MODAL */}
-            {incomingCall && !inVoiceCall && (
+            {incomingCall && (
                 <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
                     <h4 style={{ margin: '0 0 10px 0' }}>📹 Incoming Call</h4>
                     <p style={{ margin: '0 0 15px 0', fontSize: '14px' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
                     <div style={{ display: 'flex', gap: '10px' }}>
                         <button onClick={acceptCall} style={{ flex: 1, backgroundColor: '#00a884', border: 'none', padding: '8px', borderRadius: '4px', color: '#111', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
-                        <button onClick={() => { setIncomingCall(null); endVoiceCall(false); }} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
+                        <button onClick={() => setIncomingCall(null)} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
                     </div>
                 </div>
             )}
@@ -513,6 +635,10 @@ function ChatApp({ user, onLogout }) {
                                 <span style={{ fontSize: '16px' }}>{c.name}</span>
                                 <span style={{ fontSize: '12px', color: '#8696a0' }}>{c.email}</span>
                             </div>
+                            {/* Show a mini indicator if they are currently in the call */}
+                            {Object.keys(remoteStreams).includes(c.email) && (
+                                <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
+                            )}
                         </div>
                     ))}
 
@@ -532,6 +658,9 @@ function ChatApp({ user, onLogout }) {
                                     {u.email.charAt(0).toUpperCase()}
                                 </div>
                                 <span style={{ fontSize: '16px' }}>{u.email.split('@')[0]}</span>
+                                {Object.keys(remoteStreams).includes(u.email) && (
+                                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
+                                )}
                             </div>
                         ))
                     )}
@@ -551,35 +680,45 @@ function ChatApp({ user, onLogout }) {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center' }}>
                                 {!inVoiceCall ? (
-                                    <button onClick={startCall} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
+                                    <button onClick={handleStartCall} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
                                 ) : (
                                     <>
+                                        {/* Multi-party: Add additional users to call */}
+                                        {!isSelectedContactInCall && (
+                                            <button onClick={handleAddToCall} style={{ backgroundColor: '#00a884', color: '#111', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', marginRight: '10px' }}>
+                                                ➕ Add to Call
+                                            </button>
+                                        )}
+
                                         <button
                                             onClick={toggleScreenShare}
                                             style={{ backgroundColor: isScreenSharing ? '#334155' : 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', marginRight: '10px' }}
                                         >
                                             {isScreenSharing ? '⏹️ Stop Share' : '🖥️ Share Screen'}
                                         </button>
+
                                         <button onClick={() => endVoiceCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>🔴 End Call</button>
                                     </>
                                 )}
                             </div>
                         </div>
 
+                        {/* SCALABLE MULTI-PARTY VIDEO GRID */}
                         {inVoiceCall && (
                             <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '10px', padding: '10px', borderBottom: '1px solid #222d34' }}>
+
+                                {/* Local Video (You) */}
                                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
                                     <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                                     <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
                                         {isScreenSharing ? "You (Screen)" : "You"}
                                     </span>
                                 </div>
-                                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-                                    <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                    <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
-                                        {savedContacts.find(c => c.email === selectedContact)?.name || selectedContact.split('@')[0]}
-                                    </span>
-                                </div>
+
+                                {/* Remote Videos (All Participants) */}
+                                {Object.entries(remoteStreams).map(([email, stream]) => (
+                                    <RemoteVideo key={email} stream={stream} email={email} savedContacts={savedContacts} />
+                                ))}
                             </div>
                         )}
 
