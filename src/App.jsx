@@ -25,9 +25,13 @@ function ChatApp({ user, onLogout }) {
     const [remoteMediaStream, setRemoteMediaStream] = useState(null);
     const [localMediaStream, setLocalMediaStream] = useState(null);
 
+    // Screen Share States
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const screenStreamRef = useRef(null);
+
     const chatContainerRef = useRef(null);
     const peerConnectionRef = useRef(null);
-    const localStreamRef = useRef(null);
+    const localStreamRef = useRef(null); // Holds the permanent webcam/mic stream
     const remoteVideoRef = useRef(null);
     const localVideoRef = useRef(null);
     const iceCandidateQueueRef = useRef([]);
@@ -52,10 +56,14 @@ function ChatApp({ user, onLogout }) {
         }
     }, [chatMessages]);
 
-    // Attach video streams
+    // Attach video streams safely
     useEffect(() => {
-        if (remoteVideoRef.current && remoteMediaStream) remoteVideoRef.current.srcObject = remoteMediaStream;
-        if (localVideoRef.current && localMediaStream) localVideoRef.current.srcObject = localMediaStream;
+        if (remoteVideoRef.current && remoteMediaStream) {
+            remoteVideoRef.current.srcObject = remoteMediaStream;
+        }
+        if (localVideoRef.current && localMediaStream) {
+            localVideoRef.current.srcObject = localMediaStream;
+        }
     }, [remoteMediaStream, localMediaStream, inVoiceCall]);
 
     // ==========================================
@@ -81,69 +89,38 @@ function ChatApp({ user, onLogout }) {
     const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
     // ==========================================
-    // 📡 UNIFIED SUPABASE CHANNEL - FIXED
+    // 📡 UNIFIED SUPABASE CHANNEL
     // ==========================================
     useEffect(() => {
         if (!userEmail) return;
 
-        // Generate a unique presence key that includes the user's email
-        // This ensures each user has a unique presence entry
         const presenceKey = `user_${userEmail}`;
         presenceKeyRef.current = presenceKey;
 
-        // Create channel with explicit presence configuration
         const channel = supabase.channel('totalrecall-global', {
-            config: {
-                presence: {
-                    key: presenceKey,
-                },
-            },
+            config: { presence: { key: presenceKey } },
         });
 
         channelRef.current = channel;
 
-        // Handle presence sync events
         channel.on('presence', { event: 'sync' }, () => {
             const state = channel.presenceState();
             const activeUsers = [];
 
-            console.log('Presence state:', state); // Debug log
-
-            // Iterate through all presence states
             for (const key in state) {
                 const presences = state[key];
                 if (presences && presences.length > 0) {
-                    // Get the first presence entry for this key
                     const presence = presences[0];
-
-                    // Check if this is a valid user (not the current user)
                     if (presence && presence.email && presence.email !== userEmail) {
-                        // Avoid duplicates
                         if (!activeUsers.some(u => u.email === presence.email)) {
-                            activeUsers.push({
-                                email: presence.email,
-                                presenceKey: key
-                            });
+                            activeUsers.push({ email: presence.email, presenceKey: key });
                         }
                     }
                 }
             }
-
             setOnlineUsers(activeUsers);
         });
 
-        // Handle user join/leave events for more reliable tracking
-        channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-            console.log('User joined:', key, newPresences);
-            // The sync event will handle the state update
-        });
-
-        channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-            console.log('User left:', key, leftPresences);
-            // The sync event will handle the state update
-        });
-
-        // Handle new messages
         channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
             const newMsg = payload.new;
             const currentContact = selectedContactRef.current;
@@ -159,19 +136,20 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // WebRTC event handlers
         channel.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail) setIncomingCall(payload);
         });
 
         channel.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail && peerConnectionRef.current) {
-                await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
-
-                while (iceCandidateQueueRef.current.length > 0) {
-                    try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(iceCandidateQueueRef.current.shift())); }
-                    catch (err) { console.error("ICE error:", err); }
-                }
+                try {
+                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                    while (iceCandidateQueueRef.current.length > 0) {
+                        const candidate = iceCandidateQueueRef.current.shift();
+                        try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)); }
+                        catch (err) { console.error("ICE error:", err); }
+                    }
+                } catch (err) { console.error("Failed handling answer:", err); }
             }
         });
 
@@ -190,33 +168,19 @@ function ChatApp({ user, onLogout }) {
             if (payload.targetEmail === userEmail) endVoiceCall(false);
         });
 
-        // Subscribe and track presence
         channel.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                try {
-                    // Track the user with their email
-                    await channel.track({
-                        email: userEmail,
-                        online: true,
-                        timestamp: new Date().toISOString()
-                    });
-                    console.log('Successfully tracked user:', userEmail);
-                } catch (error) {
-                    console.error('Error tracking presence:', error);
-                }
+                try { await channel.track({ email: userEmail, online: true, timestamp: new Date().toISOString() }); }
+                catch (error) { console.error('Error tracking presence:', error); }
             }
         });
 
-        // Cleanup function
         return () => {
             if (channelRef.current) {
                 try {
-                    // Untrack presence before removing channel
                     channelRef.current.untrack();
                     supabase.removeChannel(channelRef.current);
-                } catch (error) {
-                    console.error('Error during channel cleanup:', error);
-                }
+                } catch (error) { console.error('Error cleanup:', error); }
                 channelRef.current = null;
             }
         };
@@ -249,9 +213,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ==========================================
-    // 📇 CONTACT IMPORT LOGIC
-    // ==========================================
     const handleImportContacts = async () => {
         const supported = ('contacts' in navigator && 'ContactsManager' in window);
         const updateContactsList = (newContacts) => {
@@ -269,11 +230,8 @@ function ChatApp({ user, onLogout }) {
                 const validContacts = contacts
                     .filter(c => c.email && c.email.length > 0)
                     .map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
-
                 if (validContacts.length > 0) updateContactsList(validContacts);
-            } catch (err) {
-                console.error("Contact selection failed", err);
-            }
+            } catch (err) { console.error("Contact selection failed", err); }
         } else {
             const emailInput = prompt("Enter an email address to add a contact manually:");
             if (emailInput && emailInput.trim()) {
@@ -283,12 +241,96 @@ function ChatApp({ user, onLogout }) {
     };
 
     // ==========================================
-    // 📹 WEBRTC VIDEO LOGIC
+    // 📹 WEBRTC HELPERS & SCREEN SHARE
     // ==========================================
+    const getMediaStream = async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("Your browser does not support WebRTC or you are not on a secure HTTPS connection.");
+        }
+        try {
+            return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        } catch (err) {
+            console.warn("Could not get both video/audio. Attempting video only.", err);
+            try {
+                return await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (err2) {
+                console.warn("Video only failed. Attempting audio only.", err2);
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+        }
+    };
+
+    const toggleScreenShare = async () => {
+        if (!peerConnectionRef.current) return;
+
+        if (isScreenSharing) {
+            // Stop sharing screen and revert to webcam
+            stopScreenShare();
+        } else {
+            // Start screen share
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                screenStreamRef.current = screenStream;
+                const screenTrack = screenStream.getVideoTracks()[0];
+
+                // If the user clicks the native browser "Stop sharing" bar/button
+                screenTrack.onended = () => {
+                    stopScreenShare();
+                };
+
+                // Replace the video track being sent to the peer
+                const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
+                if (videoSender) {
+                    await videoSender.replaceTrack(screenTrack);
+                }
+
+                // Create a mixed stream for the local video element (Screen Video + Camera Mic)
+                const localAudioTrack = localStreamRef.current?.getAudioTracks()[0];
+                const displayStream = new MediaStream([screenTrack]);
+                if (localAudioTrack) displayStream.addTrack(localAudioTrack);
+
+                setLocalMediaStream(displayStream);
+                setIsScreenSharing(true);
+            } catch (err) {
+                console.error("Error sharing screen:", err);
+            }
+        }
+    };
+
+    const stopScreenShare = async () => {
+        if (!isScreenSharing) return;
+
+        // Stop the screen recording tracks
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(track => track.stop());
+            screenStreamRef.current = null;
+        }
+
+        // Revert peer connection back to the webcam track
+        if (peerConnectionRef.current && localStreamRef.current) {
+            const webcamTrack = localStreamRef.current.getVideoTracks()[0];
+            const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video' || s.track === null);
+
+            if (videoSender && webcamTrack) {
+                try {
+                    await videoSender.replaceTrack(webcamTrack);
+                } catch (err) {
+                    console.error("Error reverting to webcam track:", err);
+                }
+            }
+
+            // Revert local video element back to the original webcam/mic stream
+            setLocalMediaStream(localStreamRef.current);
+        }
+
+        setIsScreenSharing(false);
+    };
+
     const startCall = async () => {
         if (!selectedContact || !channelRef.current) return;
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            const stream = await getMediaStream();
             localStreamRef.current = stream;
             setLocalMediaStream(stream);
 
@@ -302,23 +344,43 @@ function ChatApp({ user, onLogout }) {
                 }
             };
 
-            pc.ontrack = (e) => setRemoteMediaStream(e.streams[0] || new MediaStream([e.track]));
+            pc.ontrack = (e) => {
+                if (e.streams && e.streams.length > 0) {
+                    setRemoteMediaStream(e.streams[0]);
+                } else {
+                    setRemoteMediaStream(new MediaStream([e.track]));
+                }
+            };
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
             channelRef.current.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: selectedContact, offer, sender: userEmail } });
             setInVoiceCall(true);
+
         } catch (err) {
-            alert("Camera/Mic access required.");
+            alert("Call setup failed: " + err.message);
             console.error(err);
+            endVoiceCall(false);
         }
     };
 
     const acceptCall = async () => {
-        if (!incomingCall || !channelRef.current) return;
+        // Cache the incoming call details
+        const currentIncomingCall = incomingCall;
+
+        // IMMEDIATE UI UPDATE: Hide modal immediately so it doesn't get stuck during camera permission prompt
+        setIncomingCall(null);
+
+        if (!currentIncomingCall || !channelRef.current) {
+            alert("Lost connection to the caller.");
+            endVoiceCall(false);
+            return;
+        }
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            // Get user's camera/mic
+            const stream = await getMediaStream();
             localStreamRef.current = stream;
             setLocalMediaStream(stream);
 
@@ -328,28 +390,37 @@ function ChatApp({ user, onLogout }) {
 
             pc.onicecandidate = (e) => {
                 if (e.candidate && channelRef.current) {
-                    channelRef.current.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: incomingCall.sender, candidate: e.candidate, sender: userEmail } });
+                    channelRef.current.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: currentIncomingCall.sender, candidate: e.candidate, sender: userEmail } });
                 }
             };
 
-            pc.ontrack = (e) => setRemoteMediaStream(e.streams[0] || new MediaStream([e.track]));
+            pc.ontrack = (e) => {
+                if (e.streams && e.streams.length > 0) {
+                    setRemoteMediaStream(e.streams[0]);
+                } else {
+                    setRemoteMediaStream(new MediaStream([e.track]));
+                }
+            };
 
-            await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+            await pc.setRemoteDescription(new RTCSessionDescription(currentIncomingCall.offer));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
-            channelRef.current.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: incomingCall.sender, answer, sender: userEmail } });
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: currentIncomingCall.sender, answer, sender: userEmail } });
 
             while (iceCandidateQueueRef.current.length > 0) {
-                try { await pc.addIceCandidate(new RTCIceCandidate(iceCandidateQueueRef.current.shift())); }
+                const candidate = iceCandidateQueueRef.current.shift();
+                try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
                 catch (err) { console.error("ICE error:", err); }
             }
 
             setInVoiceCall(true);
-            setSelectedContact(incomingCall.sender);
-            setIncomingCall(null);
+            setSelectedContact(currentIncomingCall.sender);
+
         } catch (e) {
-            console.error(e);
+            console.error("Setup Error:", e);
+            alert("Could not establish call connection: " + e.message);
+            endVoiceCall(false);
         }
     };
 
@@ -362,6 +433,12 @@ function ChatApp({ user, onLogout }) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
             localStreamRef.current = null;
         }
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach(track => track.stop());
+            screenStreamRef.current = null;
+        }
+
+        setIsScreenSharing(false);
         setRemoteMediaStream(null);
         setLocalMediaStream(null);
         setInVoiceCall(false);
@@ -373,21 +450,10 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ==========================================
-    // 🔄 MANUAL PRESENCE REFRESH (for debugging)
-    // ==========================================
     const refreshPresence = async () => {
         if (channelRef.current) {
-            try {
-                await channelRef.current.track({
-                    email: userEmail,
-                    online: true,
-                    timestamp: new Date().toISOString()
-                });
-                console.log('Presence refreshed for:', userEmail);
-            } catch (error) {
-                console.error('Error refreshing presence:', error);
-            }
+            try { await channelRef.current.track({ email: userEmail, online: true, timestamp: new Date().toISOString() }); }
+            catch (error) { console.error('Error refreshing presence:', error); }
         }
     };
 
@@ -401,14 +467,13 @@ function ChatApp({ user, onLogout }) {
                     <p style={{ margin: '0 0 15px 0', fontSize: '14px' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
                     <div style={{ display: 'flex', gap: '10px' }}>
                         <button onClick={acceptCall} style={{ flex: 1, backgroundColor: '#00a884', border: 'none', padding: '8px', borderRadius: '4px', color: '#111', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
-                        <button onClick={() => setIncomingCall(null)} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
+                        <button onClick={() => { setIncomingCall(null); endVoiceCall(false); }} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
                     </div>
                 </div>
             )}
 
             {/* SIDEBAR - CONTACTS */}
             <div style={{ width: '30%', minWidth: '250px', borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21' }}>
-
                 <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
@@ -430,7 +495,6 @@ function ChatApp({ user, onLogout }) {
                 </div>
 
                 <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-                    {/* Render Saved Contacts */}
                     {savedContacts.length > 0 && (
                         <div style={{ padding: '10px', backgroundColor: '#202c33', color: '#8696a0', fontSize: '12px', textTransform: 'uppercase' }}>
                             Saved Contacts
@@ -478,7 +542,6 @@ function ChatApp({ user, onLogout }) {
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', position: 'relative' }}>
                 {selectedContact ? (
                     <>
-                        {/* Header */}
                         <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
                             <div style={{ display: 'flex', alignItems: 'center' }}>
                                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
@@ -486,33 +549,31 @@ function ChatApp({ user, onLogout }) {
                                 </div>
                                 <b>{savedContacts.find(c => c.email === selectedContact)?.name || selectedContact.split('@')[0]}</b>
                             </div>
-                            <div>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
                                 {!inVoiceCall ? (
                                     <button onClick={startCall} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
                                 ) : (
-                                    <button onClick={() => endVoiceCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>🔴 End Call</button>
+                                    <>
+                                        <button
+                                            onClick={toggleScreenShare}
+                                            style={{ backgroundColor: isScreenSharing ? '#334155' : 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', marginRight: '10px' }}
+                                        >
+                                            {isScreenSharing ? '⏹️ Stop Share' : '🖥️ Share Screen'}
+                                        </button>
+                                        <button onClick={() => endVoiceCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>🔴 End Call</button>
+                                    </>
                                 )}
                             </div>
                         </div>
 
-                        {/* Scalable Multi-User Grid Layout */}
                         {inVoiceCall && (
-                            <div style={{
-                                height: '45vh',
-                                backgroundColor: '#000',
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                                gap: '10px',
-                                padding: '10px',
-                                borderBottom: '1px solid #222d34'
-                            }}>
-                                {/* Local User Video (You) */}
+                            <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '10px', padding: '10px', borderBottom: '1px solid #222d34' }}>
                                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
                                     <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                    <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>You</span>
+                                    <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
+                                        {isScreenSharing ? "You (Screen)" : "You"}
+                                    </span>
                                 </div>
-
-                                {/* Remote User Video */}
                                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
                                     <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                                     <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
@@ -522,7 +583,6 @@ function ChatApp({ user, onLogout }) {
                             </div>
                         )}
 
-                        {/* Messages */}
                         <div ref={chatContainerRef} style={{ flexGrow: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)', backgroundSize: 'contain' }}>
                             {chatMessages.map((m, i) => {
                                 const isMine = m.sender_email === userEmail;
@@ -591,11 +651,8 @@ export default function App() {
                     setEmail(''); setPassword('');
                 }
             }
-        } catch (err) {
-            alert(err.message);
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { alert(err.message); }
+        finally { setLoading(false); }
     };
 
     if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
@@ -604,7 +661,6 @@ export default function App() {
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
             <div style={{ backgroundColor: '#202c33', padding: '40px', borderRadius: '8px', width: '350px', textAlign: 'center', boxShadow: '0 17px 50px 0 rgba(11,20,26,.19)' }}>
                 <h2 style={{ color: '#00a884', marginBottom: '30px' }}>TotalRecall</h2>
-
                 {showConfirmation ? (
                     <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: '48px', marginBottom: '16px' }}>📧</div>
