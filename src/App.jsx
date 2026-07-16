@@ -7,12 +7,17 @@ import './App.css';
 // ==========================================
 function ChatApp({ user, onLogout }) {
     const userEmail = user?.email || '';
+    const displayName = userEmail.split('@')[0];
+
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
     const [selectedContact, setSelectedContact] = useState(null);
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
-    const [lobbyChannel, setLobbyChannel] = useState(null);
+
+    const selectedContactRef = useRef(selectedContact);
+    const channelRef = useRef(null);
+    const presenceKeyRef = useRef(null);
 
     // WebRTC States
     const [inVoiceCall, setInVoiceCall] = useState(false);
@@ -26,17 +31,17 @@ function ChatApp({ user, onLogout }) {
     const remoteVideoRef = useRef(null);
     const localVideoRef = useRef(null);
     const iceCandidateQueueRef = useRef([]);
-    const mySocketId = useRef(Math.random().toString(36).substring(7));
 
-    // Load saved contacts from LocalStorage on mount
+    useEffect(() => {
+        selectedContactRef.current = selectedContact;
+    }, [selectedContact]);
+
+    // Load saved contacts
     useEffect(() => {
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) {
-            try {
-                setSavedContacts(JSON.parse(stored));
-            } catch (e) {
-                console.error("Failed to parse saved contacts", e);
-            }
+            try { setSavedContacts(JSON.parse(stored)); }
+            catch (e) { console.error(e); }
         }
     }, []);
 
@@ -50,24 +55,25 @@ function ChatApp({ user, onLogout }) {
     // Attach video streams
     useEffect(() => {
         if (remoteVideoRef.current && remoteMediaStream) remoteVideoRef.current.srcObject = remoteMediaStream;
-    }, [remoteMediaStream, inVoiceCall]);
-
-    useEffect(() => {
         if (localVideoRef.current && localMediaStream) localVideoRef.current.srcObject = localMediaStream;
-    }, [localMediaStream, inVoiceCall]);
+    }, [remoteMediaStream, localMediaStream, inVoiceCall]);
 
-    // Fetch message history when contact changes
+    // ==========================================
+    // 📨 FETCH MESSAGE HISTORY
+    // ==========================================
     useEffect(() => {
         if (!selectedContact || !userEmail) return;
-        const fetchHistory = async () => {
-            const { data } = await supabase
-                .from('messages')
-                .select('*')
-                .or(`and(sender_email.eq.${userEmail},receiver_email.eq.${selectedContact}),and(sender_email.eq.${selectedContact},receiver_email.eq.${userEmail})`)
-                .order('created_at', { ascending: true })
-                .limit(50);
 
-            if (data) setChatMessages(data);
+        const fetchHistory = async () => {
+            const [sent, received] = await Promise.all([
+                supabase.from('messages').select('*').eq('sender_email', userEmail).eq('receiver_email', selectedContact).limit(50),
+                supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
+            ]);
+
+            const allMessages = [...(sent.data || []), ...(received.data || [])]
+                .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+            setChatMessages(allMessages);
         };
         fetchHistory();
     }, [selectedContact, userEmail]);
@@ -75,115 +81,146 @@ function ChatApp({ user, onLogout }) {
     const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
     // ==========================================
-    // 📡 SUPABASE PRESENCE & WEBRTC SIGNALING
+    // 📡 UNIFIED SUPABASE CHANNEL - FIXED
     // ==========================================
     useEffect(() => {
         if (!userEmail) return;
-        const channel = supabase.channel('whatsapp-lobby');
-        setLobbyChannel(channel);
 
-        channel
-            .on('presence', { event: 'sync' }, () => {
-                const state = channel.presenceState();
-                const userMap = new Map();
-                for (const key in state) {
-                    state[key].forEach(p => {
-                        if (p.email && p.email !== userEmail) userMap.set(p.email, p);
+        // Generate a unique presence key that includes the user's email
+        // This ensures each user has a unique presence entry
+        const presenceKey = `user_${userEmail}`;
+        presenceKeyRef.current = presenceKey;
+
+        // Create channel with explicit presence configuration
+        const channel = supabase.channel('totalrecall-global', {
+            config: {
+                presence: {
+                    key: presenceKey,
+                },
+            },
+        });
+
+        channelRef.current = channel;
+
+        // Handle presence sync events
+        channel.on('presence', { event: 'sync' }, () => {
+            const state = channel.presenceState();
+            const activeUsers = [];
+
+            console.log('Presence state:', state); // Debug log
+
+            // Iterate through all presence states
+            for (const key in state) {
+                const presences = state[key];
+                if (presences && presences.length > 0) {
+                    // Get the first presence entry for this key
+                    const presence = presences[0];
+
+                    // Check if this is a valid user (not the current user)
+                    if (presence && presence.email && presence.email !== userEmail) {
+                        // Avoid duplicates
+                        if (!activeUsers.some(u => u.email === presence.email)) {
+                            activeUsers.push({
+                                email: presence.email,
+                                presenceKey: key
+                            });
+                        }
+                    }
+                }
+            }
+
+            setOnlineUsers(activeUsers);
+        });
+
+        // Handle user join/leave events for more reliable tracking
+        channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+            console.log('User joined:', key, newPresences);
+            // The sync event will handle the state update
+        });
+
+        channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+            console.log('User left:', key, leftPresences);
+            // The sync event will handle the state update
+        });
+
+        // Handle new messages
+        channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+            const newMsg = payload.new;
+            const currentContact = selectedContactRef.current;
+
+            if (
+                (newMsg.sender_email === currentContact && newMsg.receiver_email === userEmail) ||
+                (newMsg.sender_email === userEmail && newMsg.receiver_email === currentContact)
+            ) {
+                setChatMessages(prev => {
+                    if (prev.find(m => m.id === newMsg.id)) return prev;
+                    return [...prev, newMsg];
+                });
+            }
+        });
+
+        // WebRTC event handlers
+        channel.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
+            if (payload.targetEmail === userEmail) setIncomingCall(payload);
+        });
+
+        channel.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
+            if (payload.targetEmail === userEmail && peerConnectionRef.current) {
+                await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
+
+                while (iceCandidateQueueRef.current.length > 0) {
+                    try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(iceCandidateQueueRef.current.shift())); }
+                    catch (err) { console.error("ICE error:", err); }
+                }
+            }
+        });
+
+        channel.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
+            if (payload.targetEmail === userEmail) {
+                if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
+                    try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate)); }
+                    catch (err) { console.error("ICE error:", err); }
+                } else {
+                    iceCandidateQueueRef.current.push(payload.candidate);
+                }
+            }
+        });
+
+        channel.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail) endVoiceCall(false);
+        });
+
+        // Subscribe and track presence
+        channel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                try {
+                    // Track the user with their email
+                    await channel.track({
+                        email: userEmail,
+                        online: true,
+                        timestamp: new Date().toISOString()
                     });
+                    console.log('Successfully tracked user:', userEmail);
+                } catch (error) {
+                    console.error('Error tracking presence:', error);
                 }
-                setOnlineUsers(Array.from(userMap.values()));
-            })
-            // Receive Real-Time Messages
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-                const newMsg = payload.new;
-                if (
-                    (newMsg.sender_email === selectedContact && newMsg.receiver_email === userEmail) ||
-                    (newMsg.sender_email === userEmail && newMsg.receiver_email === selectedContact)
-                ) {
-                    setChatMessages(prev => [...prev, newMsg]);
-                }
-            })
-            // WebRTC Signaling
-            .on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
-                if (payload.targetEmail === userEmail) {
-                    setIncomingCall(payload);
-                }
-            })
-            .on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
-                if (payload.targetEmail === userEmail && peerConnectionRef.current) {
-                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
-                    while (iceCandidateQueueRef.current.length > 0) {
-                        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(iceCandidateQueueRef.current.shift()));
-                    }
-                }
-            })
-            .on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
-                if (payload.targetEmail === userEmail) {
-                    if (peerConnectionRef.current?.remoteDescription) {
-                        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                    } else {
-                        iceCandidateQueueRef.current.push(payload.candidate);
-                    }
-                }
-            })
-            .on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
-                if (payload.targetEmail === userEmail) endVoiceCall(false);
-            })
-            .subscribe(async (s) => {
-                if (s === 'SUBSCRIBED') {
-                    await channel.track({ email: userEmail, socketId: mySocketId.current, online: true });
-                }
-            });
+            }
+        });
 
+        // Cleanup function
         return () => {
-            channel.untrack();
-            supabase.removeChannel(channel);
-        };
-    }, [userEmail, selectedContact]);
-
-    // ==========================================
-    // 📇 CONTACT IMPORT LOGIC
-    // ==========================================
-    const handleImportContacts = async () => {
-        const supported = ('contacts' in navigator && 'ContactsManager' in window);
-
-        const updateContactsList = (newContacts) => {
-            setSavedContacts(prev => {
-                const merged = [...prev, ...newContacts];
-                // Deduplicate by email
-                const unique = merged.filter((v, i, a) => a.findIndex(t => (t.email === v.email)) === i);
-                localStorage.setItem('totalRecallContacts', JSON.stringify(unique));
-                return unique;
-            });
-        };
-
-        if (supported) {
-            try {
-                const props = ['name', 'email'];
-                const contacts = await navigator.contacts.select(props, { multiple: true });
-
-                // Filter out contacts without emails, since the app routes via email
-                const validContacts = contacts
-                    .filter(c => c.email && c.email.length > 0)
-                    .map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
-
-                if (validContacts.length === 0) {
-                    alert('No contacts with email addresses were found.');
-                    return;
+            if (channelRef.current) {
+                try {
+                    // Untrack presence before removing channel
+                    channelRef.current.untrack();
+                    supabase.removeChannel(channelRef.current);
+                } catch (error) {
+                    console.error('Error during channel cleanup:', error);
                 }
-                updateContactsList(validContacts);
-            } catch (err) {
-                console.error("Contact selection failed", err);
+                channelRef.current = null;
             }
-        } else {
-            // Fallback for desktop / unsupported browsers
-            const emailInput = prompt("Your browser doesn't support the native Contact Picker. Enter an email address to add a contact manually:");
-            if (emailInput && emailInput.trim()) {
-                const newContact = { name: emailInput.split('@')[0], email: emailInput.trim() };
-                updateContactsList([newContact]);
-            }
-        }
-    };
+        };
+    }, [userEmail]);
 
     // ==========================================
     // 💬 CHAT LOGIC
@@ -195,20 +232,61 @@ function ChatApp({ user, onLogout }) {
         const textToSend = chatInput;
         setChatInput('');
 
-        // Optimistic UI update
-        const tempMsg = { sender_email: userEmail, receiver_email: selectedContact, text: textToSend, created_at: new Date().toISOString() };
-        setChatMessages(prev => [...prev, tempMsg]);
-
-        await supabase.from('messages').insert([
+        const { data, error } = await supabase.from('messages').insert([
             { sender_email: userEmail, receiver_email: selectedContact, text: textToSend }
-        ]);
+        ]).select();
+
+        if (error) {
+            alert(`Error sending message: ${error.message}`);
+            return;
+        }
+
+        if (data && data.length > 0) {
+            setChatMessages(prev => {
+                if (prev.find(m => m.id === data[0].id)) return prev;
+                return [...prev, data[0]];
+            });
+        }
+    };
+
+    // ==========================================
+    // 📇 CONTACT IMPORT LOGIC
+    // ==========================================
+    const handleImportContacts = async () => {
+        const supported = ('contacts' in navigator && 'ContactsManager' in window);
+        const updateContactsList = (newContacts) => {
+            setSavedContacts(prev => {
+                const merged = [...prev, ...newContacts];
+                const unique = merged.filter((v, i, a) => a.findIndex(t => (t.email === v.email)) === i);
+                localStorage.setItem('totalRecallContacts', JSON.stringify(unique));
+                return unique;
+            });
+        };
+
+        if (supported) {
+            try {
+                const contacts = await navigator.contacts.select(['name', 'email'], { multiple: true });
+                const validContacts = contacts
+                    .filter(c => c.email && c.email.length > 0)
+                    .map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
+
+                if (validContacts.length > 0) updateContactsList(validContacts);
+            } catch (err) {
+                console.error("Contact selection failed", err);
+            }
+        } else {
+            const emailInput = prompt("Enter an email address to add a contact manually:");
+            if (emailInput && emailInput.trim()) {
+                updateContactsList([{ name: emailInput.split('@')[0], email: emailInput.trim() }]);
+            }
+        }
     };
 
     // ==========================================
     // 📹 WEBRTC VIDEO LOGIC
     // ==========================================
     const startCall = async () => {
-        if (!selectedContact) return;
+        if (!selectedContact || !channelRef.current) return;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             localStreamRef.current = stream;
@@ -219,27 +297,26 @@ function ChatApp({ user, onLogout }) {
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
             pc.onicecandidate = (e) => {
-                if (e.candidate && lobbyChannel) {
-                    lobbyChannel.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: selectedContact, candidate: e.candidate, sender: userEmail } });
+                if (e.candidate && channelRef.current) {
+                    channelRef.current.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: selectedContact, candidate: e.candidate, sender: userEmail } });
                 }
             };
 
-            pc.ontrack = (e) => {
-                setRemoteMediaStream(e.streams[0] || new MediaStream([e.track]));
-            };
+            pc.ontrack = (e) => setRemoteMediaStream(e.streams[0] || new MediaStream([e.track]));
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            lobbyChannel.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: selectedContact, offer, sender: userEmail } });
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: selectedContact, offer, sender: userEmail } });
             setInVoiceCall(true);
         } catch (err) {
             alert("Camera/Mic access required.");
+            console.error(err);
         }
     };
 
     const acceptCall = async () => {
-        if (!incomingCall) return;
+        if (!incomingCall || !channelRef.current) return;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             localStreamRef.current = stream;
@@ -250,8 +327,8 @@ function ChatApp({ user, onLogout }) {
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
             pc.onicecandidate = (e) => {
-                if (e.candidate && lobbyChannel) {
-                    lobbyChannel.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: incomingCall.sender, candidate: e.candidate, sender: userEmail } });
+                if (e.candidate && channelRef.current) {
+                    channelRef.current.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: incomingCall.sender, candidate: e.candidate, sender: userEmail } });
                 }
             };
 
@@ -261,7 +338,12 @@ function ChatApp({ user, onLogout }) {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
-            lobbyChannel.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: incomingCall.sender, answer, sender: userEmail } });
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: incomingCall.sender, answer, sender: userEmail } });
+
+            while (iceCandidateQueueRef.current.length > 0) {
+                try { await pc.addIceCandidate(new RTCIceCandidate(iceCandidateQueueRef.current.shift())); }
+                catch (err) { console.error("ICE error:", err); }
+            }
 
             setInVoiceCall(true);
             setSelectedContact(incomingCall.sender);
@@ -284,9 +366,28 @@ function ChatApp({ user, onLogout }) {
         setLocalMediaStream(null);
         setInVoiceCall(false);
         setIncomingCall(null);
+        iceCandidateQueueRef.current = [];
 
-        if (broadcast && selectedContact && lobbyChannel) {
-            lobbyChannel.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: selectedContact } });
+        if (broadcast && selectedContact && channelRef.current) {
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: selectedContact } });
+        }
+    };
+
+    // ==========================================
+    // 🔄 MANUAL PRESENCE REFRESH (for debugging)
+    // ==========================================
+    const refreshPresence = async () => {
+        if (channelRef.current) {
+            try {
+                await channelRef.current.track({
+                    email: userEmail,
+                    online: true,
+                    timestamp: new Date().toISOString()
+                });
+                console.log('Presence refreshed for:', userEmail);
+            } catch (error) {
+                console.error('Error refreshing presence:', error);
+            }
         }
     };
 
@@ -307,19 +408,29 @@ function ChatApp({ user, onLogout }) {
 
             {/* SIDEBAR - CONTACTS */}
             <div style={{ width: '30%', minWidth: '250px', borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21' }}>
+
                 <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <b style={{ color: '#00a884' }}>TotalRecall</b>
-                    <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer', fontSize: '14px' }}>Logout</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
+                            {displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <b style={{ color: '#00a884', fontSize: '15px' }}>{displayName}</b>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={refreshPresence} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer', fontSize: '14px' }}>🔄</button>
+                        <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer', fontSize: '14px' }}>Logout</button>
+                    </div>
                 </div>
 
                 <div style={{ padding: '10px', backgroundColor: '#111b21', borderBottom: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: '#8696a0', fontSize: '14px', fontWeight: 'bold' }}>Contacts</span>
                     <button onClick={handleImportContacts} style={{ backgroundColor: '#2a3942', color: '#00a884', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                        + Add Contact                     </button>
+                        + Add Contact
+                    </button>
                 </div>
 
                 <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-                    {/* Render Saved Contacts First */}
+                    {/* Render Saved Contacts */}
                     {savedContacts.length > 0 && (
                         <div style={{ padding: '10px', backgroundColor: '#202c33', color: '#8696a0', fontSize: '12px', textTransform: 'uppercase' }}>
                             Saved Contacts
@@ -342,7 +453,7 @@ function ChatApp({ user, onLogout }) {
                     ))}
 
                     <div style={{ padding: '10px', backgroundColor: '#202c33', color: '#8696a0', fontSize: '12px', textTransform: 'uppercase' }}>
-                        Online Now
+                        Online Now ({onlineUsers.length})
                     </div>
                     {onlineUsers.length === 0 ? (
                         <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No users online.</div>
@@ -367,7 +478,7 @@ function ChatApp({ user, onLogout }) {
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', position: 'relative' }}>
                 {selectedContact ? (
                     <>
-                        {/* Chat Header */}
+                        {/* Header */}
                         <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
                             <div style={{ display: 'flex', alignItems: 'center' }}>
                                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
@@ -384,28 +495,46 @@ function ChatApp({ user, onLogout }) {
                             </div>
                         </div>
 
-                        {/* Video Overlay */}
+                        {/* Scalable Multi-User Grid Layout */}
                         {inVoiceCall && (
-                            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 60, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '80%', maxHeight: '80%', borderRadius: '8px', border: '2px solid #00a884' }} />
-                                <video ref={localVideoRef} autoPlay playsInline muted style={{ position: 'absolute', bottom: '20px', right: '20px', width: '150px', borderRadius: '8px', border: '2px solid #fff' }} />
+                            <div style={{
+                                height: '45vh',
+                                backgroundColor: '#000',
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                                gap: '10px',
+                                padding: '10px',
+                                borderBottom: '1px solid #222d34'
+                            }}>
+                                {/* Local User Video (You) */}
+                                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
+                                    <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                    <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>You</span>
+                                </div>
+
+                                {/* Remote User Video */}
+                                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
+                                    <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                    <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
+                                        {savedContacts.find(c => c.email === selectedContact)?.name || selectedContact.split('@')[0]}
+                                    </span>
+                                </div>
                             </div>
                         )}
 
-                        {/* Message History */}
+                        {/* Messages */}
                         <div ref={chatContainerRef} style={{ flexGrow: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)', backgroundSize: 'contain' }}>
                             {chatMessages.map((m, i) => {
                                 const isMine = m.sender_email === userEmail;
                                 return (
-                                    <div key={i} style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', backgroundColor: isMine ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: '8px', maxWidth: '65%', fontSize: '14.5px', boxShadow: '0 1px 0.5px rgba(11,20,26,.13)' }}>
+                                    <div key={m.id || i} style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', backgroundColor: isMine ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: '8px', maxWidth: '65%', fontSize: '14.5px', boxShadow: '0 1px 0.5px rgba(11,20,26,.13)' }}>
                                         <div>{m.text}</div>
                                     </div>
                                 );
                             })}
                         </div>
 
-                        {/* Input Area */}
-                        <form onSubmit={sendMessage} style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', alignItems: 'center' }}>
+                        <form onSubmit={sendMessage} style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', alignItems: 'center', zIndex: 10 }}>
                             <input
                                 type="text"
                                 value={chatInput}
@@ -437,7 +566,7 @@ export default function App() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showConfirmation, setShowConfirmation] = useState(false); // Track email confirmation state
+    const [showConfirmation, setShowConfirmation] = useState(false);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
@@ -447,12 +576,7 @@ export default function App() {
 
     const handleAuth = async (e, type) => {
         e.preventDefault();
-
-        // Manual Validation check so the user understands why it's not proceeding
-        if (!email || !password) {
-            alert("Please fill in both the Email and Password fields before proceeding.");
-            return;
-        }
+        if (!email || !password) return alert("Please fill in both fields.");
 
         setLoading(true);
         try {
@@ -462,15 +586,9 @@ export default function App() {
             } else {
                 const { data, error } = await supabase.auth.signUp({ email, password });
                 if (error) throw error;
-
-                // Supabase returns a user but NO session if email confirmation is turned on
                 if (data?.user && !data?.session) {
                     setShowConfirmation(true);
-                    setEmail('');
-                    setPassword('');
-                } else if (data?.session) {
-                    // Fallback in case Email Confirmations are disabled in your Supabase project settings
-                    alert("Account created! Logging you in.");
+                    setEmail(''); setPassword('');
                 }
             }
         } catch (err) {
@@ -480,9 +598,7 @@ export default function App() {
         }
     };
 
-    if (user) {
-        return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
-    }
+    if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
 
     return (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
@@ -494,7 +610,7 @@ export default function App() {
                         <div style={{ fontSize: '48px', marginBottom: '16px' }}>📧</div>
                         <h3 style={{ margin: '0 0 12px 0', color: 'white' }}>Confirm Your Email</h3>
                         <p style={{ color: '#8696a0', lineHeight: '1.5', marginBottom: '25px', fontSize: '14px' }}>
-                            We've sent a confirmation link to your email address. Please check your inbox (and spam folder) to verify your account before logging in.
+                            We've sent a confirmation link to your email address.
                         </p>
                         <button onClick={() => setShowConfirmation(false)} style={{ width: '100%', padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
                             Back to Login
@@ -502,36 +618,10 @@ export default function App() {
                     </div>
                 ) : (
                     <form onSubmit={(e) => e.preventDefault()}>
-                        <input
-                            type="email"
-                            placeholder="Email"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                            style={{ width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '4px', border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
-                        />
-                        <input
-                            type="password"
-                            placeholder="Password"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '4px', border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
-                        />
-                        <button
-                            type="button"
-                            onClick={(e) => handleAuth(e, 'login')}
-                            disabled={loading}
-                            style={{ width: '100%', padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginBottom: '10px' }}
-                        >
-                            {loading ? 'Processing...' : 'Log In'}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={(e) => handleAuth(e, 'signup')}
-                            disabled={loading}
-                            style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: '4px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
-                        >
-                            {loading ? 'Processing...' : 'Sign Up'}
-                        </button>
+                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '4px', border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} />
+                        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '4px', border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} />
+                        <button type="button" onClick={(e) => handleAuth(e, 'login')} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginBottom: '10px' }}>{loading ? 'Processing...' : 'Log In'}</button>
+                        <button type="button" onClick={(e) => handleAuth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: '4px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>{loading ? 'Processing...' : 'Sign Up'}</button>
                     </form>
                 )}
             </div>
