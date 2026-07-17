@@ -219,7 +219,33 @@ function ChatApp({ user, onLogout }) {
     const chatContainerRef = useRef(null);
     const localVideoRef = useRef(null);
 
-    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    // ==========================================
+    // 🌐 UPDATE: GLOBAL STUN & TURN SERVERS
+    // ==========================================
+    const rtcConfig = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            // Public TURN server to relay video across strict network firewalls globally
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            }
+        ]
+    };
+
     const autoAcceptOfferRef = useRef(null);
     const initiateCallRef = useRef(null);
 
@@ -568,10 +594,16 @@ function ChatApp({ user, onLogout }) {
             }
         };
 
+        // UPDATE: Prevent state overwrites if Audio/Video tracks arrive separately
         pc.ontrack = (e) => {
             setRemoteStreams(prev => {
-                const stream = e.streams[0] || new MediaStream([e.track]);
-                return { ...prev, [targetEmail]: stream };
+                if (prev[targetEmail]) {
+                    prev[targetEmail].addTrack(e.track);
+                    return { ...prev };
+                } else {
+                    const stream = e.streams[0] || new MediaStream([e.track]);
+                    return { ...prev, [targetEmail]: stream };
+                }
             });
         };
 
@@ -1066,14 +1098,11 @@ export default function App() {
                 if (error) throw error;
 
                 if (data?.user && !data?.session) {
-                    // NEW: Trigger the custom edge function to send the email
                     try {
                         const { error: edgeError } = await supabase.functions.invoke('confirm-email', {
                             body: {
                                 to: email,
                                 name: email.split('@')[0],
-                                // WARNING: The frontend does not have the secure Supabase hashed token.
-                                // We are passing the base URL as a placeholder to prevent the function from failing.
                                 confirmLink: `${window.location.origin}/verify`
                             }
                         });
