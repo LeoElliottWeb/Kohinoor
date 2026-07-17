@@ -15,7 +15,6 @@ class RingerManager {
         this.timeoutCallback = null;
     }
 
-    // Create a simple bell sound
     playBell() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -24,42 +23,33 @@ class RingerManager {
                 return;
             }
 
-            // Create audio context if it doesn't exist or was closed
             if (!this.audioContext || this.audioContext.state === 'closed') {
                 this.audioContext = new AudioContext();
             }
 
-            // Resume if suspended
             if (this.audioContext.state === 'suspended') {
                 this.audioContext.resume();
             }
 
-            // Create oscillator for bell sound
             this.oscillator = this.audioContext.createOscillator();
             this.gainNode = this.audioContext.createGain();
 
-            // Bell-like frequency (around 800-1000 Hz)
             this.oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
             this.oscillator.frequency.exponentialRampToValueAtTime(1000, this.audioContext.currentTime + 0.1);
             this.oscillator.frequency.exponentialRampToValueAtTime(600, this.audioContext.currentTime + 0.3);
 
-            // Use sine wave for a clean bell sound
             this.oscillator.type = 'sine';
 
-            // Bell envelope - quick attack, slightly longer decay
             this.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
             this.gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + 0.05);
             this.gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.8);
 
-            // Connect nodes
             this.oscillator.connect(this.gainNode);
             this.gainNode.connect(this.audioContext.destination);
 
-            // Start and stop the oscillator
             this.oscillator.start(this.audioContext.currentTime);
             this.oscillator.stop(this.audioContext.currentTime + 0.8);
 
-            // Add a second harmonic for a richer bell sound
             const osc2 = this.audioContext.createOscillator();
             const gain2 = this.audioContext.createGain();
             osc2.frequency.setValueAtTime(1200, this.audioContext.currentTime);
@@ -81,19 +71,13 @@ class RingerManager {
 
     start(type, onTimeout) {
         console.log("🔔 Starting bell ring...");
-
-        // Stop any existing ring
         this.stop();
-
         this.isRinging = true;
         this.timeoutCallback = onTimeout;
-
-        // Play the bell sound
         this.playBell();
 
-        // Set timeout for 60 seconds - ring repeatedly every 3 seconds
         let ringCount = 0;
-        const maxRings = 20; // 60 seconds / 3 seconds per ring
+        const maxRings = 20;
 
         const scheduleNextRing = () => {
             if (!this.isRinging) return;
@@ -108,16 +92,14 @@ class RingerManager {
                 return;
             }
 
-            // Schedule next bell ring
             this.timeoutId = setTimeout(() => {
                 if (this.isRinging) {
                     this.playBell();
                     scheduleNextRing();
                 }
-            }, 3000); // Ring every 3 seconds
+            }, 3000);
         };
 
-        // Start the ring schedule (first ring already played)
         scheduleNextRing();
     }
 
@@ -130,7 +112,6 @@ class RingerManager {
             this.timeoutId = null;
         }
 
-        // Stop and clean up audio
         if (this.oscillator) {
             try {
                 this.oscillator.stop();
@@ -142,7 +123,6 @@ class RingerManager {
             this.gainNode = null;
         }
 
-        // Don't close the audio context immediately, keep it for next use
         this.timeoutCallback = null;
     }
 
@@ -151,10 +131,8 @@ class RingerManager {
     }
 }
 
-// Create a single instance
 const ringer = new RingerManager();
 
-// Unlock audio on first user interaction
 if (typeof document !== 'undefined') {
     const unlock = () => {
         try {
@@ -164,7 +142,6 @@ if (typeof document !== 'undefined') {
                 if (ctx.state === 'suspended') {
                     ctx.resume();
                 }
-                // Create and play a silent buffer to unlock audio
                 const buffer = ctx.createBuffer(1, 1, 22050);
                 const source = ctx.createBufferSource();
                 source.buffer = buffer;
@@ -223,7 +200,6 @@ function ChatApp({ user, onLogout }) {
     const channelRef = useRef(null);
     const presenceKeyRef = useRef(null);
 
-    // WebRTC States
     const [inVoiceCall, setInVoiceCall] = useState(false);
     const [incomingCall, setIncomingCall] = useState(null);
     const incomingCallRef = useRef(null);
@@ -247,22 +223,16 @@ function ChatApp({ user, onLogout }) {
     const autoAcceptOfferRef = useRef(null);
     const initiateCallRef = useRef(null);
 
-    // Ref to track if ringer is active
     const ringerActiveRef = useRef(false);
 
-    // Keep incoming call ref updated for the timeout closure
     useEffect(() => {
         incomingCallRef.current = incomingCall;
     }, [incomingCall]);
 
-    // ==========================================
-    // 📞 AUDIO RINGING & 60s TIMEOUT LOGIC
-    // ==========================================
     useEffect(() => {
         const shouldRing = !!incomingCall || isCallingOut;
 
         if (shouldRing && !ringerActiveRef.current) {
-            // Start ringing
             console.log("🔔 Starting ringer for:", incomingCall ? 'incoming' : 'outgoing');
             ringerActiveRef.current = true;
 
@@ -270,7 +240,6 @@ function ChatApp({ user, onLogout }) {
                 console.log("⏰ Ring timeout reached!");
                 ringerActiveRef.current = false;
                 if (incomingCallRef.current) {
-                    // Auto-decline incoming call
                     const callToDecline = incomingCallRef.current;
                     if (callToDecline && channelRef.current) {
                         channelRef.current.send({
@@ -280,7 +249,6 @@ function ChatApp({ user, onLogout }) {
                     }
                     setIncomingCall(null);
                 } else if (isCallingOut) {
-                    // Auto-hangup outgoing call
                     endVoiceCall(true);
                     alert("No answer. The call timed out after 60 seconds.");
                 }
@@ -289,13 +257,11 @@ function ChatApp({ user, onLogout }) {
             const ringType = incomingCall ? 'incoming' : 'outgoing';
             ringer.start(ringType, timeoutAction);
         } else if (!shouldRing && ringerActiveRef.current) {
-            // Stop ringing - call was answered or declined
             console.log("🔇 Stopping ringer (call state changed)");
             ringerActiveRef.current = false;
             ringer.stop();
         }
 
-        // Cleanup - only stop if we're still ringing
         return () => {
             if (ringerActiveRef.current) {
                 console.log("🧹 Cleanup: Stopping ringer");
@@ -305,7 +271,6 @@ function ChatApp({ user, onLogout }) {
         };
     }, [incomingCall, isCallingOut]);
 
-    // Load saved contacts
     useEffect(() => {
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) {
@@ -314,23 +279,18 @@ function ChatApp({ user, onLogout }) {
         }
     }, []);
 
-    // Auto-scroll chat
     useEffect(() => {
         if (chatContainerRef.current) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [chatMessages]);
 
-    // Attach local video stream
     useEffect(() => {
         if (localVideoRef.current && localMediaStream) {
             localVideoRef.current.srcObject = localMediaStream;
         }
     }, [localMediaStream, inVoiceCall]);
 
-    // ==========================================
-    // 📨 FETCH MESSAGE HISTORY
-    // ==========================================
     useEffect(() => {
         if (!selectedContact || !userEmail) return;
 
@@ -348,9 +308,6 @@ function ChatApp({ user, onLogout }) {
         fetchHistory();
     }, [selectedContact, userEmail]);
 
-    // ==========================================
-    // 📡 UNIFIED SUPABASE CHANNEL
-    // ==========================================
     useEffect(() => {
         if (!userEmail) return;
 
@@ -396,7 +353,6 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // MESH NETWORK: WEBRTC SIGNALING
         channel.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail) {
                 console.log("📞 Incoming call from:", payload.sender);
@@ -478,9 +434,6 @@ function ChatApp({ user, onLogout }) {
         };
     }, [userEmail]);
 
-    // ==========================================
-    // 💬 CHAT LOGIC
-    // ==========================================
     const sendMessage = async (e) => {
         e.preventDefault();
         if (!chatInput.trim() || !selectedContact) return;
@@ -505,9 +458,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ==========================================
-    // 📇 CONTACT IMPORT & REMOVAL
-    // ==========================================
     const handleImportContacts = async () => {
         const supported = ('contacts' in navigator && 'ContactsManager' in window);
 
@@ -578,9 +528,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ==========================================
-    // 📹 WEBRTC LOGIC
-    // ==========================================
     const getMediaStream = async () => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error("Your browser does not support WebRTC or you are not on a secure connection.");
@@ -657,7 +604,6 @@ function ChatApp({ user, onLogout }) {
     const endVoiceCall = (broadcast = true) => {
         console.log("🔴 Ending call");
 
-        // Stop ringer if it's active
         if (ringerActiveRef.current) {
             console.log("🔇 Stopping ringer from endVoiceCall");
             ringerActiveRef.current = false;
@@ -692,7 +638,6 @@ function ChatApp({ user, onLogout }) {
         iceCandidateQueues.current = {};
     };
 
-    // Initialize initiateCallRef
     useEffect(() => {
         initiateCallRef.current = async (targetEmail, isAutoJoin = false, peersToShare = []) => {
             if (!channelRef.current) return;
@@ -721,7 +666,6 @@ function ChatApp({ user, onLogout }) {
         };
     }, [userEmail]);
 
-    // Initialize autoAcceptOfferRef
     useEffect(() => {
         autoAcceptOfferRef.current = async (payload) => {
             if (!channelRef.current || !localStreamRef.current) return;
@@ -750,21 +694,16 @@ function ChatApp({ user, onLogout }) {
         };
     }, [userEmail]);
 
-    // ==========================================
-    // 📞 ACCEPT / DECLINE / END CALL
-    // ==========================================
     const acceptCall = async () => {
         console.log("✅ Accepting call");
         const currentIncomingCall = incomingCall;
 
-        // Stop ringer immediately
         if (ringerActiveRef.current) {
             console.log("🔇 Stopping ringer from acceptCall");
             ringerActiveRef.current = false;
             ringer.stop();
         }
 
-        // Clear incoming call state
         setIncomingCall(null);
 
         if (!currentIncomingCall || !channelRef.current) return;
@@ -818,7 +757,6 @@ function ChatApp({ user, onLogout }) {
     const handleDeclineCall = () => {
         console.log("❌ Declining call");
 
-        // Stop ringer immediately
         if (ringerActiveRef.current) {
             console.log("🔇 Stopping ringer from handleDeclineCall");
             ringerActiveRef.current = false;
@@ -832,7 +770,6 @@ function ChatApp({ user, onLogout }) {
                 payload: { targetEmail: callToDecline.sender, sender: userEmail }
             });
         }
-        // Clear incoming call state
         setIncomingCall(null);
     };
 
@@ -897,7 +834,6 @@ function ChatApp({ user, onLogout }) {
 
     const handleStartCall = () => {
         console.log("📞 Starting call to:", selectedContact);
-        // Reset ringer state before starting new call
         if (ringerActiveRef.current) {
             console.log("🔇 Stopping ringer from handleStartCall");
             ringerActiveRef.current = false;
@@ -1119,11 +1055,41 @@ export default function App() {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
             } else {
-                const { data, error } = await supabase.auth.signUp({ email, password });
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        emailRedirectTo: window.location.origin
+                    }
+                });
+
                 if (error) throw error;
+
                 if (data?.user && !data?.session) {
+                    // NEW: Trigger the custom edge function to send the email
+                    try {
+                        const { error: edgeError } = await supabase.functions.invoke('confirm-email', {
+                            body: {
+                                to: email,
+                                name: email.split('@')[0],
+                                // WARNING: The frontend does not have the secure Supabase hashed token.
+                                // We are passing the base URL as a placeholder to prevent the function from failing.
+                                confirmLink: `${window.location.origin}/verify`
+                            }
+                        });
+
+                        if (edgeError) {
+                            console.error("Edge function failed to send email:", edgeError);
+                        } else {
+                            console.log("Custom confirm-email Edge Function invoked successfully.");
+                        }
+                    } catch (invokeErr) {
+                        console.error("Failed to connect to the edge function:", invokeErr);
+                    }
+
                     setShowConfirmation(true);
-                    setEmail(''); setPassword('');
+                    setEmail('');
+                    setPassword('');
                 }
             }
         } catch (err) { alert(err.message); }
