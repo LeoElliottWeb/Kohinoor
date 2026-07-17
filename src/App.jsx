@@ -892,8 +892,16 @@ function ChatApp({ user, onLogout }) {
     const showSidebar = !isMobile || !selectedContact;
     const showChat = !isMobile || !!selectedContact;
 
+    // Handle Enter key for new lines
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage(e);
+        }
+    };
+
     return (
-        <div style={{ display: 'flex', height: '100vh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif' }}>
+        <div style={{ display: 'flex', height: '100vh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
 
             {/* INCOMING CALL MODAL */}
             {incomingCall && (
@@ -909,8 +917,17 @@ function ChatApp({ user, onLogout }) {
 
             {/* SIDEBAR - CONTACTS */}
             {showSidebar && (
-                <div style={{ width: isMobile ? '100%' : '30%', minWidth: isMobile ? '100%' : '250px', borderRight: isMobile ? 'none' : '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21' }}>
-                    <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{
+                    width: isMobile ? '100%' : '30%',
+                    minWidth: isMobile ? '100%' : '250px',
+                    borderRight: isMobile ? 'none' : '1px solid #222d34',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    backgroundColor: '#111b21',
+                    height: '100%',
+                    overflow: 'hidden'
+                }}>
+                    <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
                                 {displayName.charAt(0).toUpperCase()}
@@ -923,14 +940,14 @@ function ChatApp({ user, onLogout }) {
                         </div>
                     </div>
 
-                    <div style={{ padding: '10px', backgroundColor: '#111b21', borderBottom: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ padding: '10px', backgroundColor: '#111b21', borderBottom: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                         <span style={{ color: '#8696a0', fontSize: '14px', fontWeight: 'bold' }}>Contacts</span>
                         <button onClick={handleImportContacts} style={{ backgroundColor: '#2a3942', color: '#00a884', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
                             + Add Contact
                         </button>
                     </div>
 
-                    <div style={{ flexGrow: 1, overflowY: 'auto' }}>
+                    <div style={{ flexGrow: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
                         {savedContacts.length > 0 && (
                             <div style={{ padding: '10px', backgroundColor: '#202c33', color: '#8696a0', fontSize: '12px', textTransform: 'uppercase' }}>
                                 Saved Contacts
@@ -990,10 +1007,19 @@ function ChatApp({ user, onLogout }) {
 
             {/* CHAT AREA */}
             {showChat && (
-                <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', position: 'relative', width: isMobile ? '100%' : 'auto' }}>
+                <div style={{
+                    flexGrow: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    backgroundColor: '#0b141a',
+                    position: 'relative',
+                    width: isMobile ? '100%' : 'auto',
+                    height: '100%',
+                    overflow: 'hidden'
+                }}>
                     {selectedContact ? (
                         <>
-                            <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', zIndex: 10 }}>
+                            <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', zIndex: 10, flexShrink: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                     {isMobile && (
                                         <button
@@ -1034,7 +1060,7 @@ function ChatApp({ user, onLogout }) {
 
                             {/* VIDEO GRID */}
                             {inVoiceCall && (
-                                <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px', padding: '10px', borderBottom: '1px solid #222d34' }}>
+                                <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px', padding: '10px', borderBottom: '1px solid #222d34', flexShrink: 0 }}>
                                     <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
                                         <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                                         <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
@@ -1047,26 +1073,61 @@ function ChatApp({ user, onLogout }) {
                                 </div>
                             )}
 
-                            <div ref={chatContainerRef} style={{ flexGrow: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)', backgroundSize: 'contain' }}>
+                            <div ref={chatContainerRef} style={{
+                                flexGrow: 1,
+                                padding: '20px',
+                                overflowY: 'auto',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px',
+                                backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)',
+                                backgroundSize: 'contain',
+                                WebkitOverflowScrolling: 'touch'
+                            }}>
                                 {chatMessages.map((m, i) => {
                                     const isMine = m.sender_email === userEmail;
                                     return (
-                                        <div key={m.id || i} style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', backgroundColor: isMine ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: '8px', maxWidth: '65%', fontSize: '14.5px', boxShadow: '0 1px 0.5px rgba(11,20,26,.13)' }}>
-                                            <div>{m.text}</div>
+                                        <div key={m.id || i} style={{
+                                            alignSelf: isMine ? 'flex-end' : 'flex-start',
+                                            backgroundColor: isMine ? '#005c4b' : '#202c33',
+                                            padding: '8px 12px',
+                                            borderRadius: '8px',
+                                            maxWidth: '65%',
+                                            fontSize: '14.5px',
+                                            boxShadow: '0 1px 0.5px rgba(11,20,26,.13)',
+                                            wordWrap: 'break-word',
+                                            whiteSpace: 'pre-wrap'
+                                        }}>
+                                            <div style={{ wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{m.text}</div>
                                         </div>
                                     );
                                 })}
                             </div>
 
-                            <form onSubmit={sendMessage} style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', alignItems: 'center', zIndex: 10 }}>
-                                <input
-                                    type="text"
+                            <form onSubmit={sendMessage} style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', alignItems: 'center', zIndex: 10, flexShrink: 0 }}>
+                                <textarea
                                     value={chatInput}
                                     onChange={(e) => setChatInput(e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Type a message"
-                                    style={{ flexGrow: 1, padding: '12px', backgroundColor: '#2a3942', border: 'none', borderRadius: '8px', color: 'white', outline: 'none', fontSize: '15px' }}
+                                    rows={1}
+                                    style={{
+                                        flexGrow: 1,
+                                        padding: '12px',
+                                        backgroundColor: '#2a3942',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: 'white',
+                                        outline: 'none',
+                                        fontSize: '15px',
+                                        resize: 'none',
+                                        fontFamily: 'Segoe UI, sans-serif',
+                                        minHeight: '44px',
+                                        maxHeight: '120px',
+                                        overflowY: 'auto'
+                                    }}
                                 />
-                                <button type="submit" disabled={!chatInput.trim()} style={{ marginLeft: '10px', backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: chatInput.trim() ? 'pointer' : 'default' }}>
+                                <button type="submit" disabled={!chatInput.trim()} style={{ marginLeft: '10px', backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: chatInput.trim() ? 'pointer' : 'default', flexShrink: 0 }}>
                                     ➢
                                 </button>
                             </form>
