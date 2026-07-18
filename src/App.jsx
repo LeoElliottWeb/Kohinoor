@@ -167,6 +167,7 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
 
     useEffect(() => {
         if (videoRef.current && stream) {
+            // Because we clone the MediaStream in ontrack, this will reliably trigger
             videoRef.current.srcObject = stream;
         }
     }, [stream]);
@@ -192,7 +193,6 @@ function ChatApp({ user, onLogout }) {
     const displayName = userEmail.split('@')[0];
 
     const [onlineUsers, setOnlineUsers] = useState([]);
-
     const [members, setMembers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
 
@@ -281,11 +281,8 @@ function ChatApp({ user, onLogout }) {
         const shouldRing = !!incomingCall || isCallingOut;
 
         if (shouldRing && !ringerActiveRef.current) {
-            console.log("🔔 Starting ringer for:", incomingCall ? 'incoming' : 'outgoing');
             ringerActiveRef.current = true;
-
             const timeoutAction = () => {
-                console.log("⏰ Ring timeout reached!");
                 ringerActiveRef.current = false;
                 if (incomingCallRef.current) {
                     const callToDecline = incomingCallRef.current;
@@ -301,18 +298,15 @@ function ChatApp({ user, onLogout }) {
                     alert("No answer. The call timed out after 60 seconds.");
                 }
             };
-
             const ringType = incomingCall ? 'incoming' : 'outgoing';
             ringer.start(ringType, timeoutAction);
         } else if (!shouldRing && ringerActiveRef.current) {
-            console.log("🔇 Stopping ringer (call state changed)");
             ringerActiveRef.current = false;
             ringer.stop();
         }
 
         return () => {
             if (ringerActiveRef.current) {
-                console.log("🧹 Cleanup: Stopping ringer");
                 ringerActiveRef.current = false;
                 ringer.stop();
             }
@@ -323,10 +317,7 @@ function ChatApp({ user, onLogout }) {
         const fetchMembers = async () => {
             try {
                 const { data, error } = await supabase.from('profiles').select('email, name');
-                if (error) {
-                    console.error("❌ Supabase fetch error (Check your permissions/RLS):", error);
-                } else if (data) {
-                    console.log("✅ Fetched members from DB:", data);
+                if (!error && data) {
                     setMembers(data);
                 }
             } catch (err) {
@@ -436,7 +427,6 @@ function ChatApp({ user, onLogout }) {
 
         channel.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                console.log("📞 Incoming call from:", payload.sender);
                 if (payload.isAutoJoin && localStreamRef.current && autoAcceptOfferRef.current) {
                     autoAcceptOfferRef.current(payload);
                 } else {
@@ -447,7 +437,6 @@ function ChatApp({ user, onLogout }) {
 
         channel.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                console.log("✅ Call answered");
                 setIsCallingOut(false);
                 const pc = peersRef.current[payload.sender];
                 if (pc) {
@@ -479,7 +468,6 @@ function ChatApp({ user, onLogout }) {
 
         channel.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                console.log("❌ Call declined");
                 setIsCallingOut(false);
                 endVoiceCall(false);
                 alert(`${payload.sender.split('@')[0]} declined the call.`);
@@ -488,7 +476,6 @@ function ChatApp({ user, onLogout }) {
 
         channel.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                console.log("🔴 Call ended");
                 setIncomingCall(prev => {
                     if (prev && prev.sender === payload.sender) return null;
                     return prev;
@@ -509,7 +496,7 @@ function ChatApp({ user, onLogout }) {
                 try {
                     channelRef.current.untrack();
                     supabase.removeChannel(channelRef.current);
-                } catch (error) { console.error('Error cleanup:', error); }
+                } catch (error) { }
                 channelRef.current = null;
             }
         };
@@ -548,147 +535,25 @@ function ChatApp({ user, onLogout }) {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Invitation to TotalRecall</title>
                 <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                        background-color: #f4f6f8;
-                        margin: 0;
-                        padding: 0;
-                    }
-                    .container {
-                        max-width: 600px;
-                        margin: 40px auto;
-                        background-color: #ffffff;
-                        border-radius: 16px;
-                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                        overflow: hidden;
-                    }
-                    .header {
-                        background: linear-gradient(135deg, #00a884 0%, #008f72 100%);
-                        padding: 40px 30px;
-                        text-align: center;
-                    }
-                    .header h1 {
-                        color: #ffffff;
-                        font-size: 32px;
-                        font-weight: 700;
-                        margin: 0;
-                        letter-spacing: -0.5px;
-                    }
-                    .header p {
-                        color: rgba(255, 255, 255, 0.9);
-                        font-size: 16px;
-                        margin: 8px 0 0 0;
-                    }
-                    .content {
-                        padding: 40px 30px;
-                        color: #1e293b;
-                    }
-                    .greeting {
-                        font-size: 20px;
-                        font-weight: 600;
-                        margin: 0 0 12px 0;
-                        color: #0f172a;
-                    }
-                    .message {
-                        font-size: 16px;
-                        line-height: 1.7;
-                        color: #334155;
-                        margin: 0 0 24px 0;
-                    }
-                    .inviter-badge {
-                        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-                        border: 1px solid #bbf7d0;
-                        border-radius: 12px;
-                        padding: 20px;
-                        margin: 24px 0;
-                    }
-                    .inviter-badge strong {
-                        color: #00a884;
-                        font-size: 18px;
-                    }
-                    .inviter-badge .email {
-                        color: #64748b;
-                        font-size: 14px;
-                        margin-top: 4px;
-                    }
-                    .cta-button {
-                        display: inline-block;
-                        background: linear-gradient(135deg, #00a884 0%, #008f72 100%);
-                        color: #ffffff !important;
-                        text-decoration: none;
-                        padding: 16px 40px;
-                        border-radius: 50px;
-                        font-weight: 600;
-                        font-size: 18px;
-                        margin: 8px 0 0 0;
-                        box-shadow: 0 4px 12px rgba(0, 168, 132, 0.3);
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                    }
-                    .cta-button:hover {
-                        transform: translateY(-2px);
-                        box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4);
-                    }
-                    .features {
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        gap: 16px;
-                        margin: 24px 0;
-                    }
-                    .feature-item {
-                        background-color: #f8fafc;
-                        border-radius: 12px;
-                        padding: 16px;
-                        text-align: center;
-                        border: 1px solid #e2e8f0;
-                    }
-                    .feature-item .icon {
-                        font-size: 28px;
-                        display: block;
-                        margin-bottom: 8px;
-                    }
-                    .feature-item .label {
-                        font-size: 14px;
-                        font-weight: 500;
-                        color: #0f172a;
-                    }
-                    .divider {
-                        height: 1px;
-                        background: #e2e8f0;
-                        margin: 24px 0;
-                    }
-                    .footer {
-                        text-align: center;
-                        padding: 0 30px 30px 30px;
-                        color: #94a3b8;
-                        font-size: 14px;
-                    }
-                    .footer a {
-                        color: #00a884;
-                        text-decoration: none;
-                    }
-                    .footer a:hover {
-                        text-decoration: underline;
-                    }
-                    @media (max-width: 480px) {
-                        .container {
-                            margin: 16px;
-                            border-radius: 12px;
-                        }
-                        .content {
-                            padding: 24px 20px;
-                        }
-                        .header {
-                            padding: 30px 20px;
-                        }
-                        .features {
-                            grid-template-columns: 1fr;
-                        }
-                        .cta-button {
-                            width: 100%;
-                            text-align: center;
-                            padding: 16px 20px;
-                        }
-                    }
+                    body { font-family: -apple-system, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; }
+                    .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); overflow: hidden; }
+                    .header { background: linear-gradient(135deg, #00a884 0%, #008f72 100%); padding: 40px 30px; text-align: center; }
+                    .header h1 { color: #ffffff; font-size: 32px; font-weight: 700; margin: 0; letter-spacing: -0.5px; }
+                    .header p { color: rgba(255, 255, 255, 0.9); font-size: 16px; margin: 8px 0 0 0; }
+                    .content { padding: 40px 30px; color: #1e293b; }
+                    .greeting { font-size: 20px; font-weight: 600; margin: 0 0 12px 0; color: #0f172a; }
+                    .message { font-size: 16px; line-height: 1.7; color: #334155; margin: 0 0 24px 0; }
+                    .inviter-badge { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin: 24px 0; }
+                    .inviter-badge strong { color: #00a884; font-size: 18px; }
+                    .inviter-badge .email { color: #64748b; font-size: 14px; margin-top: 4px; }
+                    .cta-button { display: inline-block; background: linear-gradient(135deg, #00a884 0%, #008f72 100%); color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 50px; font-weight: 600; font-size: 18px; margin: 8px 0 0 0; box-shadow: 0 4px 12px rgba(0, 168, 132, 0.3); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+                    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+                    .feature-item { background-color: #f8fafc; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #e2e8f0; }
+                    .feature-item .icon { font-size: 28px; display: block; margin-bottom: 8px; }
+                    .feature-item .label { font-size: 14px; font-weight: 500; color: #0f172a; }
+                    .divider { height: 1px; background: #e2e8f0; margin: 24px 0; }
+                    .footer { text-align: center; padding: 0 30px 30px 30px; color: #94a3b8; font-size: 14px; }
+                    .footer a { color: #00a884; text-decoration: none; }
                 </style>
             </head>
             <body>
@@ -703,7 +568,6 @@ function ChatApp({ user, onLogout }) {
                             <strong style="color: #00a884;">${inviterName}</strong> has added you as a contact on 
                             <strong>TotalRecall</strong> and would love to connect with you!
                         </p>
-
                         <div class="inviter-badge">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #00a884 0%, #008f72 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px; flex-shrink: 0;">
@@ -715,49 +579,27 @@ function ChatApp({ user, onLogout }) {
                                 </div>
                             </div>
                         </div>
-
                         <p class="message" style="margin-top: 24px;">
                             TotalRecall is a secure messaging and video calling platform where you can stay connected with friends, family, and colleagues.
                         </p>
-
                         <div class="features">
-                            <div class="feature-item">
-                                <span class="icon">💬</span>
-                                <span class="label">Instant Messaging</span>
-                            </div>
-                            <div class="feature-item">
-                                <span class="icon">📹</span>
-                                <span class="label">Video Calls</span>
-                            </div>
-                            <div class="feature-item">
-                                <span class="icon">👥</span>
-                                <span class="label">Group Chats</span>
-                            </div>
-                            <div class="feature-item">
-                                <span class="icon">🔒</span>
-                                <span class="label">Secure &amp; Private</span>
-                            </div>
+                            <div class="feature-item"><span class="icon">💬</span><span class="label">Instant Messaging</span></div>
+                            <div class="feature-item"><span class="icon">📹</span><span class="label">Video Calls</span></div>
+                            <div class="feature-item"><span class="icon">👥</span><span class="label">Group Chats</span></div>
+                            <div class="feature-item"><span class="icon">🔒</span><span class="label">Secure &amp; Private</span></div>
                         </div>
-
                         <div style="text-align: center;">
                             <a href="${window.location.origin}" class="cta-button">🚀 Join Now</a>
                         </div>
-
                         <div class="divider"></div>
-
                         <p style="text-align: center; color: #64748b; font-size: 15px; margin: 0;">
                             Already have an account? 
                             <a href="${window.location.origin}" style="color: #00a884; font-weight: 500; text-decoration: none;">Log in here</a>
                         </p>
                     </div>
                     <div class="footer">
-                        <p style="margin: 0 0 8px 0;">
-                            © ${new Date().getFullYear()} TotalRecall. All rights reserved.
-                        </p>
-                        <p style="margin: 0; font-size: 13px;">
-                            This invitation was sent by ${inviterName}. 
-                            <br>If you didn't expect this email, you can safely ignore it.
-                        </p>
+                        <p style="margin: 0 0 8px 0;">© ${new Date().getFullYear()} TotalRecall. All rights reserved.</p>
+                        <p style="margin: 0; font-size: 13px;">This invitation was sent by ${inviterName}. <br>If you didn't expect this email, you can safely ignore it.</p>
                     </div>
                 </div>
             </body>
@@ -783,7 +625,6 @@ function ChatApp({ user, onLogout }) {
                             email: c.email[0]
                         }));
                 } catch (err) {
-                    console.error("Contact selection failed", err);
                     alert("Contact selection was cancelled or failed.");
                     setIsImporting(false);
                     return;
@@ -814,7 +655,6 @@ function ChatApp({ user, onLogout }) {
             }
 
             const existingLocalEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
-
             const contactsToAdd = [];
             let existingCount = 0;
 
@@ -838,7 +678,6 @@ function ChatApp({ user, onLogout }) {
                     localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
                     return merged;
                 });
-                console.log(`✅ Added ${contactsToAdd.length} new contacts to local list`);
             }
 
             if (contactsToProcess.length > 0) {
@@ -847,47 +686,28 @@ function ChatApp({ user, onLogout }) {
 
                 for (const contact of contactsToProcess) {
                     try {
-                        const prettyHTML = generatePrettyEmailHTML(
-                            contact.name,
-                            displayName,
-                            userEmail
-                        );
-
-                        const { data, error } = await supabase.functions.invoke('send-email', {
+                        const prettyHTML = generatePrettyEmailHTML(contact.name, displayName, userEmail);
+                        const { error } = await supabase.functions.invoke('send-email', {
                             body: {
                                 to: contact.email,
                                 subject: `📱 ${displayName} wants to connect with you on TotalRecall!`,
                                 html: prettyHTML
                             }
                         });
-
-                        if (error) {
-                            console.error(`Failed to send invite to ${contact.email} via Edge Function:`, error);
-                            failedCount++;
-                        } else {
-                            console.log(`✅ Invite successfully sent to ${contact.email}`);
-                            sentCount++;
-                        }
+                        if (error) failedCount++;
+                        else sentCount++;
                     } catch (error) {
-                        console.error(`Error invoking edge function for ${contact.email}:`, error);
                         failedCount++;
                     }
                 }
 
-                let message = `✅ Added ${contactsToAdd.length} new contact(s) to your list\n`;
-                if (existingCount > 0) {
-                    message += `ℹ️ ${existingCount} contact(s) were already in your list\n`;
-                }
-                message += `📧 Sent ${sentCount} beautiful invitation email(s)\n`;
-                if (failedCount > 0) {
-                    message += `❌ Failed to send ${failedCount} email(s)`;
-                }
+                let message = `✅ Added ${contactsToAdd.length} new contact(s)\n`;
+                if (existingCount > 0) message += `ℹ️ ${existingCount} contact(s) were already in your list\n`;
+                message += `📧 Sent ${sentCount} invitation email(s)\n`;
+                if (failedCount > 0) message += `❌ Failed to send ${failedCount} email(s)`;
                 alert(message);
-            } else {
-                alert("No contacts to process.");
             }
         } catch (error) {
-            console.error("Error importing contacts:", error);
             alert("An error occurred while importing contacts.");
         } finally {
             setIsImporting(false);
@@ -902,9 +722,7 @@ function ChatApp({ user, onLogout }) {
                 localStorage.setItem('totalRecallContacts', JSON.stringify(updatedContacts));
                 return updatedContacts;
             });
-            if (selectedContact === emailToRemove) {
-                setSelectedContact(null);
-            }
+            if (selectedContact === emailToRemove) setSelectedContact(null);
         }
     };
 
@@ -914,11 +732,7 @@ function ChatApp({ user, onLogout }) {
         try {
             setVonageStatus('🔍 Checking Vonage service...');
 
-            const phoneNumber = prompt(
-                "Enter the phone number to call (include country code):\nExample: 34642376712",
-                "34642376712"
-            );
-
+            const phoneNumber = prompt("Enter the phone number to call (include country code):", "34642376712");
             if (!phoneNumber || !phoneNumber.trim()) {
                 setVonageStatus('❌ Call cancelled');
                 setTimeout(() => setVonageStatus(''), 3000);
@@ -926,7 +740,6 @@ function ChatApp({ user, onLogout }) {
             }
 
             const cleanNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
-
             if (!/^\d{10,15}$/.test(cleanNumber)) {
                 alert('Please enter a valid phone number with 10-15 digits (include country code)');
                 setVonageStatus('❌ Invalid phone number');
@@ -937,11 +750,7 @@ function ChatApp({ user, onLogout }) {
             setIsVonageCalling(true);
             setVonageStatus('📞 Initiating Vonage test call...');
 
-            const fromNumber = prompt(
-                "Enter your Vonage phone number (the number you purchased from Vonage):",
-                "447418372323"
-            );
-
+            const fromNumber = prompt("Enter your Vonage phone number:", "447418372323");
             if (!fromNumber || !fromNumber.trim()) {
                 setVonageStatus('❌ Call cancelled');
                 setIsVonageCalling(false);
@@ -950,7 +759,6 @@ function ChatApp({ user, onLogout }) {
             }
 
             const cleanFromNumber = fromNumber.replace(/[\s\-\(\)]/g, '');
-
             if (!/^\d{10,15}$/.test(cleanFromNumber)) {
                 alert('Please enter a valid Vonage phone number with 10-15 digits');
                 setVonageStatus('❌ Invalid Vonage number');
@@ -959,101 +767,42 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            const customText = prompt(
-                "Enter the text you want the AI to say:",
-                "Hi, this is a test call from TotalRecall. Can you hear me clearly?"
-            ) || "Hi, this is a test call from TotalRecall. Can you hear me clearly?";
+            const customText = prompt("Enter the text you want the AI to say:", "Hi, this is a test call from TotalRecall. Can you hear me clearly?") || "Hi, this is a test call from TotalRecall.";
 
             const vonagePayload = {
-                from: {
-                    type: "phone",
-                    number: cleanFromNumber
-                },
-                to: [
-                    {
-                        type: "phone",
-                        number: cleanNumber
-                    }
-                ],
-                ncco: [
-                    {
-                        action: "talk",
-                        text: customText,
-                        provider: "google",
-                        providerOptions: {
-                            name: "en-US-Chirp3-HD-Achernar",
-                            language_code: "en-US"
-                        }
-                    }
-                ]
+                from: { type: "phone", number: cleanFromNumber },
+                to: [{ type: "phone", number: cleanNumber }],
+                ncco: [{
+                    action: "talk",
+                    text: customText,
+                    provider: "google",
+                    providerOptions: { name: "en-US-Chirp3-HD-Achernar", language_code: "en-US" }
+                }]
             };
 
-            console.log("📤 Sending Vonage request:", JSON.stringify(vonagePayload, null, 2));
-
-            const { data, error } = await supabase.functions.invoke('vonage-call', {
-                body: vonagePayload
-            });
+            const { data, error } = await supabase.functions.invoke('vonage-call', { body: vonagePayload });
 
             if (error) {
-                console.error("❌ Vonage call error:", error);
-
-                let errorMessage = `❌ Vonage call failed:\n\n`;
-                if (error.message && error.message.includes('Failed to fetch')) {
-                    errorMessage += `The Edge Function could not be reached.\n\n`;
-                    errorMessage += `To fix this:\n`;
-                    errorMessage += `1. Deploy the function: supabase functions deploy vonage-call\n`;
-                    errorMessage += `2. Set environment variables:\n`;
-                    errorMessage += `   supabase secrets set VONAGE_API_KEY=your_key\n`;
-                    errorMessage += `   supabase secrets set VONAGE_API_SECRET=your_secret\n`;
-                    errorMessage += `3. Check function status: supabase functions list\n`;
-                    errorMessage += `4. Test locally: supabase functions serve vonage-call\n\n`;
-                    errorMessage += `See the Edge Function code in the console output.`;
-                } else if (error.message && error.message.includes('401') || error.message.includes('403')) {
-                    errorMessage += `Authentication failed. Check your Supabase credentials.\n\n`;
-                } else if (error.message && error.message.includes('404')) {
-                    errorMessage += `Edge Function not found. Deploy it:\n`;
-                    errorMessage += `supabase functions deploy vonage-call`;
-                } else {
-                    errorMessage += `${error.message || 'Unknown error occurred'}\n\n`;
-                    errorMessage += `Check the console for more details.`;
-                }
-
-                setVonageStatus(`❌ ${error.message || 'Unknown error'}`);
+                let errorMessage = `❌ Vonage call failed:\n\n${error.message || 'Unknown error'}`;
+                setVonageStatus(`❌ ${error.message || 'Error'}`);
                 alert(errorMessage);
                 setIsVonageCalling(false);
                 return;
             }
 
-            console.log("✅ Vonage call response:", data);
-
             if (data && data.error) {
                 setVonageStatus(`❌ ${data.error}`);
-                alert(`❌ Vonage API error:\n\n${data.error}\n${data.details ? JSON.stringify(data.details, null, 2) : ''}`);
+                alert(`❌ Vonage API error:\n\n${data.error}`);
                 setIsVonageCalling(false);
                 return;
             }
 
             setVonageStatus(`✅ Call initiated! Call ID: ${data?.uuid || 'Success'}`);
-
-            alert(`✅ Vonage call initiated successfully!\n\nTo: ${cleanNumber}\nFrom: ${cleanFromNumber}\nCall ID: ${data?.uuid || 'N/A'}\n\nCheck your Vonage dashboard for call status.`);
+            alert(`✅ Vonage call initiated successfully!\n\nTo: ${cleanNumber}\nFrom: ${cleanFromNumber}\nCall ID: ${data?.uuid || 'N/A'}`);
 
         } catch (error) {
-            console.error("❌ Vonage test call failed:", error);
             setVonageStatus(`❌ Failed: ${error.message || 'Unknown error'}`);
-
-            let errorMessage = `❌ Vonage call failed:\n\n`;
-            if (error.message && error.message.includes('Failed to fetch')) {
-                errorMessage += `Connection error. Please check:\n`;
-                errorMessage += `1. Your internet connection\n`;
-                errorMessage += `2. The Edge Function is deployed\n`;
-                errorMessage += `3. CORS settings\n\n`;
-                errorMessage += `Run: supabase functions deploy vonage-call`;
-            } else {
-                errorMessage += `${error.message || 'Unknown error occurred'}\n\n`;
-                errorMessage += `Check the console for more details.`;
-            }
-
-            alert(errorMessage);
+            alert(`❌ Vonage call failed:\n\n${error.message}`);
         } finally {
             setIsVonageCalling(false);
             setTimeout(() => {
@@ -1065,17 +814,18 @@ function ChatApp({ user, onLogout }) {
     };
 
     const getMediaStream = async () => {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("Your browser does not support WebRTC or you are not on a secure connection.");
-        }
         try {
             return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         } catch (err) {
-            console.warn("Could not get both video/audio. Attempting video only.");
+            console.warn("Could not get both video/audio. Attempting audio only.");
             try {
-                return await navigator.mediaDevices.getUserMedia({ video: true });
-            } catch (err2) {
                 return await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (err2) {
+                try {
+                    return await navigator.mediaDevices.getUserMedia({ video: true });
+                } catch (err3) {
+                    throw new Error("No media devices available or permissions denied.");
+                }
             }
         }
     };
@@ -1084,13 +834,13 @@ function ChatApp({ user, onLogout }) {
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[targetEmail] = pc;
 
-        // BUG FIX: Only initialize queue if it doesn't exist to prevent overwriting early ICE candidates
         if (!iceCandidateQueues.current[targetEmail]) {
             iceCandidateQueues.current[targetEmail] = [];
         }
 
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => {
+                // If we are actively sharing the screen, route the screen track to the new peer instead of the webcam
                 if (track.kind === 'video' && isScreenSharingRef.current && screenStreamRef.current) {
                     pc.addTrack(screenStreamRef.current.getVideoTracks()[0], localStreamRef.current);
                 } else {
@@ -1110,9 +860,11 @@ function ChatApp({ user, onLogout }) {
 
         pc.ontrack = (e) => {
             setRemoteStreams(prev => {
-                if (prev[targetEmail]) {
-                    prev[targetEmail].addTrack(e.track);
-                    return { ...prev };
+                const existingStream = prev[targetEmail];
+                if (existingStream) {
+                    existingStream.addTrack(e.track);
+                    // CRITICAL FIX: Creating a cloned MediaStream reference to force React's useEffect to fire in <RemoteVideo>
+                    return { ...prev, [targetEmail]: new MediaStream(existingStream.getTracks()) };
                 } else {
                     const stream = e.streams[0] || new MediaStream([e.track]);
                     return { ...prev, [targetEmail]: stream };
@@ -1147,10 +899,7 @@ function ChatApp({ user, onLogout }) {
     };
 
     const endVoiceCall = (broadcast = true) => {
-        console.log("🔴 Ending call");
-
         if (ringerActiveRef.current) {
-            console.log("🔇 Stopping ringer from endVoiceCall");
             ringerActiveRef.current = false;
             ringer.stop();
         }
@@ -1207,7 +956,6 @@ function ChatApp({ user, onLogout }) {
             } catch (err) {
                 if (!isAutoJoin) alert("Call setup failed: " + err.message);
                 setIsCallingOut(false);
-                console.error(err);
             }
         };
     }, [userEmail]);
@@ -1232,7 +980,7 @@ function ChatApp({ user, onLogout }) {
                 while (queue.length > 0) {
                     const candidate = queue.shift();
                     try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
-                    catch (err) { console.error("ICE error:", err); }
+                    catch (err) { }
                 }
             } catch (err) {
                 console.error("Auto accept failed", err);
@@ -1241,11 +989,9 @@ function ChatApp({ user, onLogout }) {
     }, [userEmail]);
 
     const acceptCall = async () => {
-        console.log("✅ Accepting call");
         const currentIncomingCall = incomingCall;
 
         if (ringerActiveRef.current) {
-            console.log("🔇 Stopping ringer from acceptCall");
             ringerActiveRef.current = false;
             ringer.stop();
         }
@@ -1277,7 +1023,7 @@ function ChatApp({ user, onLogout }) {
             while (queue.length > 0) {
                 const candidate = queue.shift();
                 try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
-                catch (err) { console.error("ICE error:", err); }
+                catch (err) { }
             }
 
             setInVoiceCall(true);
@@ -1294,17 +1040,13 @@ function ChatApp({ user, onLogout }) {
             }
 
         } catch (e) {
-            console.error("Setup Error:", e);
             alert("Could not establish call connection: " + e.message);
             if (Object.keys(peersRef.current).length === 0) endVoiceCall(false);
         }
     };
 
     const handleDeclineCall = () => {
-        console.log("❌ Declining call");
-
         if (ringerActiveRef.current) {
-            console.log("🔇 Stopping ringer from handleDeclineCall");
             ringerActiveRef.current = false;
             ringer.stop();
         }
@@ -1322,73 +1064,76 @@ function ChatApp({ user, onLogout }) {
     const toggleScreenShare = async () => {
         if (isScreenSharing) {
             stopScreenShare();
-        } else {
-            try {
-                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                screenStreamRef.current = screenStream;
-                const screenTrack = screenStream.getVideoTracks()[0];
+            return;
+        }
 
-                screenTrack.onended = () => stopScreenShare();
+        try {
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            screenStreamRef.current = screenStream;
+            const screenTrack = screenStream.getVideoTracks()[0];
 
-                Object.values(peersRef.current).forEach(pc => {
-                    const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
-                    if (videoSender) {
-                        try { videoSender.replaceTrack(screenTrack); } catch (e) { }
-                    }
-                });
+            screenTrack.onended = () => stopScreenShare();
 
-                const localAudioTrack = localStreamRef.current?.getAudioTracks()[0];
-                const displayStream = new MediaStream([screenTrack]);
-                if (localAudioTrack) displayStream.addTrack(localAudioTrack);
+            Object.values(peersRef.current).forEach(pc => {
+                // CRITICAL FIX: Safe sender mapping targeting video tracks
+                const senders = pc.getSenders();
+                const videoSender = senders.find(s => s.track?.kind === 'video');
 
-                setLocalMediaStream(displayStream);
-                setIsScreenSharing(true);
+                if (videoSender) {
+                    videoSender.replaceTrack(screenTrack).catch(err => console.error("Replace Track error:", err));
+                }
+            });
 
-                // BUG FIX: Keep the underlying ref in sync so new connections serve the screen, not webcam
-                isScreenSharingRef.current = true;
-            } catch (err) {
-                console.error("Error sharing screen:", err);
-            }
+            const localAudioTrack = localStreamRef.current?.getAudioTracks()[0];
+            const displayStream = new MediaStream([screenTrack]);
+            if (localAudioTrack) displayStream.addTrack(localAudioTrack);
+
+            setLocalMediaStream(displayStream);
+            setIsScreenSharing(true);
+            isScreenSharingRef.current = true;
+        } catch (err) {
+            console.error("Error sharing screen:", err);
         }
     };
 
     const stopScreenShare = async () => {
-        if (!isScreenSharing) return;
+        if (!isScreenSharingRef.current) return;
 
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(track => track.stop());
-            screenStreamRef.current = null;
+        setIsScreenSharing(false);
+        isScreenSharingRef.current = false;
+
+        const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
+        if (screenTrack) {
+            screenTrack.stop();
         }
 
         if (localStreamRef.current) {
             const webcamTrack = localStreamRef.current.getVideoTracks()[0];
 
             Object.values(peersRef.current).forEach(pc => {
-                const videoSender = pc.getSenders().find(s => s.track?.kind === 'video' || s.track === null);
-                if (videoSender && webcamTrack) {
-                    try { videoSender.replaceTrack(webcamTrack); } catch (e) { }
+                const senders = pc.getSenders();
+                const videoSender = senders.find(s => s.track?.kind === 'video');
+
+                if (videoSender) {
+                    // Falls back to `null` safely if the user never had a webcam
+                    videoSender.replaceTrack(webcamTrack || null).catch(err => console.error("Revert track error:", err));
                 }
             });
 
             setLocalMediaStream(localStreamRef.current);
         }
-
-        setIsScreenSharing(false);
-        // BUG FIX: Keep ref in sync
-        isScreenSharingRef.current = false;
+        screenStreamRef.current = null;
     };
 
     const refreshPresence = async () => {
         if (channelRef.current) {
             try { await channelRef.current.track({ email: userEmail, online: true, timestamp: new Date().toISOString() }); }
-            catch (error) { console.error('Error refreshing presence:', error); }
+            catch (error) { }
         }
     };
 
     const handleStartCall = () => {
-        console.log("📞 Starting call to:", selectedContact);
         if (ringerActiveRef.current) {
-            console.log("🔇 Stopping ringer from handleStartCall");
             ringerActiveRef.current = false;
             ringer.stop();
         }
@@ -1414,7 +1159,6 @@ function ChatApp({ user, onLogout }) {
     };
 
     const safeUserEmail = userEmail ? userEmail.trim().toLowerCase() : '';
-
     const allKnownUsers = [...members, ...savedContacts];
 
     const displayMembers = members.filter(m => {
@@ -1424,25 +1168,20 @@ function ChatApp({ user, onLogout }) {
 
     const displayLocalContacts = savedContacts.filter(c => {
         if (!c.email) return false;
-        const cEmailSafe = c.email.trim().toLowerCase();
-        return cEmailSafe !== safeUserEmail;
+        return c.email.trim().toLowerCase() !== safeUserEmail;
     });
 
     const activeContactObj = allKnownUsers.find(c => c.email?.trim().toLowerCase() === selectedContact?.trim().toLowerCase());
     const activeContactName = activeContactObj ? activeContactObj.name : (selectedContact ? selectedContact.split('@')[0] : '');
 
     const getMemberDisplayName = (member) => {
-        if (member.name && member.name.trim()) {
-            return member.name;
-        }
+        if (member.name && member.name.trim()) return member.name;
         return member.email.split('@')[0];
     };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
-
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-
                 {incomingCall && (
                     <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
                         <h4 style={{ margin: '0 0 10px 0' }}>📹 Incoming Call</h4>
@@ -1479,7 +1218,6 @@ function ChatApp({ user, onLogout }) {
                         </div>
 
                         <div style={{ flexGrow: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-
                             <div
                                 onClick={() => setIsOnlineExpanded(!isOnlineExpanded)}
                                 style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', userSelect: 'none' }}
@@ -1557,21 +1295,9 @@ function ChatApp({ user, onLogout }) {
                                 <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>My Contacts ({displayLocalContacts.length})</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleImportContacts();
-                                        }}
+                                        onClick={(e) => { e.stopPropagation(); handleImportContacts(); }}
                                         disabled={isImporting}
-                                        style={{
-                                            backgroundColor: isImporting ? '#1a2a33' : '#2a3942',
-                                            color: isImporting ? '#666' : '#00a884',
-                                            border: 'none',
-                                            padding: '4px 8px',
-                                            borderRadius: '4px',
-                                            cursor: isImporting ? 'not-allowed' : 'pointer',
-                                            fontSize: '11px',
-                                            opacity: isImporting ? 0.6 : 1
-                                        }}
+                                        style={{ backgroundColor: isImporting ? '#1a2a33' : '#2a3942', color: isImporting ? '#666' : '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: isImporting ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: isImporting ? 0.6 : 1 }}
                                     >
                                         {isImporting ? '⏳ Importing...' : '+ Add External'}
                                     </button>
@@ -1632,12 +1358,7 @@ function ChatApp({ user, onLogout }) {
                                 <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', zIndex: 10, flexShrink: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center' }}>
                                         {isMobile && (
-                                            <button
-                                                onClick={() => setSelectedContact(null)}
-                                                style={{ background: 'none', border: 'none', color: '#00a884', fontSize: '20px', marginRight: '15px', cursor: 'pointer', padding: 0 }}
-                                            >
-                                                🔙
-                                            </button>
+                                            <button onClick={() => setSelectedContact(null)} style={{ background: 'none', border: 'none', color: '#00a884', fontSize: '20px', marginRight: '15px', cursor: 'pointer', padding: 0 }}>🔙</button>
                                         )}
                                         <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
                                             {activeContactName ? activeContactName.charAt(0).toUpperCase() : selectedContact.charAt(0).toUpperCase()}
@@ -1648,20 +1369,7 @@ function ChatApp({ user, onLogout }) {
                                         <button
                                             onClick={handleVonageTestCall}
                                             disabled={isVonageCalling}
-                                            style={{
-                                                backgroundColor: isVonageCalling ? '#1a2a33' : '#7c3aed',
-                                                color: isVonageCalling ? '#666' : 'white',
-                                                border: 'none',
-                                                padding: '8px 16px',
-                                                borderRadius: '20px',
-                                                cursor: isVonageCalling ? 'not-allowed' : 'pointer',
-                                                fontWeight: 'bold',
-                                                fontSize: '12px',
-                                                opacity: isVonageCalling ? 0.6 : 1,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}
+                                            style={{ backgroundColor: isVonageCalling ? '#1a2a33' : '#7c3aed', color: isVonageCalling ? '#666' : 'white', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '12px', opacity: isVonageCalling ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}
                                         >
                                             {isVonageCalling ? '⏳' : '📞'} Vonage Test
                                         </button>
@@ -1671,18 +1379,14 @@ function ChatApp({ user, onLogout }) {
                                         ) : (
                                             <>
                                                 {!isSelectedContactInCall && (
-                                                    <button onClick={handleAddToCall} style={{ backgroundColor: '#00a884', color: '#111', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                                        ➕ Add to Call
-                                                    </button>
+                                                    <button onClick={handleAddToCall} style={{ backgroundColor: '#00a884', color: '#111', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>➕ Add to Call</button>
                                                 )}
-
                                                 <button
                                                     onClick={toggleScreenShare}
                                                     style={{ backgroundColor: isScreenSharing ? '#334155' : 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}
                                                 >
                                                     {isScreenSharing ? '⏹️ Stop Share' : '🖥️ Share Screen'}
                                                 </button>
-
                                                 <button onClick={() => endVoiceCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>🔴 End Call</button>
                                             </>
                                         )}
@@ -1690,14 +1394,7 @@ function ChatApp({ user, onLogout }) {
                                 </div>
 
                                 {vonageStatus && (
-                                    <div style={{
-                                        padding: '8px 16px',
-                                        backgroundColor: vonageStatus.includes('✅') ? '#064e3b' : vonageStatus.includes('❌') ? '#7f1d1d' : '#1e293b',
-                                        color: 'white',
-                                        fontSize: '13px',
-                                        textAlign: 'center',
-                                        borderBottom: '1px solid #1a2a33'
-                                    }}>
+                                    <div style={{ padding: '8px 16px', backgroundColor: vonageStatus.includes('✅') ? '#064e3b' : vonageStatus.includes('❌') ? '#7f1d1d' : '#1e293b', color: 'white', fontSize: '13px', textAlign: 'center', borderBottom: '1px solid #1a2a33' }}>
                                         {vonageStatus}
                                     </div>
                                 )}
@@ -1717,29 +1414,15 @@ function ChatApp({ user, onLogout }) {
                                 )}
 
                                 <div ref={chatContainerRef} style={{
-                                    flexGrow: 1,
-                                    padding: '20px',
-                                    overflowY: 'auto',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '8px',
-                                    backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)',
-                                    backgroundSize: 'contain',
-                                    WebkitOverflowScrolling: 'touch'
+                                    flexGrow: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px',
+                                    backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)', backgroundSize: 'contain', WebkitOverflowScrolling: 'touch'
                                 }}>
                                     {chatMessages.map((m, i) => {
                                         const isMine = m.sender_email === userEmail;
                                         return (
                                             <div key={m.id || i} style={{
-                                                alignSelf: isMine ? 'flex-end' : 'flex-start',
-                                                backgroundColor: isMine ? '#005c4b' : '#202c33',
-                                                padding: '8px 12px',
-                                                borderRadius: '8px',
-                                                maxWidth: '65%',
-                                                fontSize: '14.5px',
-                                                boxShadow: '0 1px 0.5px rgba(11,20,26,.13)',
-                                                wordWrap: 'break-word',
-                                                whiteSpace: 'pre-wrap'
+                                                alignSelf: isMine ? 'flex-end' : 'flex-start', backgroundColor: isMine ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: '8px',
+                                                maxWidth: '65%', fontSize: '14.5px', boxShadow: '0 1px 0.5px rgba(11,20,26,.13)', wordWrap: 'break-word', whiteSpace: 'pre-wrap'
                                             }}>
                                                 <div style={{ wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{m.text}</div>
                                             </div>
@@ -1749,26 +1432,8 @@ function ChatApp({ user, onLogout }) {
 
                                 <form onSubmit={sendMessage} style={{ padding: '15px', paddingBottom: 'calc(15px + env(safe-area-inset-bottom, 0px))', backgroundColor: '#202c33', display: 'flex', alignItems: 'center', zIndex: 10, flexShrink: 0 }}>
                                     <textarea
-                                        value={chatInput}
-                                        onChange={(e) => setChatInput(e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        placeholder="Type a message"
-                                        rows={1}
-                                        style={{
-                                            flexGrow: 1,
-                                            padding: '12px',
-                                            backgroundColor: '#2a3942',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            color: 'white',
-                                            outline: 'none',
-                                            fontSize: '15px',
-                                            resize: 'none',
-                                            fontFamily: 'Segoe UI, sans-serif',
-                                            minHeight: '44px',
-                                            maxHeight: '120px',
-                                            overflowY: 'auto'
-                                        }}
+                                        value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Type a message" rows={1}
+                                        style={{ flexGrow: 1, padding: '12px', backgroundColor: '#2a3942', border: 'none', borderRadius: '8px', color: 'white', outline: 'none', fontSize: '15px', resize: 'none', fontFamily: 'Segoe UI, sans-serif', minHeight: '44px', maxHeight: '120px', overflowY: 'auto' }}
                                     />
                                     <button type="submit" disabled={!chatInput.trim()} style={{ marginLeft: '10px', backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: chatInput.trim() ? 'pointer' : 'default', flexShrink: 0 }}>
                                         ➢
@@ -1788,19 +1453,7 @@ function ChatApp({ user, onLogout }) {
             {/* ========================================== */}
             {/* 🦶 FOOTER - NoirSoft Creation 2026 */}
             {/* ========================================== */}
-            <div style={{
-                backgroundColor: '#0b141a',
-                borderTop: '1px solid #1a2a33',
-                padding: '8px 20px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexShrink: 0,
-                flexWrap: 'wrap',
-                gap: '8px',
-                color: '#8696a0',
-                fontSize: '12px'
-            }}>
+            <div style={{ backgroundColor: '#0b141a', borderTop: '1px solid #1a2a33', padding: '8px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', gap: '8px', color: '#8696a0', fontSize: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <span>© NoirSoft Creation 2026</span>
                     <span style={{ color: '#2a3942' }}>|</span>
@@ -1809,22 +1462,13 @@ function ChatApp({ user, onLogout }) {
                     <span>🟢 Online: <strong style={{ color: '#00a884' }}>{onlineUsers.length}</strong></span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '10px', color: '#2a3942' }}>
-                        {new Date().getFullYear()} • v1.0.0
-                    </span>
-                    {inVoiceCall && (
-                        <span style={{ color: '#ef4444', fontSize: '10px', animation: 'pulse 1.5s infinite' }}>
-                            📞 In Call
-                        </span>
-                    )}
+                    <span style={{ fontSize: '10px', color: '#2a3942' }}>{new Date().getFullYear()} • v1.0.0</span>
+                    {inVoiceCall && <span style={{ color: '#ef4444', fontSize: '10px', animation: 'pulse 1.5s infinite' }}>📞 In Call</span>}
                 </div>
             </div>
 
             <style>{`
-                @keyframes pulse {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.3; }
-                }
+                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
             `}</style>
         </div>
     );
@@ -1856,14 +1500,7 @@ export default function App() {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
             } else {
-                const { data, error } = await supabase.auth.signUp({
-                    email,
-                    password,
-                    options: {
-                        emailRedirectTo: window.location.origin
-                    }
-                });
-
+                const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
                 if (error) throw error;
 
                 if (data?.user) {
@@ -1872,23 +1509,10 @@ export default function App() {
 
                 if (data?.user && !data?.session) {
                     try {
-                        const { error: edgeError } = await supabase.functions.invoke('confirm-email', {
-                            body: {
-                                to: email,
-                                name: email.split('@')[0],
-                                confirmLink: `${window.location.origin}/verify`
-                            }
+                        await supabase.functions.invoke('confirm-email', {
+                            body: { to: email, name: email.split('@')[0], confirmLink: `${window.location.origin}/verify` }
                         });
-
-                        if (edgeError) {
-                            console.error("Edge function failed to send email:", edgeError);
-                        } else {
-                            console.log("Custom confirm-email Edge Function invoked successfully.");
-                        }
-                    } catch (invokeErr) {
-                        console.error("Failed to connect to the edge function:", invokeErr);
-                    }
-
+                    } catch (invokeErr) { }
                     setShowConfirmation(true);
                     setEmail('');
                     setPassword('');
@@ -1908,12 +1532,8 @@ export default function App() {
                     <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: '48px', marginBottom: '16px' }}>📧</div>
                         <h3 style={{ margin: '0 0 12px 0', color: 'white' }}>Confirm Your Email</h3>
-                        <p style={{ color: '#8696a0', lineHeight: '1.5', marginBottom: '25px', fontSize: '14px' }}>
-                            We've sent a confirmation link to your email address.
-                        </p>
-                        <button onClick={() => setShowConfirmation(false)} style={{ width: '100%', padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
-                            Back to Login
-                        </button>
+                        <p style={{ color: '#8696a0', lineHeight: '1.5', marginBottom: '25px', fontSize: '14px' }}>We've sent a confirmation link to your email address.</p>
+                        <button onClick={() => setShowConfirmation(false)} style={{ width: '100%', padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
                     </div>
                 ) : (
                     <form onSubmit={(e) => e.preventDefault()}>
