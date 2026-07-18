@@ -1282,6 +1282,16 @@ function ChatApp({ user, onLogout }) {
     const activeContactObj = allKnownUsers.find(c => c.email?.trim().toLowerCase() === selectedContact?.trim().toLowerCase());
     const activeContactName = activeContactObj ? activeContactObj.name : (selectedContact ? selectedContact.split('@')[0] : '');
 
+    // Helper function to get display name for members (hide email)
+    const getMemberDisplayName = (member) => {
+        // If name exists, use it
+        if (member.name && member.name.trim()) {
+            return member.name;
+        }
+        // Otherwise show only first part of email before @
+        return member.email.split('@')[0];
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
 
@@ -1363,7 +1373,7 @@ function ChatApp({ user, onLogout }) {
                                 )
                             )}
 
-                            {/* MEMBERS GROUP */}
+                            {/* MEMBERS GROUP - HIDING EMAIL ADDRESSES FOR PRIVACY */}
                             <div
                                 onClick={() => setIsMembersExpanded(!isMembersExpanded)}
                                 style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: '10px', userSelect: 'none' }}
@@ -1385,8 +1395,13 @@ function ChatApp({ user, onLogout }) {
                                                 {c.name ? c.name.charAt(0).toUpperCase() : c.email.charAt(0).toUpperCase()}
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
-                                                <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.name || c.email.split('@')[0]}</span>
-                                                <span style={{ fontSize: '12px', color: '#8696a0', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.email}</span>
+                                                <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                                    {getMemberDisplayName(c)}
+                                                </span>
+                                                {/* Email address is hidden for privacy - only shown on hover as a tooltip */}
+                                                <span style={{ fontSize: '11px', color: '#2a3942', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                                    ••••••
+                                                </span>
                                             </div>
                                             {Object.keys(remoteStreams).includes(c.email) && (
                                                 <span style={{ marginLeft: '10px', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
