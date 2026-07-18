@@ -193,11 +193,9 @@ function ChatApp({ user, onLogout }) {
 
     const [onlineUsers, setOnlineUsers] = useState([]);
 
-    // Split contacts into Database Members vs Local Contacts
     const [members, setMembers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
 
-    // Collapse/Expand State
     const [isOnlineExpanded, setIsOnlineExpanded] = useState(true);
     const [isMembersExpanded, setIsMembersExpanded] = useState(true);
     const [isContactsExpanded, setIsContactsExpanded] = useState(true);
@@ -229,17 +227,12 @@ function ChatApp({ user, onLogout }) {
     const chatContainerRef = useRef(null);
     const localVideoRef = useRef(null);
 
-    // Responsive Mobile State
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-
-    // Import contacts loading state
     const [isImporting, setIsImporting] = useState(false);
 
-    // Vonage test call states
     const [isVonageCalling, setIsVonageCalling] = useState(false);
     const [vonageStatus, setVonageStatus] = useState('');
 
-    // Keep the selectedContactRef in sync with the state
     useEffect(() => {
         selectedContactRef.current = selectedContact;
     }, [selectedContact]);
@@ -257,6 +250,7 @@ function ChatApp({ user, onLogout }) {
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
             {
                 urls: 'turn:openrelay.metered.ca:80',
                 username: 'openrelayproject',
@@ -325,11 +319,9 @@ function ChatApp({ user, onLogout }) {
         };
     }, [incomingCall, isCallingOut]);
 
-    // Fetch Database Members and Local Contacts
     useEffect(() => {
         const fetchMembers = async () => {
             try {
-                // 1. Fetch official registered members
                 const { data, error } = await supabase.from('profiles').select('email, name');
                 if (error) {
                     console.error("❌ Supabase fetch error (Check your permissions/RLS):", error);
@@ -341,7 +333,6 @@ function ChatApp({ user, onLogout }) {
                 console.error("Exception fetching profiles:", err);
             }
 
-            // 2. Fetch locally saved manual contacts
             const stored = localStorage.getItem('totalRecallContacts');
             if (stored) {
                 try {
@@ -353,7 +344,6 @@ function ChatApp({ user, onLogout }) {
 
         fetchMembers();
 
-        // Listen for new users signing up in real-time
         const profilesChannel = supabase.channel('public:profiles')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, payload => {
                 const newProfile = payload.new;
@@ -823,10 +813,8 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            // Get current contacts for deduplication
             const existingLocalEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
 
-            // Prepare contacts to add (ALL contacts, even if they exist in DB)
             const contactsToAdd = [];
             let existingCount = 0;
 
@@ -844,7 +832,6 @@ function ChatApp({ user, onLogout }) {
                 }
             });
 
-            // Add ALL new contacts immediately
             if (contactsToAdd.length > 0) {
                 setSavedContacts(prev => {
                     const merged = [...prev, ...contactsToAdd];
@@ -854,7 +841,6 @@ function ChatApp({ user, onLogout }) {
                 console.log(`✅ Added ${contactsToAdd.length} new contacts to local list`);
             }
 
-            // Send pretty emails to ALL contacts
             if (contactsToProcess.length > 0) {
                 let sentCount = 0;
                 let failedCount = 0;
@@ -922,17 +908,12 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ==========================================
-    // 📞 VONAGE TEST CALL
-    // ==========================================
     const handleVonageTestCall = async () => {
         if (isVonageCalling) return;
 
         try {
-            // First, check if the Edge Function exists by testing a simple ping
             setVonageStatus('🔍 Checking Vonage service...');
 
-            // Get the phone number from the user
             const phoneNumber = prompt(
                 "Enter the phone number to call (include country code):\nExample: 34642376712",
                 "34642376712"
@@ -944,7 +925,6 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            // Clean the phone number
             const cleanNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
 
             if (!/^\d{10,15}$/.test(cleanNumber)) {
@@ -957,10 +937,9 @@ function ChatApp({ user, onLogout }) {
             setIsVonageCalling(true);
             setVonageStatus('📞 Initiating Vonage test call...');
 
-            // Get the current user's phone number
             const fromNumber = prompt(
-                "Enter your Vonage phone number (the number you purchased from Vonage):\nExample: 12345678901",
-                "12345678901"
+                "Enter your Vonage phone number (the number you purchased from Vonage):",
+                "447418372323"
             );
 
             if (!fromNumber || !fromNumber.trim()) {
@@ -1000,7 +979,7 @@ function ChatApp({ user, onLogout }) {
                     {
                         action: "talk",
                         text: customText,
-                        provider: "Google",
+                        provider: "google",
                         providerOptions: {
                             name: "en-US-Chirp3-HD-Achernar",
                             language_code: "en-US"
@@ -1011,7 +990,6 @@ function ChatApp({ user, onLogout }) {
 
             console.log("📤 Sending Vonage request:", JSON.stringify(vonagePayload, null, 2));
 
-            // Call the Edge Function
             const { data, error } = await supabase.functions.invoke('vonage-call', {
                 body: vonagePayload
             });
@@ -1105,7 +1083,11 @@ function ChatApp({ user, onLogout }) {
     const createPeerConnection = (targetEmail) => {
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[targetEmail] = pc;
-        iceCandidateQueues.current[targetEmail] = [];
+
+        // BUG FIX: Only initialize queue if it doesn't exist to prevent overwriting early ICE candidates
+        if (!iceCandidateQueues.current[targetEmail]) {
+            iceCandidateQueues.current[targetEmail] = [];
+        }
 
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => {
@@ -1195,6 +1177,7 @@ function ChatApp({ user, onLogout }) {
         }
 
         setIsScreenSharing(false);
+        isScreenSharingRef.current = false;
         setRemoteStreams({});
         setLocalMediaStream(null);
         setInVoiceCall(false);
@@ -1349,7 +1332,9 @@ function ChatApp({ user, onLogout }) {
 
                 Object.values(peersRef.current).forEach(pc => {
                     const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
-                    if (videoSender) videoSender.replaceTrack(screenTrack);
+                    if (videoSender) {
+                        try { videoSender.replaceTrack(screenTrack); } catch (e) { }
+                    }
                 });
 
                 const localAudioTrack = localStreamRef.current?.getAudioTracks()[0];
@@ -1358,6 +1343,9 @@ function ChatApp({ user, onLogout }) {
 
                 setLocalMediaStream(displayStream);
                 setIsScreenSharing(true);
+
+                // BUG FIX: Keep the underlying ref in sync so new connections serve the screen, not webcam
+                isScreenSharingRef.current = true;
             } catch (err) {
                 console.error("Error sharing screen:", err);
             }
@@ -1378,7 +1366,7 @@ function ChatApp({ user, onLogout }) {
             Object.values(peersRef.current).forEach(pc => {
                 const videoSender = pc.getSenders().find(s => s.track?.kind === 'video' || s.track === null);
                 if (videoSender && webcamTrack) {
-                    videoSender.replaceTrack(webcamTrack);
+                    try { videoSender.replaceTrack(webcamTrack); } catch (e) { }
                 }
             });
 
@@ -1386,6 +1374,8 @@ function ChatApp({ user, onLogout }) {
         }
 
         setIsScreenSharing(false);
+        // BUG FIX: Keep ref in sync
+        isScreenSharingRef.current = false;
     };
 
     const refreshPresence = async () => {
@@ -1413,11 +1403,9 @@ function ChatApp({ user, onLogout }) {
 
     const isSelectedContactInCall = Object.keys(remoteStreams).includes(selectedContact);
 
-    // Responsive toggle conditions
     const showSidebar = !isMobile || !selectedContact;
     const showChat = !isMobile || !!selectedContact;
 
-    // Handle Enter key for new lines
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -1425,22 +1413,15 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ==========================================
-    // 🛡️ DERIVED STATES FOR ROBUST FILTERING
-    // ==========================================
-
-    // 1. Safely lowercase the logged in user to prevent duplicate display bugs
     const safeUserEmail = userEmail ? userEmail.trim().toLowerCase() : '';
 
     const allKnownUsers = [...members, ...savedContacts];
 
-    // 2. Filter Members: ensure m.email exists, format safely, then filter out self
     const displayMembers = members.filter(m => {
         if (!m.email) return false;
         return m.email.trim().toLowerCase() !== safeUserEmail;
     });
 
-    // 3. Show ALL local contacts - only filter out self
     const displayLocalContacts = savedContacts.filter(c => {
         if (!c.email) return false;
         const cEmailSafe = c.email.trim().toLowerCase();
@@ -1450,7 +1431,6 @@ function ChatApp({ user, onLogout }) {
     const activeContactObj = allKnownUsers.find(c => c.email?.trim().toLowerCase() === selectedContact?.trim().toLowerCase());
     const activeContactName = activeContactObj ? activeContactObj.name : (selectedContact ? selectedContact.split('@')[0] : '');
 
-    // Helper function to get display name for members (hide email)
     const getMemberDisplayName = (member) => {
         if (member.name && member.name.trim()) {
             return member.name;
@@ -1461,10 +1441,8 @@ function ChatApp({ user, onLogout }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
 
-            {/* Main Content */}
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-                {/* INCOMING CALL MODAL */}
                 {incomingCall && (
                     <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
                         <h4 style={{ margin: '0 0 10px 0' }}>📹 Incoming Call</h4>
@@ -1476,7 +1454,6 @@ function ChatApp({ user, onLogout }) {
                     </div>
                 )}
 
-                {/* SIDEBAR - CONTACTS */}
                 {showSidebar && (
                     <div style={{
                         width: isMobile ? '100%' : '30%',
@@ -1488,7 +1465,6 @@ function ChatApp({ user, onLogout }) {
                         height: '100%',
                         overflow: 'hidden'
                     }}>
-                        {/* Header */}
                         <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
@@ -1504,7 +1480,6 @@ function ChatApp({ user, onLogout }) {
 
                         <div style={{ flexGrow: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
-                            {/* ONLINE NOW */}
                             <div
                                 onClick={() => setIsOnlineExpanded(!isOnlineExpanded)}
                                 style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', userSelect: 'none' }}
@@ -1539,7 +1514,6 @@ function ChatApp({ user, onLogout }) {
                                 )
                             )}
 
-                            {/* MEMBERS GROUP - HIDING EMAIL ADDRESSES FOR PRIVACY */}
                             <div
                                 onClick={() => setIsMembersExpanded(!isMembersExpanded)}
                                 style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: '10px', userSelect: 'none' }}
@@ -1576,7 +1550,6 @@ function ChatApp({ user, onLogout }) {
                                 )
                             )}
 
-                            {/* MY CONTACTS (MANUALLY ADDED) */}
                             <div
                                 onClick={() => setIsContactsExpanded(!isContactsExpanded)}
                                 style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginTop: '10px', borderBottom: '1px solid #222d34', userSelect: 'none' }}
@@ -1643,7 +1616,6 @@ function ChatApp({ user, onLogout }) {
                     </div>
                 )}
 
-                {/* CHAT AREA */}
                 {showChat && (
                     <div style={{
                         flexGrow: 1,
@@ -1673,7 +1645,6 @@ function ChatApp({ user, onLogout }) {
                                         <b>{activeContactName}</b>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                                        {/* Vonage Test Call Button */}
                                         <button
                                             onClick={handleVonageTestCall}
                                             disabled={isVonageCalling}
@@ -1718,7 +1689,6 @@ function ChatApp({ user, onLogout }) {
                                     </div>
                                 </div>
 
-                                {/* Vonage Status Message */}
                                 {vonageStatus && (
                                     <div style={{
                                         padding: '8px 16px',
@@ -1732,7 +1702,6 @@ function ChatApp({ user, onLogout }) {
                                     </div>
                                 )}
 
-                                {/* VIDEO GRID */}
                                 {inVoiceCall && (
                                     <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px', padding: '10px', borderBottom: '1px solid #222d34', flexShrink: 0 }}>
                                         <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
@@ -1851,7 +1820,6 @@ function ChatApp({ user, onLogout }) {
                 </div>
             </div>
 
-            {/* Add pulse animation for call indicator */}
             <style>{`
                 @keyframes pulse {
                     0%, 100% { opacity: 1; }
@@ -1898,7 +1866,6 @@ export default function App() {
 
                 if (error) throw error;
 
-                // Push new user to our public profiles directory
                 if (data?.user) {
                     await supabase.from('profiles').upsert([{ email: email, name: email.split('@')[0] }]);
                 }
