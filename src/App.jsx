@@ -235,6 +235,10 @@ function ChatApp({ user, onLogout }) {
     // Import contacts loading state
     const [isImporting, setIsImporting] = useState(false);
 
+    // Vonage test call states
+    const [isVonageCalling, setIsVonageCalling] = useState(false);
+    const [vonageStatus, setVonageStatus] = useState('');
+
     // Keep the selectedContactRef in sync with the state
     useEffect(() => {
         selectedContactRef.current = selectedContact;
@@ -918,6 +922,170 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // ==========================================
+    // 📞 VONAGE TEST CALL
+    // ==========================================
+    const handleVonageTestCall = async () => {
+        if (isVonageCalling) return;
+
+        try {
+            // First, check if the Edge Function exists by testing a simple ping
+            setVonageStatus('🔍 Checking Vonage service...');
+
+            // Get the phone number from the user
+            const phoneNumber = prompt(
+                "Enter the phone number to call (include country code):\nExample: 34642376712",
+                "34642376712"
+            );
+
+            if (!phoneNumber || !phoneNumber.trim()) {
+                setVonageStatus('❌ Call cancelled');
+                setTimeout(() => setVonageStatus(''), 3000);
+                return;
+            }
+
+            // Clean the phone number
+            const cleanNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
+
+            if (!/^\d{10,15}$/.test(cleanNumber)) {
+                alert('Please enter a valid phone number with 10-15 digits (include country code)');
+                setVonageStatus('❌ Invalid phone number');
+                setTimeout(() => setVonageStatus(''), 3000);
+                return;
+            }
+
+            setIsVonageCalling(true);
+            setVonageStatus('📞 Initiating Vonage test call...');
+
+            // Get the current user's phone number
+            const fromNumber = prompt(
+                "Enter your Vonage phone number (the number you purchased from Vonage):\nExample: 12345678901",
+                "12345678901"
+            );
+
+            if (!fromNumber || !fromNumber.trim()) {
+                setVonageStatus('❌ Call cancelled');
+                setIsVonageCalling(false);
+                setTimeout(() => setVonageStatus(''), 3000);
+                return;
+            }
+
+            const cleanFromNumber = fromNumber.replace(/[\s\-\(\)]/g, '');
+
+            if (!/^\d{10,15}$/.test(cleanFromNumber)) {
+                alert('Please enter a valid Vonage phone number with 10-15 digits');
+                setVonageStatus('❌ Invalid Vonage number');
+                setIsVonageCalling(false);
+                setTimeout(() => setVonageStatus(''), 3000);
+                return;
+            }
+
+            const customText = prompt(
+                "Enter the text you want the AI to say:",
+                "Hi, this is a test call from TotalRecall. Can you hear me clearly?"
+            ) || "Hi, this is a test call from TotalRecall. Can you hear me clearly?";
+
+            const vonagePayload = {
+                from: {
+                    type: "phone",
+                    number: cleanFromNumber
+                },
+                to: [
+                    {
+                        type: "phone",
+                        number: cleanNumber
+                    }
+                ],
+                ncco: [
+                    {
+                        action: "talk",
+                        text: customText,
+                        provider: "Google",
+                        providerOptions: {
+                            name: "en-US-Chirp3-HD-Achernar",
+                            language_code: "en-US"
+                        }
+                    }
+                ]
+            };
+
+            console.log("📤 Sending Vonage request:", JSON.stringify(vonagePayload, null, 2));
+
+            // Call the Edge Function
+            const { data, error } = await supabase.functions.invoke('vonage-call', {
+                body: vonagePayload
+            });
+
+            if (error) {
+                console.error("❌ Vonage call error:", error);
+
+                let errorMessage = `❌ Vonage call failed:\n\n`;
+                if (error.message && error.message.includes('Failed to fetch')) {
+                    errorMessage += `The Edge Function could not be reached.\n\n`;
+                    errorMessage += `To fix this:\n`;
+                    errorMessage += `1. Deploy the function: supabase functions deploy vonage-call\n`;
+                    errorMessage += `2. Set environment variables:\n`;
+                    errorMessage += `   supabase secrets set VONAGE_API_KEY=your_key\n`;
+                    errorMessage += `   supabase secrets set VONAGE_API_SECRET=your_secret\n`;
+                    errorMessage += `3. Check function status: supabase functions list\n`;
+                    errorMessage += `4. Test locally: supabase functions serve vonage-call\n\n`;
+                    errorMessage += `See the Edge Function code in the console output.`;
+                } else if (error.message && error.message.includes('401') || error.message.includes('403')) {
+                    errorMessage += `Authentication failed. Check your Supabase credentials.\n\n`;
+                } else if (error.message && error.message.includes('404')) {
+                    errorMessage += `Edge Function not found. Deploy it:\n`;
+                    errorMessage += `supabase functions deploy vonage-call`;
+                } else {
+                    errorMessage += `${error.message || 'Unknown error occurred'}\n\n`;
+                    errorMessage += `Check the console for more details.`;
+                }
+
+                setVonageStatus(`❌ ${error.message || 'Unknown error'}`);
+                alert(errorMessage);
+                setIsVonageCalling(false);
+                return;
+            }
+
+            console.log("✅ Vonage call response:", data);
+
+            if (data && data.error) {
+                setVonageStatus(`❌ ${data.error}`);
+                alert(`❌ Vonage API error:\n\n${data.error}\n${data.details ? JSON.stringify(data.details, null, 2) : ''}`);
+                setIsVonageCalling(false);
+                return;
+            }
+
+            setVonageStatus(`✅ Call initiated! Call ID: ${data?.uuid || 'Success'}`);
+
+            alert(`✅ Vonage call initiated successfully!\n\nTo: ${cleanNumber}\nFrom: ${cleanFromNumber}\nCall ID: ${data?.uuid || 'N/A'}\n\nCheck your Vonage dashboard for call status.`);
+
+        } catch (error) {
+            console.error("❌ Vonage test call failed:", error);
+            setVonageStatus(`❌ Failed: ${error.message || 'Unknown error'}`);
+
+            let errorMessage = `❌ Vonage call failed:\n\n`;
+            if (error.message && error.message.includes('Failed to fetch')) {
+                errorMessage += `Connection error. Please check:\n`;
+                errorMessage += `1. Your internet connection\n`;
+                errorMessage += `2. The Edge Function is deployed\n`;
+                errorMessage += `3. CORS settings\n\n`;
+                errorMessage += `Run: supabase functions deploy vonage-call`;
+            } else {
+                errorMessage += `${error.message || 'Unknown error occurred'}\n\n`;
+                errorMessage += `Check the console for more details.`;
+            }
+
+            alert(errorMessage);
+        } finally {
+            setIsVonageCalling(false);
+            setTimeout(() => {
+                if (vonageStatus.includes('✅') || vonageStatus.includes('❌')) {
+                    setVonageStatus('');
+                }
+            }, 8000);
+        }
+    };
+
     const getMediaStream = async () => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error("Your browser does not support WebRTC or you are not on a secure connection.");
@@ -1284,11 +1452,9 @@ function ChatApp({ user, onLogout }) {
 
     // Helper function to get display name for members (hide email)
     const getMemberDisplayName = (member) => {
-        // If name exists, use it
         if (member.name && member.name.trim()) {
             return member.name;
         }
-        // Otherwise show only first part of email before @
         return member.email.split('@')[0];
     };
 
@@ -1398,7 +1564,6 @@ function ChatApp({ user, onLogout }) {
                                                 <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                                     {getMemberDisplayName(c)}
                                                 </span>
-                                                {/* Email address is hidden for privacy - only shown on hover as a tooltip */}
                                                 <span style={{ fontSize: '11px', color: '#2a3942', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                                     ••••••
                                                 </span>
@@ -1508,6 +1673,28 @@ function ChatApp({ user, onLogout }) {
                                         <b>{activeContactName}</b>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                                        {/* Vonage Test Call Button */}
+                                        <button
+                                            onClick={handleVonageTestCall}
+                                            disabled={isVonageCalling}
+                                            style={{
+                                                backgroundColor: isVonageCalling ? '#1a2a33' : '#7c3aed',
+                                                color: isVonageCalling ? '#666' : 'white',
+                                                border: 'none',
+                                                padding: '8px 16px',
+                                                borderRadius: '20px',
+                                                cursor: isVonageCalling ? 'not-allowed' : 'pointer',
+                                                fontWeight: 'bold',
+                                                fontSize: '12px',
+                                                opacity: isVonageCalling ? 0.6 : 1,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            {isVonageCalling ? '⏳' : '📞'} Vonage Test
+                                        </button>
+
                                         {!inVoiceCall ? (
                                             <button onClick={handleStartCall} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
                                         ) : (
@@ -1530,6 +1717,20 @@ function ChatApp({ user, onLogout }) {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Vonage Status Message */}
+                                {vonageStatus && (
+                                    <div style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: vonageStatus.includes('✅') ? '#064e3b' : vonageStatus.includes('❌') ? '#7f1d1d' : '#1e293b',
+                                        color: 'white',
+                                        fontSize: '13px',
+                                        textAlign: 'center',
+                                        borderBottom: '1px solid #1a2a33'
+                                    }}>
+                                        {vonageStatus}
+                                    </div>
+                                )}
 
                                 {/* VIDEO GRID */}
                                 {inVoiceCall && (
