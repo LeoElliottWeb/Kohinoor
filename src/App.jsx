@@ -162,7 +162,7 @@ if (typeof document !== 'undefined') {
 // ==========================================
 // 📺 REMOTE VIDEO COMPONENT
 // ==========================================
-function RemoteVideo({ stream, email, savedContacts }) {
+function RemoteVideo({ stream, email, allKnownUsers }) {
     const videoRef = useRef(null);
 
     useEffect(() => {
@@ -171,7 +171,8 @@ function RemoteVideo({ stream, email, savedContacts }) {
         }
     }, [stream]);
 
-    const contactName = savedContacts.find(c => c.email === email)?.name || email.split('@')[0];
+    const safeEmail = email?.trim().toLowerCase();
+    const contactName = allKnownUsers.find(c => c.email?.trim().toLowerCase() === safeEmail)?.name || email.split('@')[0];
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
@@ -191,7 +192,16 @@ function ChatApp({ user, onLogout }) {
     const displayName = userEmail.split('@')[0];
 
     const [onlineUsers, setOnlineUsers] = useState([]);
+
+    // Split contacts into Database Members vs Local Contacts
+    const [members, setMembers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
+
+    // Collapse/Expand State
+    const [isOnlineExpanded, setIsOnlineExpanded] = useState(true);
+    const [isMembersExpanded, setIsMembersExpanded] = useState(true);
+    const [isContactsExpanded, setIsContactsExpanded] = useState(true);
+
     const [selectedContact, setSelectedContact] = useState(null);
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
@@ -222,7 +232,7 @@ function ChatApp({ user, onLogout }) {
     // Responsive Mobile State
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-    // Keep the selectedContactRef in sync with the state so the realtime listener uses the correct value
+    // Keep the selectedContactRef in sync with the state
     useEffect(() => {
         selectedContactRef.current = selectedContact;
     }, [selectedContact]);
@@ -260,7 +270,6 @@ function ChatApp({ user, onLogout }) {
 
     const autoAcceptOfferRef = useRef(null);
     const initiateCallRef = useRef(null);
-
     const ringerActiveRef = useRef(false);
 
     useEffect(() => {
@@ -309,12 +318,49 @@ function ChatApp({ user, onLogout }) {
         };
     }, [incomingCall, isCallingOut]);
 
+    // Fetch Database Members and Local Contacts
     useEffect(() => {
-        const stored = localStorage.getItem('totalRecallContacts');
-        if (stored) {
-            try { setSavedContacts(JSON.parse(stored)); }
-            catch (e) { console.error(e); }
-        }
+        const fetchMembers = async () => {
+            try {
+                // 1. Fetch official registered members
+                const { data, error } = await supabase.from('profiles').select('email, name');
+                if (error) {
+                    console.error("❌ Supabase fetch error (Check your permissions/RLS):", error);
+                } else if (data) {
+                    console.log("✅ Fetched members from DB:", data);
+                    setMembers(data);
+                }
+            } catch (err) {
+                console.error("Exception fetching profiles:", err);
+            }
+
+            // 2. Fetch locally saved manual contacts
+            const stored = localStorage.getItem('totalRecallContacts');
+            if (stored) {
+                try {
+                    setSavedContacts(JSON.parse(stored));
+                } catch (e) { console.error(e); }
+            }
+        };
+
+        fetchMembers();
+
+        // Listen for new users signing up in real-time
+        const profilesChannel = supabase.channel('public:profiles')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, payload => {
+                const newProfile = payload.new;
+                setMembers(prev => {
+                    // Normalize to safely block duplicate inserts via realtime
+                    const newEmailSafe = newProfile.email?.trim().toLowerCase();
+                    if (prev.find(m => m.email?.trim().toLowerCase() === newEmailSafe)) return prev;
+                    return [...prev, { name: newProfile.name || newProfile.email.split('@')[0], email: newProfile.email }];
+                });
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(profilesChannel);
+        };
     }, []);
 
     useEffect(() => {
@@ -500,8 +546,12 @@ function ChatApp({ user, onLogout }) {
         const supported = ('contacts' in navigator && 'ContactsManager' in window);
 
         const processNewContacts = async (newContacts) => {
-            const existingEmails = new Set(savedContacts.map(c => c.email));
-            const trulyNewContacts = newContacts.filter(c => !existingEmails.has(c.email));
+            // Filter out invalid empty inputs
+            const validContacts = newContacts.filter(c => c.email);
+            if (validContacts.length === 0) return;
+
+            const existingEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
+            const trulyNewContacts = validContacts.filter(c => !existingEmails.has(c.email.trim().toLowerCase()));
 
             if (trulyNewContacts.length > 0) {
                 setSavedContacts(prev => {
@@ -509,42 +559,43 @@ function ChatApp({ user, onLogout }) {
                     localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
                     return merged;
                 });
-
-                for (const contact of trulyNewContacts) {
-                    try {
-                        const { data, error } = await supabase.functions.invoke('send-email', {
-                            body: {
-                                to: contact.email,
-                                subject: "Let's connect on TotalRecall!",
-                                html: `<p>Hi ${contact.name},</p><p>I just added you to my contacts on TotalRecall. Join me here to start chatting and video calling: <a href="${window.location.origin}">${window.location.origin}</a></p><p>Best,<br/>${displayName}</p>`
-                            }
-                        });
-
-                        if (error) {
-                            console.error(`Failed to send invite to ${contact.email}:`, error);
-                        } else {
-                            console.log(`Invite successfully sent to ${contact.email}`);
-                        }
-                    } catch (error) {
-                        console.error(`Error invoking edge function for ${contact.email}:`, error);
-                    }
-                }
-            } else {
-                alert("Contact(s) already exist in your list.");
             }
+
+            // Utilize the Supabase Edge Function to dispatch an email via Resend for ALL valid contacts
+            for (const contact of validContacts) {
+                try {
+                    const { data, error } = await supabase.functions.invoke('send-email', {
+                        body: {
+                            to: contact.email,
+                            subject: "Let's connect on TotalRecall!",
+                            html: `<p>Hi ${contact.name},</p><p>I just added you to my contacts on TotalRecall. Join me here to start chatting and video calling: <a href="${window.location.origin}">${window.location.origin}</a></p><p>Best,<br/>${displayName}</p>`
+                        }
+                    });
+
+                    if (error) {
+                        console.error(`Failed to send invite to ${contact.email} via Edge Function:`, error);
+                    } else {
+                        console.log(`Invite successfully sent to ${contact.email}`);
+                    }
+                } catch (error) {
+                    console.error(`Error invoking edge function for ${contact.email}:`, error);
+                }
+            }
+
+            alert("Invitation process complete!");
         };
 
         if (supported) {
             try {
                 const contacts = await navigator.contacts.select(['name', 'email'], { multiple: true });
-                const validContacts = contacts
+                const mappedContacts = contacts
                     .filter(c => c.email && c.email.length > 0)
                     .map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
 
-                if (validContacts.length > 0) await processNewContacts(validContacts);
+                if (mappedContacts.length > 0) await processNewContacts(mappedContacts);
             } catch (err) { console.error("Contact selection failed", err); }
         } else {
-            const emailInput = prompt("Enter an email address to add a contact manually:");
+            const emailInput = prompt("Enter an email address to send an invite manually:");
             if (emailInput && emailInput.trim()) {
                 const targetEmail = emailInput.trim();
                 await processNewContacts([{ name: targetEmail.split('@')[0], email: targetEmail }]);
@@ -554,7 +605,7 @@ function ChatApp({ user, onLogout }) {
 
     const handleRemoveContact = (e, emailToRemove) => {
         e.stopPropagation();
-        if (window.confirm('Are you sure you want to remove this contact?')) {
+        if (window.confirm('Are you sure you want to remove this contact from your view?')) {
             setSavedContacts(prev => {
                 const updatedContacts = prev.filter(c => c.email !== emailToRemove);
                 localStorage.setItem('totalRecallContacts', JSON.stringify(updatedContacts));
@@ -905,6 +956,35 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // ==========================================
+    // 🛡️ DERIVED STATES FOR ROBUST FILTERING
+    // ==========================================
+
+    // 1. Safely lowercase the logged in user to prevent duplicate display bugs
+    const safeUserEmail = userEmail ? userEmail.trim().toLowerCase() : '';
+
+    const allKnownUsers = [...members, ...savedContacts];
+
+    // 2. Filter Members: ensure m.email exists, format safely, then filter out self
+    const displayMembers = members.filter(m => {
+        if (!m.email) return false;
+        return m.email.trim().toLowerCase() !== safeUserEmail;
+    });
+
+    // 3. Filter Local Contacts: Exclude self, and exclude anyone already in the Database Members list
+    const displayLocalContacts = savedContacts.filter(c => {
+        if (!c.email) return false;
+        const cEmailSafe = c.email.trim().toLowerCase();
+
+        if (cEmailSafe === safeUserEmail) return false;
+        if (members.some(m => m.email?.trim().toLowerCase() === cEmailSafe)) return false;
+
+        return true;
+    });
+
+    const activeContactObj = allKnownUsers.find(c => c.email?.trim().toLowerCase() === selectedContact?.trim().toLowerCase());
+    const activeContactName = activeContactObj ? activeContactObj.name : (selectedContact ? selectedContact.split('@')[0] : '');
+
     return (
         <div style={{ display: 'flex', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
 
@@ -932,6 +1012,7 @@ function ChatApp({ user, onLogout }) {
                     height: '100%',
                     overflow: 'hidden'
                 }}>
+                    {/* Header */}
                     <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
@@ -945,66 +1026,125 @@ function ChatApp({ user, onLogout }) {
                         </div>
                     </div>
 
-                    <div style={{ padding: '10px', backgroundColor: '#111b21', borderBottom: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                        <span style={{ color: '#8696a0', fontSize: '14px', fontWeight: 'bold' }}>Contacts</span>
-                        <button onClick={handleImportContacts} style={{ backgroundColor: '#2a3942', color: '#00a884', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                            + Add Contact
-                        </button>
-                    </div>
-
                     <div style={{ flexGrow: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                        {savedContacts.length > 0 && (
-                            <div style={{ padding: '10px', backgroundColor: '#202c33', color: '#8696a0', fontSize: '12px', textTransform: 'uppercase' }}>
-                                Saved Contacts
-                            </div>
-                        )}
-                        {savedContacts.map(c => (
-                            <div
-                                key={c.email}
-                                onClick={() => setSelectedContact(c.email)}
-                                style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
-                            >
-                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold', flexShrink: 0 }}>
-                                    {c.name.charAt(0).toUpperCase()}
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
-                                    <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.name}</span>
-                                    <span style={{ fontSize: '12px', color: '#8696a0', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.email}</span>
-                                </div>
-                                {Object.keys(remoteStreams).includes(c.email) && (
-                                    <span style={{ marginLeft: '10px', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
-                                )}
-                                <button
-                                    onClick={(e) => handleRemoveContact(e, c.email)}
-                                    style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}
-                                    title="Remove contact"
-                                >
-                                    ❌
-                                </button>
-                            </div>
-                        ))}
 
-                        <div style={{ padding: '10px', backgroundColor: '#202c33', color: '#8696a0', fontSize: '12px', textTransform: 'uppercase' }}>
-                            Online Now ({onlineUsers.length})
+                        {/* ONLINE NOW */}
+                        <div
+                            onClick={() => setIsOnlineExpanded(!isOnlineExpanded)}
+                            style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', userSelect: 'none' }}
+                        >
+                            <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Online Now ({onlineUsers.length})</span>
+                            <span style={{ color: '#8696a0', fontSize: '10px' }}>{isOnlineExpanded ? '▼' : '▶'}</span>
                         </div>
-                        {onlineUsers.length === 0 ? (
-                            <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No users online.</div>
-                        ) : (
-                            onlineUsers.map(u => (
-                                <div
-                                    key={u.email}
-                                    onClick={() => setSelectedContact(u.email)}
-                                    style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
-                                >
-                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
-                                        {u.email.charAt(0).toUpperCase()}
+                        {isOnlineExpanded && (
+                            onlineUsers.length === 0 ? (
+                                <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No users online.</div>
+                            ) : (
+                                onlineUsers.map(u => {
+                                    const matchedMember = allKnownUsers.find(k => k.email?.trim().toLowerCase() === u.email?.trim().toLowerCase());
+                                    const finalName = matchedMember ? matchedMember.name : u.email.split('@')[0];
+
+                                    return (
+                                        <div
+                                            key={u.email}
+                                            onClick={() => setSelectedContact(u.email)}
+                                            style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
+                                        >
+                                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
+                                                {u.email.charAt(0).toUpperCase()}
+                                            </div>
+                                            <span style={{ fontSize: '16px' }}>{finalName}</span>
+                                            {Object.keys(remoteStreams).includes(u.email) && (
+                                                <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
+                                            )}
+                                        </div>
+                                    )
+                                })
+                            )
+                        )}
+
+                        {/* MEMBERS GROUP */}
+                        <div
+                            onClick={() => setIsMembersExpanded(!isMembersExpanded)}
+                            style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: '10px', userSelect: 'none' }}
+                        >
+                            <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Members Group ({displayMembers.length})</span>
+                            <span style={{ color: '#8696a0', fontSize: '10px' }}>{isMembersExpanded ? '▼' : '▶'}</span>
+                        </div>
+                        {isMembersExpanded && (
+                            displayMembers.length === 0 ? (
+                                <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No members found.</div>
+                            ) : (
+                                displayMembers.map(c => (
+                                    <div
+                                        key={c.email}
+                                        onClick={() => setSelectedContact(c.email)}
+                                        style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
+                                    >
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold', flexShrink: 0 }}>
+                                            {c.name ? c.name.charAt(0).toUpperCase() : c.email.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+                                            <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.name || c.email.split('@')[0]}</span>
+                                            <span style={{ fontSize: '12px', color: '#8696a0', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.email}</span>
+                                        </div>
+                                        {Object.keys(remoteStreams).includes(c.email) && (
+                                            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
+                                        )}
                                     </div>
-                                    <span style={{ fontSize: '16px' }}>{u.email.split('@')[0]}</span>
-                                    {Object.keys(remoteStreams).includes(u.email) && (
-                                        <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
-                                    )}
-                                </div>
-                            ))
+                                ))
+                            )
+                        )}
+
+                        {/* MY CONTACTS (MANUALLY ADDED) */}
+                        <div
+                            onClick={() => setIsContactsExpanded(!isContactsExpanded)}
+                            style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginTop: '10px', borderBottom: '1px solid #222d34', userSelect: 'none' }}
+                        >
+                            <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>My Contacts ({displayLocalContacts.length})</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // Prevents collapsing when clicking the button
+                                        handleImportContacts();
+                                    }}
+                                    style={{ backgroundColor: '#2a3942', color: '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                >
+                                    + Add External
+                                </button>
+                                <span style={{ color: '#8696a0', fontSize: '10px' }}>{isContactsExpanded ? '▼' : '▶'}</span>
+                            </div>
+                        </div>
+                        {isContactsExpanded && (
+                            displayLocalContacts.length === 0 ? (
+                                <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No manual contacts added.</div>
+                            ) : (
+                                displayLocalContacts.map(c => (
+                                    <div
+                                        key={c.email}
+                                        onClick={() => setSelectedContact(c.email)}
+                                        style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
+                                    >
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#fff', fontWeight: 'bold', flexShrink: 0 }}>
+                                            {c.name ? c.name.charAt(0).toUpperCase() : c.email.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+                                            <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.name || c.email.split('@')[0]}</span>
+                                            <span style={{ fontSize: '12px', color: '#8696a0', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.email}</span>
+                                        </div>
+                                        {Object.keys(remoteStreams).includes(c.email) && (
+                                            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
+                                        )}
+                                        <button
+                                            onClick={(e) => handleRemoveContact(e, c.email)}
+                                            style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}
+                                            title="Remove contact"
+                                        >
+                                            ❌
+                                        </button>
+                                    </div>
+                                ))
+                            )
                         )}
                     </div>
                 </div>
@@ -1035,9 +1175,9 @@ function ChatApp({ user, onLogout }) {
                                         </button>
                                     )}
                                     <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
-                                        {selectedContact.charAt(0).toUpperCase()}
+                                        {activeContactName ? activeContactName.charAt(0).toUpperCase() : selectedContact.charAt(0).toUpperCase()}
                                     </div>
-                                    <b>{savedContacts.find(c => c.email === selectedContact)?.name || selectedContact.split('@')[0]}</b>
+                                    <b>{activeContactName}</b>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                                     {!inVoiceCall ? (
@@ -1073,7 +1213,7 @@ function ChatApp({ user, onLogout }) {
                                         </span>
                                     </div>
                                     {Object.entries(remoteStreams).map(([email, stream]) => (
-                                        <RemoteVideo key={email} stream={stream} email={email} savedContacts={savedContacts} />
+                                        <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnownUsers} />
                                     ))}
                                 </div>
                             )}
@@ -1140,7 +1280,7 @@ function ChatApp({ user, onLogout }) {
                     ) : (
                         <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', flexDirection: 'column', color: '#8696a0', padding: '20px', textAlign: 'center' }}>
                             <h2>TotalRecall</h2>
-                            <p>Select a contact from the sidebar to start messaging.</p>
+                            <p>Select a member or contact from the sidebar to start messaging.</p>
                         </div>
                     )}
                 </div>
@@ -1184,6 +1324,11 @@ export default function App() {
                 });
 
                 if (error) throw error;
+
+                // Push new user to our public profiles directory
+                if (data?.user) {
+                    await supabase.from('profiles').upsert([{ email: email, name: email.split('@')[0] }]);
+                }
 
                 if (data?.user && !data?.session) {
                     try {
