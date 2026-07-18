@@ -167,8 +167,10 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
 
     useEffect(() => {
         if (videoRef.current && stream) {
-            // Because we clone the MediaStream in ontrack, this will reliably trigger
-            videoRef.current.srcObject = stream;
+            // BUG FIX: Prevent iOS Safari black screens by avoiding redundant re-assignments
+            if (videoRef.current.srcObject !== stream) {
+                videoRef.current.srcObject = stream;
+            }
         }
     }, [stream]);
 
@@ -218,6 +220,8 @@ function ChatApp({ user, onLogout }) {
 
     const peersRef = useRef({});
     const iceCandidateQueues = useRef({});
+    // BUG FIX: Batching state for outgoing ICE Candidates to bypass Supabase limits
+    const iceBatchersRef = useRef({});
 
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const screenStreamRef = useRef(null);
@@ -359,7 +363,9 @@ function ChatApp({ user, onLogout }) {
 
     useEffect(() => {
         if (localVideoRef.current && localMediaStream) {
-            localVideoRef.current.srcObject = localMediaStream;
+            if (localVideoRef.current.srcObject !== localMediaStream) {
+                localVideoRef.current.srcObject = localMediaStream;
+            }
         }
     }, [localMediaStream, inVoiceCall]);
 
@@ -446,19 +452,38 @@ function ChatApp({ user, onLogout }) {
                         while (queue.length > 0) {
                             const candidate = queue.shift();
                             try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
-                            catch (err) { console.error("ICE error:", err); }
+                            catch (err) { }
                         }
                     } catch (err) { console.error("Failed handling answer:", err); }
                 }
             }
         });
 
+        // BUG FIX: Handle batched candidates to bypass Supabase real-time rate limits
+        channel.on('broadcast', { event: 'webrtc-ice-batch' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail) {
+                const pc = peersRef.current[payload.sender];
+                const queue = iceCandidateQueues.current[payload.sender] || [];
+
+                payload.candidates.forEach(async (candidate) => {
+                    if (pc && pc.remoteDescription) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+                        catch (err) { }
+                    } else {
+                        queue.push(candidate);
+                    }
+                });
+                iceCandidateQueues.current[payload.sender] = queue;
+            }
+        });
+
+        // Keep standard ice listener just in case for backward compatibility
         channel.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail) {
                 const pc = peersRef.current[payload.sender];
                 if (pc && pc.remoteDescription) {
                     try { await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); }
-                    catch (err) { console.error("ICE error:", err); }
+                    catch (err) { }
                 } else {
                     if (!iceCandidateQueues.current[payload.sender]) iceCandidateQueues.current[payload.sender] = [];
                     iceCandidateQueues.current[payload.sender].push(payload.candidate);
@@ -487,7 +512,7 @@ function ChatApp({ user, onLogout }) {
         channel.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
                 try { await channel.track({ email: userEmail, online: true, timestamp: new Date().toISOString() }); }
-                catch (error) { console.error('Error tracking presence:', error); }
+                catch (error) { }
             }
         });
 
@@ -840,7 +865,6 @@ function ChatApp({ user, onLogout }) {
 
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => {
-                // If we are actively sharing the screen, route the screen track to the new peer instead of the webcam
                 if (track.kind === 'video' && isScreenSharingRef.current && screenStreamRef.current) {
                     pc.addTrack(screenStreamRef.current.getVideoTracks()[0], localStreamRef.current);
                 } else {
@@ -849,27 +873,37 @@ function ChatApp({ user, onLogout }) {
             });
         }
 
+        // BUG FIX: Batching ICE Candidates to avoid hitting Supabase Realtime broadcast rate limits
         pc.onicecandidate = (e) => {
             if (e.candidate && channelRef.current) {
-                channelRef.current.send({
-                    type: 'broadcast', event: 'webrtc-ice',
-                    payload: { targetEmail, candidate: e.candidate, sender: userEmail }
-                });
+                if (!iceBatchersRef.current[targetEmail]) {
+                    iceBatchersRef.current[targetEmail] = { candidates: [], timer: null };
+                }
+
+                const batcher = iceBatchersRef.current[targetEmail];
+                batcher.candidates.push(e.candidate);
+
+                if (!batcher.timer) {
+                    batcher.timer = setTimeout(() => {
+                        if (channelRef.current) {
+                            channelRef.current.send({
+                                type: 'broadcast', event: 'webrtc-ice-batch',
+                                payload: { targetEmail, candidates: batcher.candidates, sender: userEmail }
+                            });
+                        }
+                        batcher.candidates = [];
+                        batcher.timer = null;
+                    }, 300); // 300ms collection window for ICE candidates
+                }
             }
         };
 
         pc.ontrack = (e) => {
-            setRemoteStreams(prev => {
-                const existingStream = prev[targetEmail];
-                if (existingStream) {
-                    existingStream.addTrack(e.track);
-                    // CRITICAL FIX: Creating a cloned MediaStream reference to force React's useEffect to fire in <RemoteVideo>
-                    return { ...prev, [targetEmail]: new MediaStream(existingStream.getTracks()) };
-                } else {
-                    const stream = e.streams[0] || new MediaStream([e.track]);
-                    return { ...prev, [targetEmail]: stream };
-                }
-            });
+            // BUG FIX: Pass the stable stream reference directly to prevent iOS from breaking playback
+            const stream = e.streams && e.streams[0];
+            if (stream) {
+                setRemoteStreams(prev => ({ ...prev, [targetEmail]: stream }));
+            }
         };
 
         pc.onconnectionstatechange = () => {
@@ -892,6 +926,7 @@ function ChatApp({ user, onLogout }) {
             return newStreams;
         });
         delete iceCandidateQueues.current[email];
+        delete iceBatchersRef.current[email];
 
         if (Object.keys(peersRef.current).length === 0) {
             endVoiceCall(false);
@@ -931,6 +966,7 @@ function ChatApp({ user, onLogout }) {
         setLocalMediaStream(null);
         setInVoiceCall(false);
         iceCandidateQueues.current = {};
+        iceBatchersRef.current = {};
     };
 
     useEffect(() => {
@@ -1075,7 +1111,6 @@ function ChatApp({ user, onLogout }) {
             screenTrack.onended = () => stopScreenShare();
 
             Object.values(peersRef.current).forEach(pc => {
-                // CRITICAL FIX: Safe sender mapping targeting video tracks
                 const senders = pc.getSenders();
                 const videoSender = senders.find(s => s.track?.kind === 'video');
 
@@ -1115,7 +1150,6 @@ function ChatApp({ user, onLogout }) {
                 const videoSender = senders.find(s => s.track?.kind === 'video');
 
                 if (videoSender) {
-                    // Falls back to `null` safely if the user never had a webcam
                     videoSender.replaceTrack(webcamTrack || null).catch(err => console.error("Revert track error:", err));
                 }
             });
