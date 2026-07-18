@@ -163,36 +163,14 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
 
-        // Ensure stream is assigned
-        if (videoEl.srcObject !== stream) {
-            videoEl.srcObject = stream;
-        }
+        // CRITICAL FIX: Ensure the video element registers the stream properly 
+        videoEl.srcObject = stream;
 
-        // Must explicitly tell the video element to play for mobile browsers
-        const playVideo = async () => {
-            try {
-                await videoEl.play();
-            } catch (err) {
-                console.warn("Auto-play prevented:", err);
-            }
+        // CRITICAL FIX: Mobile browsers block playback unless metadata is loaded and play is explicit
+        videoEl.onloadedmetadata = () => {
+            videoEl.play().catch((e) => console.warn("Remote playback delayed by browser:", e));
         };
 
-        playVideo();
-
-        // BUG FIX: Mobile browsers ignore new tracks if added silently to the same stream.
-        // We must re-assign and force play when the secondary track (video) arrives!
-        const handleTrackChange = () => {
-            videoEl.srcObject = stream; // Re-assignment acts as a kick for iOS Safari
-            playVideo();
-        };
-
-        stream.addEventListener('addtrack', handleTrackChange);
-        stream.addEventListener('removetrack', handleTrackChange);
-
-        return () => {
-            stream.removeEventListener('addtrack', handleTrackChange);
-            stream.removeEventListener('removetrack', handleTrackChange);
-        };
     }, [stream]);
 
     const safeEmail = email?.trim().toLowerCase();
@@ -273,6 +251,7 @@ function ChatApp({ user, onLogout }) {
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
             { urls: 'stun:global.stun.twilio.com:3478' },
             {
                 urls: 'turn:openrelay.metered.ca:80',
@@ -478,7 +457,6 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // BUG FIX: The candidates MUST be processed iteratively and correctly queued.
         channel.on('broadcast', { event: 'webrtc-ice-batch' }, async ({ payload }) => {
             if (payload.targetEmail === userEmail) {
                 const pc = peersRef.current[payload.sender];
@@ -744,7 +722,6 @@ function ChatApp({ user, onLogout }) {
             });
         }
 
-        // BUG FIX: Critical ICE Rate limit fix. Deep clone array so asynchronous send doesn't capture an empty state!
         pc.onicecandidate = (e) => {
             if (e.candidate && channelRef.current) {
                 if (!iceBatchersRef.current[targetEmail]) {
@@ -756,7 +733,6 @@ function ChatApp({ user, onLogout }) {
 
                 if (!batcher.timer) {
                     batcher.timer = setTimeout(() => {
-                        // CRUCIAL: Copy array before clearing the original reference
                         const candidatesToSend = [...batcher.candidates];
                         batcher.candidates = [];
                         batcher.timer = null;
@@ -775,19 +751,15 @@ function ChatApp({ user, onLogout }) {
         pc.ontrack = (e) => {
             setRemoteStreams(prev => {
                 const existingStream = prev[targetEmail];
+                let tracks = existingStream ? existingStream.getTracks() : [];
 
-                if (existingStream) {
-                    // Check if track is already in the stream (browser sometimes handles this natively via e.streams)
-                    const trackExists = existingStream.getTracks().some(t => t.id === e.track.id);
-                    if (!trackExists) {
-                        existingStream.addTrack(e.track);
-                    }
-                    // Shallow copy object to force React Re-render, without destroying Stream reference!
-                    return { ...prev };
-                } else {
-                    const stream = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
-                    return { ...prev, [targetEmail]: stream };
+                if (!tracks.some(t => t.id === e.track.id)) {
+                    tracks = [...tracks, e.track];
                 }
+
+                // CRITICAL FIX: Creating a completely new MediaStream reference forces React's useEffect to trigger
+                const newStream = new MediaStream(tracks);
+                return { ...prev, [targetEmail]: newStream };
             });
         };
 
