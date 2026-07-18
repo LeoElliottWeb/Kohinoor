@@ -232,6 +232,9 @@ function ChatApp({ user, onLogout }) {
     // Responsive Mobile State
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
+    // Import contacts loading state
+    const [isImporting, setIsImporting] = useState(false);
+
     // Keep the selectedContactRef in sync with the state
     useEffect(() => {
         selectedContactRef.current = selectedContact;
@@ -338,7 +341,8 @@ function ChatApp({ user, onLogout }) {
             const stored = localStorage.getItem('totalRecallContacts');
             if (stored) {
                 try {
-                    setSavedContacts(JSON.parse(stored));
+                    const parsedContacts = JSON.parse(stored);
+                    setSavedContacts(parsedContacts);
                 } catch (e) { console.error(e); }
             }
         };
@@ -350,7 +354,6 @@ function ChatApp({ user, onLogout }) {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, payload => {
                 const newProfile = payload.new;
                 setMembers(prev => {
-                    // Normalize to safely block duplicate inserts via realtime
                     const newEmailSafe = newProfile.email?.trim().toLowerCase();
                     if (prev.find(m => m.email?.trim().toLowerCase() === newEmailSafe)) return prev;
                     return [...prev, { name: newProfile.name || newProfile.email.split('@')[0], email: newProfile.email }];
@@ -542,64 +545,362 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    const handleImportContacts = async () => {
-        const supported = ('contacts' in navigator && 'ContactsManager' in window);
-
-        const processNewContacts = async (newContacts) => {
-            // Filter out invalid empty inputs
-            const validContacts = newContacts.filter(c => c.email);
-            if (validContacts.length === 0) return;
-
-            const existingEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
-            const trulyNewContacts = validContacts.filter(c => !existingEmails.has(c.email.trim().toLowerCase()));
-
-            if (trulyNewContacts.length > 0) {
-                setSavedContacts(prev => {
-                    const merged = [...prev, ...trulyNewContacts];
-                    localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
-                    return merged;
-                });
-            }
-
-            // Utilize the Supabase Edge Function to dispatch an email via Resend for ALL valid contacts
-            for (const contact of validContacts) {
-                try {
-                    const { data, error } = await supabase.functions.invoke('send-email', {
-                        body: {
-                            to: contact.email,
-                            subject: "Let's connect on TotalRecall!",
-                            html: `<p>Hi ${contact.name},</p><p>I just added you to my contacts on TotalRecall. Join me here to start chatting and video calling: <a href="${window.location.origin}">${window.location.origin}</a></p><p>Best,<br/>${displayName}</p>`
-                        }
-                    });
-
-                    if (error) {
-                        console.error(`Failed to send invite to ${contact.email} via Edge Function:`, error);
-                    } else {
-                        console.log(`Invite successfully sent to ${contact.email}`);
+    const generatePrettyEmailHTML = (contactName, inviterName, inviterEmail) => {
+        return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Invitation to TotalRecall</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                        background-color: #f4f6f8;
+                        margin: 0;
+                        padding: 0;
                     }
-                } catch (error) {
-                    console.error(`Error invoking edge function for ${contact.email}:`, error);
+                    .container {
+                        max-width: 600px;
+                        margin: 40px auto;
+                        background-color: #ffffff;
+                        border-radius: 16px;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                        overflow: hidden;
+                    }
+                    .header {
+                        background: linear-gradient(135deg, #00a884 0%, #008f72 100%);
+                        padding: 40px 30px;
+                        text-align: center;
+                    }
+                    .header h1 {
+                        color: #ffffff;
+                        font-size: 32px;
+                        font-weight: 700;
+                        margin: 0;
+                        letter-spacing: -0.5px;
+                    }
+                    .header p {
+                        color: rgba(255, 255, 255, 0.9);
+                        font-size: 16px;
+                        margin: 8px 0 0 0;
+                    }
+                    .content {
+                        padding: 40px 30px;
+                        color: #1e293b;
+                    }
+                    .greeting {
+                        font-size: 20px;
+                        font-weight: 600;
+                        margin: 0 0 12px 0;
+                        color: #0f172a;
+                    }
+                    .message {
+                        font-size: 16px;
+                        line-height: 1.7;
+                        color: #334155;
+                        margin: 0 0 24px 0;
+                    }
+                    .inviter-badge {
+                        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+                        border: 1px solid #bbf7d0;
+                        border-radius: 12px;
+                        padding: 20px;
+                        margin: 24px 0;
+                    }
+                    .inviter-badge strong {
+                        color: #00a884;
+                        font-size: 18px;
+                    }
+                    .inviter-badge .email {
+                        color: #64748b;
+                        font-size: 14px;
+                        margin-top: 4px;
+                    }
+                    .cta-button {
+                        display: inline-block;
+                        background: linear-gradient(135deg, #00a884 0%, #008f72 100%);
+                        color: #ffffff !important;
+                        text-decoration: none;
+                        padding: 16px 40px;
+                        border-radius: 50px;
+                        font-weight: 600;
+                        font-size: 18px;
+                        margin: 8px 0 0 0;
+                        box-shadow: 0 4px 12px rgba(0, 168, 132, 0.3);
+                        transition: transform 0.2s ease, box-shadow 0.2s ease;
+                    }
+                    .cta-button:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4);
+                    }
+                    .features {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 16px;
+                        margin: 24px 0;
+                    }
+                    .feature-item {
+                        background-color: #f8fafc;
+                        border-radius: 12px;
+                        padding: 16px;
+                        text-align: center;
+                        border: 1px solid #e2e8f0;
+                    }
+                    .feature-item .icon {
+                        font-size: 28px;
+                        display: block;
+                        margin-bottom: 8px;
+                    }
+                    .feature-item .label {
+                        font-size: 14px;
+                        font-weight: 500;
+                        color: #0f172a;
+                    }
+                    .divider {
+                        height: 1px;
+                        background: #e2e8f0;
+                        margin: 24px 0;
+                    }
+                    .footer {
+                        text-align: center;
+                        padding: 0 30px 30px 30px;
+                        color: #94a3b8;
+                        font-size: 14px;
+                    }
+                    .footer a {
+                        color: #00a884;
+                        text-decoration: none;
+                    }
+                    .footer a:hover {
+                        text-decoration: underline;
+                    }
+                    @media (max-width: 480px) {
+                        .container {
+                            margin: 16px;
+                            border-radius: 12px;
+                        }
+                        .content {
+                            padding: 24px 20px;
+                        }
+                        .header {
+                            padding: 30px 20px;
+                        }
+                        .features {
+                            grid-template-columns: 1fr;
+                        }
+                        .cta-button {
+                            width: 100%;
+                            text-align: center;
+                            padding: 16px 20px;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>📱 TotalRecall</h1>
+                        <p>Connect, Chat &amp; Video Call</p>
+                    </div>
+                    <div class="content">
+                        <p class="greeting">Hello ${contactName || 'there'}! 👋</p>
+                        <p class="message">
+                            <strong style="color: #00a884;">${inviterName}</strong> has added you as a contact on 
+                            <strong>TotalRecall</strong> and would love to connect with you!
+                        </p>
+
+                        <div class="inviter-badge">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #00a884 0%, #008f72 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px; flex-shrink: 0;">
+                                    ${inviterName.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div><strong>${inviterName}</strong></div>
+                                    <div class="email">${inviterEmail}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="message" style="margin-top: 24px;">
+                            TotalRecall is a secure messaging and video calling platform where you can stay connected with friends, family, and colleagues.
+                        </p>
+
+                        <div class="features">
+                            <div class="feature-item">
+                                <span class="icon">💬</span>
+                                <span class="label">Instant Messaging</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="icon">📹</span>
+                                <span class="label">Video Calls</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="icon">👥</span>
+                                <span class="label">Group Chats</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="icon">🔒</span>
+                                <span class="label">Secure &amp; Private</span>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center;">
+                            <a href="${window.location.origin}" class="cta-button">🚀 Join Now</a>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <p style="text-align: center; color: #64748b; font-size: 15px; margin: 0;">
+                            Already have an account? 
+                            <a href="${window.location.origin}" style="color: #00a884; font-weight: 500; text-decoration: none;">Log in here</a>
+                        </p>
+                    </div>
+                    <div class="footer">
+                        <p style="margin: 0 0 8px 0;">
+                            © ${new Date().getFullYear()} TotalRecall. All rights reserved.
+                        </p>
+                        <p style="margin: 0; font-size: 13px;">
+                            This invitation was sent by ${inviterName}. 
+                            <br>If you didn't expect this email, you can safely ignore it.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+    };
+
+    const handleImportContacts = async () => {
+        if (isImporting) return;
+        setIsImporting(true);
+
+        try {
+            const supported = ('contacts' in navigator && 'ContactsManager' in window);
+            let contactsToProcess = [];
+
+            if (supported) {
+                try {
+                    const contacts = await navigator.contacts.select(['name', 'email'], { multiple: true });
+                    contactsToProcess = contacts
+                        .filter(c => c.email && c.email.length > 0)
+                        .map(c => ({
+                            name: c.name?.[0] || c.email[0].split('@')[0],
+                            email: c.email[0]
+                        }));
+                } catch (err) {
+                    console.error("Contact selection failed", err);
+                    alert("Contact selection was cancelled or failed.");
+                    setIsImporting(false);
+                    return;
+                }
+            } else {
+                const emailInput = prompt("Enter an email address to send an invite manually:");
+                if (emailInput && emailInput.trim()) {
+                    const targetEmail = emailInput.trim();
+                    if (!targetEmail.includes('@') || !targetEmail.includes('.')) {
+                        alert("Please enter a valid email address.");
+                        setIsImporting(false);
+                        return;
+                    }
+                    contactsToProcess = [{
+                        name: targetEmail.split('@')[0],
+                        email: targetEmail
+                    }];
+                } else {
+                    setIsImporting(false);
+                    return;
                 }
             }
 
-            alert("Invitation process complete!");
-        };
-
-        if (supported) {
-            try {
-                const contacts = await navigator.contacts.select(['name', 'email'], { multiple: true });
-                const mappedContacts = contacts
-                    .filter(c => c.email && c.email.length > 0)
-                    .map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
-
-                if (mappedContacts.length > 0) await processNewContacts(mappedContacts);
-            } catch (err) { console.error("Contact selection failed", err); }
-        } else {
-            const emailInput = prompt("Enter an email address to send an invite manually:");
-            if (emailInput && emailInput.trim()) {
-                const targetEmail = emailInput.trim();
-                await processNewContacts([{ name: targetEmail.split('@')[0], email: targetEmail }]);
+            if (contactsToProcess.length === 0) {
+                alert("No valid contacts to add.");
+                setIsImporting(false);
+                return;
             }
+
+            // Get current contacts for deduplication
+            const existingEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
+            const memberEmails = new Set(members.map(m => m.email?.trim().toLowerCase()));
+
+            // Separate contacts into truly new ones and those already in savedContacts
+            const contactsToAdd = [];
+            const contactsAlreadyExist = [];
+
+            contactsToProcess.forEach(contact => {
+                const emailLower = contact.email.trim().toLowerCase();
+                const contactObj = {
+                    name: contact.name || contact.email.split('@')[0],
+                    email: contact.email.trim()
+                };
+
+                if (existingEmails.has(emailLower) || memberEmails.has(emailLower)) {
+                    contactsAlreadyExist.push(contactObj);
+                } else {
+                    contactsToAdd.push(contactObj);
+                }
+            });
+
+            // CRITICAL FIX: Always add ALL new contacts immediately
+            if (contactsToAdd.length > 0) {
+                setSavedContacts(prev => {
+                    const merged = [...prev, ...contactsToAdd];
+                    localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
+                    return merged;
+                });
+                console.log(`✅ Added ${contactsToAdd.length} new contacts`);
+            }
+
+            // Send pretty emails to ALL valid contacts (both new and existing)
+            const allContactsToEmail = [...contactsToAdd, ...contactsAlreadyExist];
+
+            if (allContactsToEmail.length > 0) {
+                let sentCount = 0;
+                let failedCount = 0;
+
+                for (const contact of allContactsToEmail) {
+                    try {
+                        const prettyHTML = generatePrettyEmailHTML(
+                            contact.name,
+                            displayName,
+                            userEmail
+                        );
+
+                        const { data, error } = await supabase.functions.invoke('send-email', {
+                            body: {
+                                to: contact.email,
+                                subject: `📱 ${displayName} wants to connect with you on TotalRecall!`,
+                                html: prettyHTML
+                            }
+                        });
+
+                        if (error) {
+                            console.error(`Failed to send invite to ${contact.email} via Edge Function:`, error);
+                            failedCount++;
+                        } else {
+                            console.log(`✅ Invite successfully sent to ${contact.email}`);
+                            sentCount++;
+                        }
+                    } catch (error) {
+                        console.error(`Error invoking edge function for ${contact.email}:`, error);
+                        failedCount++;
+                    }
+                }
+
+                let message = `✅ Added ${contactsToAdd.length} new contact(s)\n`;
+                message += `📧 Sent ${sentCount} beautiful invitation email(s)\n`;
+                if (failedCount > 0) {
+                    message += `❌ Failed to send ${failedCount} email(s)`;
+                }
+                alert(message);
+            } else {
+                alert("All contacts are already in your list.");
+            }
+        } catch (error) {
+            console.error("Error importing contacts:", error);
+            alert("An error occurred while importing contacts.");
+        } finally {
+            setIsImporting(false);
         }
     };
 
@@ -1105,12 +1406,22 @@ function ChatApp({ user, onLogout }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <button
                                     onClick={(e) => {
-                                        e.stopPropagation(); // Prevents collapsing when clicking the button
+                                        e.stopPropagation();
                                         handleImportContacts();
                                     }}
-                                    style={{ backgroundColor: '#2a3942', color: '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                    disabled={isImporting}
+                                    style={{
+                                        backgroundColor: isImporting ? '#1a2a33' : '#2a3942',
+                                        color: isImporting ? '#666' : '#00a884',
+                                        border: 'none',
+                                        padding: '4px 8px',
+                                        borderRadius: '4px',
+                                        cursor: isImporting ? 'not-allowed' : 'pointer',
+                                        fontSize: '11px',
+                                        opacity: isImporting ? 0.6 : 1
+                                    }}
                                 >
-                                    + Add External
+                                    {isImporting ? '⏳ Importing...' : '+ Add External'}
                                 </button>
                                 <span style={{ color: '#8696a0', fontSize: '10px' }}>{isContactsExpanded ? '▼' : '▶'}</span>
                             </div>
