@@ -820,12 +820,11 @@ function ChatApp({ user, onLogout }) {
             }
 
             // Get current contacts for deduplication
-            const existingEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
-            const memberEmails = new Set(members.map(m => m.email?.trim().toLowerCase()));
+            const existingLocalEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
 
-            // Separate contacts into truly new ones and those already in savedContacts
+            // Prepare contacts to add (ALL contacts, even if they exist in DB)
             const contactsToAdd = [];
-            const contactsAlreadyExist = [];
+            let existingCount = 0;
 
             contactsToProcess.forEach(contact => {
                 const emailLower = contact.email.trim().toLowerCase();
@@ -834,31 +833,29 @@ function ChatApp({ user, onLogout }) {
                     email: contact.email.trim()
                 };
 
-                if (existingEmails.has(emailLower) || memberEmails.has(emailLower)) {
-                    contactsAlreadyExist.push(contactObj);
+                if (existingLocalEmails.has(emailLower)) {
+                    existingCount++;
                 } else {
                     contactsToAdd.push(contactObj);
                 }
             });
 
-            // CRITICAL FIX: Always add ALL new contacts immediately
+            // Add ALL new contacts immediately
             if (contactsToAdd.length > 0) {
                 setSavedContacts(prev => {
                     const merged = [...prev, ...contactsToAdd];
                     localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
                     return merged;
                 });
-                console.log(`✅ Added ${contactsToAdd.length} new contacts`);
+                console.log(`✅ Added ${contactsToAdd.length} new contacts to local list`);
             }
 
-            // Send pretty emails to ALL valid contacts (both new and existing)
-            const allContactsToEmail = [...contactsToAdd, ...contactsAlreadyExist];
-
-            if (allContactsToEmail.length > 0) {
+            // Send pretty emails to ALL contacts
+            if (contactsToProcess.length > 0) {
                 let sentCount = 0;
                 let failedCount = 0;
 
-                for (const contact of allContactsToEmail) {
+                for (const contact of contactsToProcess) {
                     try {
                         const prettyHTML = generatePrettyEmailHTML(
                             contact.name,
@@ -887,14 +884,17 @@ function ChatApp({ user, onLogout }) {
                     }
                 }
 
-                let message = `✅ Added ${contactsToAdd.length} new contact(s)\n`;
+                let message = `✅ Added ${contactsToAdd.length} new contact(s) to your list\n`;
+                if (existingCount > 0) {
+                    message += `ℹ️ ${existingCount} contact(s) were already in your list\n`;
+                }
                 message += `📧 Sent ${sentCount} beautiful invitation email(s)\n`;
                 if (failedCount > 0) {
                     message += `❌ Failed to send ${failedCount} email(s)`;
                 }
                 alert(message);
             } else {
-                alert("All contacts are already in your list.");
+                alert("No contacts to process.");
             }
         } catch (error) {
             console.error("Error importing contacts:", error);
@@ -1272,330 +1272,376 @@ function ChatApp({ user, onLogout }) {
         return m.email.trim().toLowerCase() !== safeUserEmail;
     });
 
-    // 3. Filter Local Contacts: Exclude self, and exclude anyone already in the Database Members list
+    // 3. Show ALL local contacts - only filter out self
     const displayLocalContacts = savedContacts.filter(c => {
         if (!c.email) return false;
         const cEmailSafe = c.email.trim().toLowerCase();
-
-        if (cEmailSafe === safeUserEmail) return false;
-        if (members.some(m => m.email?.trim().toLowerCase() === cEmailSafe)) return false;
-
-        return true;
+        return cEmailSafe !== safeUserEmail;
     });
 
     const activeContactObj = allKnownUsers.find(c => c.email?.trim().toLowerCase() === selectedContact?.trim().toLowerCase());
     const activeContactName = activeContactObj ? activeContactObj.name : (selectedContact ? selectedContact.split('@')[0] : '');
 
     return (
-        <div style={{ display: 'flex', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
 
-            {/* INCOMING CALL MODAL */}
-            {incomingCall && (
-                <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-                    <h4 style={{ margin: '0 0 10px 0' }}>📹 Incoming Call</h4>
-                    <p style={{ margin: '0 0 15px 0', fontSize: '14px' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <button onClick={acceptCall} style={{ flex: 1, backgroundColor: '#00a884', border: 'none', padding: '8px', borderRadius: '4px', color: '#111', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
-                        <button onClick={handleDeclineCall} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
-                    </div>
-                </div>
-            )}
+            {/* Main Content */}
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-            {/* SIDEBAR - CONTACTS */}
-            {showSidebar && (
-                <div style={{
-                    width: isMobile ? '100%' : '30%',
-                    minWidth: isMobile ? '100%' : '250px',
-                    borderRight: isMobile ? 'none' : '1px solid #222d34',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    backgroundColor: '#111b21',
-                    height: '100%',
-                    overflow: 'hidden'
-                }}>
-                    {/* Header */}
-                    <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
-                                {displayName.charAt(0).toUpperCase()}
-                            </div>
-                            <b style={{ color: '#00a884', fontSize: '15px' }}>{displayName}</b>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button onClick={refreshPresence} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer', fontSize: '14px' }}>🔄</button>
-                            <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer', fontSize: '14px' }}>Logout</button>
+                {/* INCOMING CALL MODAL */}
+                {incomingCall && (
+                    <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                        <h4 style={{ margin: '0 0 10px 0' }}>📹 Incoming Call</h4>
+                        <p style={{ margin: '0 0 15px 0', fontSize: '14px' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={acceptCall} style={{ flex: 1, backgroundColor: '#00a884', border: 'none', padding: '8px', borderRadius: '4px', color: '#111', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
+                            <button onClick={handleDeclineCall} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
                         </div>
                     </div>
+                )}
 
-                    <div style={{ flexGrow: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-
-                        {/* ONLINE NOW */}
-                        <div
-                            onClick={() => setIsOnlineExpanded(!isOnlineExpanded)}
-                            style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', userSelect: 'none' }}
-                        >
-                            <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Online Now ({onlineUsers.length})</span>
-                            <span style={{ color: '#8696a0', fontSize: '10px' }}>{isOnlineExpanded ? '▼' : '▶'}</span>
-                        </div>
-                        {isOnlineExpanded && (
-                            onlineUsers.length === 0 ? (
-                                <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No users online.</div>
-                            ) : (
-                                onlineUsers.map(u => {
-                                    const matchedMember = allKnownUsers.find(k => k.email?.trim().toLowerCase() === u.email?.trim().toLowerCase());
-                                    const finalName = matchedMember ? matchedMember.name : u.email.split('@')[0];
-
-                                    return (
-                                        <div
-                                            key={u.email}
-                                            onClick={() => setSelectedContact(u.email)}
-                                            style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
-                                        >
-                                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
-                                                {u.email.charAt(0).toUpperCase()}
-                                            </div>
-                                            <span style={{ fontSize: '16px' }}>{finalName}</span>
-                                            {Object.keys(remoteStreams).includes(u.email) && (
-                                                <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
-                                            )}
-                                        </div>
-                                    )
-                                })
-                            )
-                        )}
-
-                        {/* MEMBERS GROUP */}
-                        <div
-                            onClick={() => setIsMembersExpanded(!isMembersExpanded)}
-                            style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: '10px', userSelect: 'none' }}
-                        >
-                            <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Members Group ({displayMembers.length})</span>
-                            <span style={{ color: '#8696a0', fontSize: '10px' }}>{isMembersExpanded ? '▼' : '▶'}</span>
-                        </div>
-                        {isMembersExpanded && (
-                            displayMembers.length === 0 ? (
-                                <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No members found.</div>
-                            ) : (
-                                displayMembers.map(c => (
-                                    <div
-                                        key={c.email}
-                                        onClick={() => setSelectedContact(c.email)}
-                                        style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
-                                    >
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold', flexShrink: 0 }}>
-                                            {c.name ? c.name.charAt(0).toUpperCase() : c.email.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
-                                            <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.name || c.email.split('@')[0]}</span>
-                                            <span style={{ fontSize: '12px', color: '#8696a0', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.email}</span>
-                                        </div>
-                                        {Object.keys(remoteStreams).includes(c.email) && (
-                                            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
-                                        )}
-                                    </div>
-                                ))
-                            )
-                        )}
-
-                        {/* MY CONTACTS (MANUALLY ADDED) */}
-                        <div
-                            onClick={() => setIsContactsExpanded(!isContactsExpanded)}
-                            style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginTop: '10px', borderBottom: '1px solid #222d34', userSelect: 'none' }}
-                        >
-                            <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>My Contacts ({displayLocalContacts.length})</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleImportContacts();
-                                    }}
-                                    disabled={isImporting}
-                                    style={{
-                                        backgroundColor: isImporting ? '#1a2a33' : '#2a3942',
-                                        color: isImporting ? '#666' : '#00a884',
-                                        border: 'none',
-                                        padding: '4px 8px',
-                                        borderRadius: '4px',
-                                        cursor: isImporting ? 'not-allowed' : 'pointer',
-                                        fontSize: '11px',
-                                        opacity: isImporting ? 0.6 : 1
-                                    }}
-                                >
-                                    {isImporting ? '⏳ Importing...' : '+ Add External'}
-                                </button>
-                                <span style={{ color: '#8696a0', fontSize: '10px' }}>{isContactsExpanded ? '▼' : '▶'}</span>
-                            </div>
-                        </div>
-                        {isContactsExpanded && (
-                            displayLocalContacts.length === 0 ? (
-                                <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No manual contacts added.</div>
-                            ) : (
-                                displayLocalContacts.map(c => (
-                                    <div
-                                        key={c.email}
-                                        onClick={() => setSelectedContact(c.email)}
-                                        style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
-                                    >
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#fff', fontWeight: 'bold', flexShrink: 0 }}>
-                                            {c.name ? c.name.charAt(0).toUpperCase() : c.email.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
-                                            <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.name || c.email.split('@')[0]}</span>
-                                            <span style={{ fontSize: '12px', color: '#8696a0', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.email}</span>
-                                        </div>
-                                        {Object.keys(remoteStreams).includes(c.email) && (
-                                            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
-                                        )}
-                                        <button
-                                            onClick={(e) => handleRemoveContact(e, c.email)}
-                                            style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}
-                                            title="Remove contact"
-                                        >
-                                            ❌
-                                        </button>
-                                    </div>
-                                ))
-                            )
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* CHAT AREA */}
-            {showChat && (
-                <div style={{
-                    flexGrow: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    backgroundColor: '#0b141a',
-                    position: 'relative',
-                    width: isMobile ? '100%' : 'auto',
-                    height: '100%',
-                    overflow: 'hidden'
-                }}>
-                    {selectedContact ? (
-                        <>
-                            <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', zIndex: 10, flexShrink: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    {isMobile && (
-                                        <button
-                                            onClick={() => setSelectedContact(null)}
-                                            style={{ background: 'none', border: 'none', color: '#00a884', fontSize: '20px', marginRight: '15px', cursor: 'pointer', padding: 0 }}
-                                        >
-                                            🔙
-                                        </button>
-                                    )}
-                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
-                                        {activeContactName ? activeContactName.charAt(0).toUpperCase() : selectedContact.charAt(0).toUpperCase()}
-                                    </div>
-                                    <b>{activeContactName}</b>
+                {/* SIDEBAR - CONTACTS */}
+                {showSidebar && (
+                    <div style={{
+                        width: isMobile ? '100%' : '30%',
+                        minWidth: isMobile ? '100%' : '250px',
+                        borderRight: isMobile ? 'none' : '1px solid #222d34',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        backgroundColor: '#111b21',
+                        height: '100%',
+                        overflow: 'hidden'
+                    }}>
+                        {/* Header */}
+                        <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
+                                    {displayName.charAt(0).toUpperCase()}
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                                    {!inVoiceCall ? (
-                                        <button onClick={handleStartCall} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
-                                    ) : (
-                                        <>
-                                            {!isSelectedContactInCall && (
-                                                <button onClick={handleAddToCall} style={{ backgroundColor: '#00a884', color: '#111', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                                    ➕ Add to Call
-                                                </button>
-                                            )}
+                                <b style={{ color: '#00a884', fontSize: '15px' }}>{displayName}</b>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button onClick={refreshPresence} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer', fontSize: '14px' }}>🔄</button>
+                                <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer', fontSize: '14px' }}>Logout</button>
+                            </div>
+                        </div>
 
-                                            <button
-                                                onClick={toggleScreenShare}
-                                                style={{ backgroundColor: isScreenSharing ? '#334155' : 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}
+                        <div style={{ flexGrow: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+
+                            {/* ONLINE NOW */}
+                            <div
+                                onClick={() => setIsOnlineExpanded(!isOnlineExpanded)}
+                                style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', userSelect: 'none' }}
+                            >
+                                <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Online Now ({onlineUsers.length})</span>
+                                <span style={{ color: '#8696a0', fontSize: '10px' }}>{isOnlineExpanded ? '▼' : '▶'}</span>
+                            </div>
+                            {isOnlineExpanded && (
+                                onlineUsers.length === 0 ? (
+                                    <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No users online.</div>
+                                ) : (
+                                    onlineUsers.map(u => {
+                                        const matchedMember = allKnownUsers.find(k => k.email?.trim().toLowerCase() === u.email?.trim().toLowerCase());
+                                        const finalName = matchedMember ? matchedMember.name : u.email.split('@')[0];
+
+                                        return (
+                                            <div
+                                                key={u.email}
+                                                onClick={() => setSelectedContact(u.email)}
+                                                style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
                                             >
-                                                {isScreenSharing ? '⏹️ Stop Share' : '🖥️ Share Screen'}
-                                            </button>
-
-                                            <button onClick={() => endVoiceCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>🔴 End Call</button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* VIDEO GRID */}
-                            {inVoiceCall && (
-                                <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px', padding: '10px', borderBottom: '1px solid #222d34', flexShrink: 0 }}>
-                                    <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-                                        <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                        <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
-                                            {isScreenSharing ? "You (Screen)" : "You"}
-                                        </span>
-                                    </div>
-                                    {Object.entries(remoteStreams).map(([email, stream]) => (
-                                        <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnownUsers} />
-                                    ))}
-                                </div>
+                                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
+                                                    {u.email.charAt(0).toUpperCase()}
+                                                </div>
+                                                <span style={{ fontSize: '16px' }}>{finalName}</span>
+                                                {Object.keys(remoteStreams).includes(u.email) && (
+                                                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
+                                                )}
+                                            </div>
+                                        )
+                                    })
+                                )
                             )}
 
-                            <div ref={chatContainerRef} style={{
-                                flexGrow: 1,
-                                padding: '20px',
-                                overflowY: 'auto',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '8px',
-                                backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)',
-                                backgroundSize: 'contain',
-                                WebkitOverflowScrolling: 'touch'
-                            }}>
-                                {chatMessages.map((m, i) => {
-                                    const isMine = m.sender_email === userEmail;
-                                    return (
-                                        <div key={m.id || i} style={{
-                                            alignSelf: isMine ? 'flex-end' : 'flex-start',
-                                            backgroundColor: isMine ? '#005c4b' : '#202c33',
-                                            padding: '8px 12px',
-                                            borderRadius: '8px',
-                                            maxWidth: '65%',
-                                            fontSize: '14.5px',
-                                            boxShadow: '0 1px 0.5px rgba(11,20,26,.13)',
-                                            wordWrap: 'break-word',
-                                            whiteSpace: 'pre-wrap'
-                                        }}>
-                                            <div style={{ wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{m.text}</div>
-                                        </div>
-                                    );
-                                })}
+                            {/* MEMBERS GROUP */}
+                            <div
+                                onClick={() => setIsMembersExpanded(!isMembersExpanded)}
+                                style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: '10px', userSelect: 'none' }}
+                            >
+                                <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Members Group ({displayMembers.length})</span>
+                                <span style={{ color: '#8696a0', fontSize: '10px' }}>{isMembersExpanded ? '▼' : '▶'}</span>
                             </div>
+                            {isMembersExpanded && (
+                                displayMembers.length === 0 ? (
+                                    <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No members found.</div>
+                                ) : (
+                                    displayMembers.map(c => (
+                                        <div
+                                            key={c.email}
+                                            onClick={() => setSelectedContact(c.email)}
+                                            style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
+                                        >
+                                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold', flexShrink: 0 }}>
+                                                {c.name ? c.name.charAt(0).toUpperCase() : c.email.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+                                                <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.name || c.email.split('@')[0]}</span>
+                                                <span style={{ fontSize: '12px', color: '#8696a0', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.email}</span>
+                                            </div>
+                                            {Object.keys(remoteStreams).includes(c.email) && (
+                                                <span style={{ marginLeft: '10px', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
+                                            )}
+                                        </div>
+                                    ))
+                                )
+                            )}
 
-                            <form onSubmit={sendMessage} style={{ padding: '15px', paddingBottom: 'calc(15px + env(safe-area-inset-bottom, 0px))', backgroundColor: '#202c33', display: 'flex', alignItems: 'center', zIndex: 10, flexShrink: 0 }}>
-                                <textarea
-                                    value={chatInput}
-                                    onChange={(e) => setChatInput(e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    placeholder="Type a message"
-                                    rows={1}
-                                    style={{
-                                        flexGrow: 1,
-                                        padding: '12px',
-                                        backgroundColor: '#2a3942',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: 'white',
-                                        outline: 'none',
-                                        fontSize: '15px',
-                                        resize: 'none',
-                                        fontFamily: 'Segoe UI, sans-serif',
-                                        minHeight: '44px',
-                                        maxHeight: '120px',
-                                        overflowY: 'auto'
-                                    }}
-                                />
-                                <button type="submit" disabled={!chatInput.trim()} style={{ marginLeft: '10px', backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: chatInput.trim() ? 'pointer' : 'default', flexShrink: 0 }}>
-                                    ➢
-                                </button>
-                            </form>
-                        </>
-                    ) : (
-                        <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', flexDirection: 'column', color: '#8696a0', padding: '20px', textAlign: 'center' }}>
-                            <h2>TotalRecall</h2>
-                            <p>Select a member or contact from the sidebar to start messaging.</p>
+                            {/* MY CONTACTS (MANUALLY ADDED) */}
+                            <div
+                                onClick={() => setIsContactsExpanded(!isContactsExpanded)}
+                                style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginTop: '10px', borderBottom: '1px solid #222d34', userSelect: 'none' }}
+                            >
+                                <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>My Contacts ({displayLocalContacts.length})</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleImportContacts();
+                                        }}
+                                        disabled={isImporting}
+                                        style={{
+                                            backgroundColor: isImporting ? '#1a2a33' : '#2a3942',
+                                            color: isImporting ? '#666' : '#00a884',
+                                            border: 'none',
+                                            padding: '4px 8px',
+                                            borderRadius: '4px',
+                                            cursor: isImporting ? 'not-allowed' : 'pointer',
+                                            fontSize: '11px',
+                                            opacity: isImporting ? 0.6 : 1
+                                        }}
+                                    >
+                                        {isImporting ? '⏳ Importing...' : '+ Add External'}
+                                    </button>
+                                    <span style={{ color: '#8696a0', fontSize: '10px' }}>{isContactsExpanded ? '▼' : '▶'}</span>
+                                </div>
+                            </div>
+                            {isContactsExpanded && (
+                                displayLocalContacts.length === 0 ? (
+                                    <div style={{ padding: '20px', textAlign: 'center', color: '#8696a0', fontSize: '14px' }}>No contacts added yet.</div>
+                                ) : (
+                                    displayLocalContacts.map(c => (
+                                        <div
+                                            key={c.email}
+                                            onClick={() => setSelectedContact(c.email)}
+                                            style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent', transition: 'background 0.2s' }}
+                                        >
+                                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#fff', fontWeight: 'bold', flexShrink: 0 }}>
+                                                {c.name ? c.name.charAt(0).toUpperCase() : c.email.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+                                                <span style={{ fontSize: '16px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.name || c.email.split('@')[0]}</span>
+                                                <span style={{ fontSize: '12px', color: '#8696a0', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{c.email}</span>
+                                            </div>
+                                            {members.some(m => m.email?.trim().toLowerCase() === c.email.trim().toLowerCase()) && (
+                                                <span style={{ marginLeft: '8px', fontSize: '10px', color: '#00a884', background: '#1a2a33', padding: '2px 8px', borderRadius: '10px' }}>Member</span>
+                                            )}
+                                            {Object.keys(remoteStreams).includes(c.email) && (
+                                                <span style={{ marginLeft: '8px', fontSize: '12px', color: '#00a884' }}>📞 In Call</span>
+                                            )}
+                                            <button
+                                                onClick={(e) => handleRemoveContact(e, c.email)}
+                                                style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}
+                                                title="Remove contact"
+                                            >
+                                                ❌
+                                            </button>
+                                        </div>
+                                    ))
+                                )
+                            )}
                         </div>
+                    </div>
+                )}
+
+                {/* CHAT AREA */}
+                {showChat && (
+                    <div style={{
+                        flexGrow: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        backgroundColor: '#0b141a',
+                        position: 'relative',
+                        width: isMobile ? '100%' : 'auto',
+                        height: '100%',
+                        overflow: 'hidden'
+                    }}>
+                        {selectedContact ? (
+                            <>
+                                <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', zIndex: 10, flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        {isMobile && (
+                                            <button
+                                                onClick={() => setSelectedContact(null)}
+                                                style={{ background: 'none', border: 'none', color: '#00a884', fontSize: '20px', marginRight: '15px', cursor: 'pointer', padding: 0 }}
+                                            >
+                                                🔙
+                                            </button>
+                                        )}
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>
+                                            {activeContactName ? activeContactName.charAt(0).toUpperCase() : selectedContact.charAt(0).toUpperCase()}
+                                        </div>
+                                        <b>{activeContactName}</b>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                                        {!inVoiceCall ? (
+                                            <button onClick={handleStartCall} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
+                                        ) : (
+                                            <>
+                                                {!isSelectedContactInCall && (
+                                                    <button onClick={handleAddToCall} style={{ backgroundColor: '#00a884', color: '#111', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                                        ➕ Add to Call
+                                                    </button>
+                                                )}
+
+                                                <button
+                                                    onClick={toggleScreenShare}
+                                                    style={{ backgroundColor: isScreenSharing ? '#334155' : 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}
+                                                >
+                                                    {isScreenSharing ? '⏹️ Stop Share' : '🖥️ Share Screen'}
+                                                </button>
+
+                                                <button onClick={() => endVoiceCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>🔴 End Call</button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* VIDEO GRID */}
+                                {inVoiceCall && (
+                                    <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px', padding: '10px', borderBottom: '1px solid #222d34', flexShrink: 0 }}>
+                                        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
+                                            <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                            <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
+                                                {isScreenSharing ? "You (Screen)" : "You"}
+                                            </span>
+                                        </div>
+                                        {Object.entries(remoteStreams).map(([email, stream]) => (
+                                            <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnownUsers} />
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div ref={chatContainerRef} style={{
+                                    flexGrow: 1,
+                                    padding: '20px',
+                                    overflowY: 'auto',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '8px',
+                                    backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)',
+                                    backgroundSize: 'contain',
+                                    WebkitOverflowScrolling: 'touch'
+                                }}>
+                                    {chatMessages.map((m, i) => {
+                                        const isMine = m.sender_email === userEmail;
+                                        return (
+                                            <div key={m.id || i} style={{
+                                                alignSelf: isMine ? 'flex-end' : 'flex-start',
+                                                backgroundColor: isMine ? '#005c4b' : '#202c33',
+                                                padding: '8px 12px',
+                                                borderRadius: '8px',
+                                                maxWidth: '65%',
+                                                fontSize: '14.5px',
+                                                boxShadow: '0 1px 0.5px rgba(11,20,26,.13)',
+                                                wordWrap: 'break-word',
+                                                whiteSpace: 'pre-wrap'
+                                            }}>
+                                                <div style={{ wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <form onSubmit={sendMessage} style={{ padding: '15px', paddingBottom: 'calc(15px + env(safe-area-inset-bottom, 0px))', backgroundColor: '#202c33', display: 'flex', alignItems: 'center', zIndex: 10, flexShrink: 0 }}>
+                                    <textarea
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="Type a message"
+                                        rows={1}
+                                        style={{
+                                            flexGrow: 1,
+                                            padding: '12px',
+                                            backgroundColor: '#2a3942',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: 'white',
+                                            outline: 'none',
+                                            fontSize: '15px',
+                                            resize: 'none',
+                                            fontFamily: 'Segoe UI, sans-serif',
+                                            minHeight: '44px',
+                                            maxHeight: '120px',
+                                            overflowY: 'auto'
+                                        }}
+                                    />
+                                    <button type="submit" disabled={!chatInput.trim()} style={{ marginLeft: '10px', backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: chatInput.trim() ? 'pointer' : 'default', flexShrink: 0 }}>
+                                        ➢
+                                    </button>
+                                </form>
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', flexDirection: 'column', color: '#8696a0', padding: '20px', textAlign: 'center' }}>
+                                <h2>TotalRecall</h2>
+                                <p>Select a member or contact from the sidebar to start messaging.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* ========================================== */}
+            {/* 🦶 FOOTER - NoirSoft Creation 2026 */}
+            {/* ========================================== */}
+            <div style={{
+                backgroundColor: '#0b141a',
+                borderTop: '1px solid #1a2a33',
+                padding: '8px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexShrink: 0,
+                flexWrap: 'wrap',
+                gap: '8px',
+                color: '#8696a0',
+                fontSize: '12px'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span>© NoirSoft Creation 2026</span>
+                    <span style={{ color: '#2a3942' }}>|</span>
+                    <span>👥 Members: <strong style={{ color: '#e9edef' }}>{displayMembers.length}</strong></span>
+                    <span style={{ color: '#2a3942' }}>|</span>
+                    <span>🟢 Online: <strong style={{ color: '#00a884' }}>{onlineUsers.length}</strong></span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '10px', color: '#2a3942' }}>
+                        {new Date().getFullYear()} • v1.0.0
+                    </span>
+                    {inVoiceCall && (
+                        <span style={{ color: '#ef4444', fontSize: '10px', animation: 'pulse 1.5s infinite' }}>
+                            📞 In Call
+                        </span>
                     )}
                 </div>
-            )}
+            </div>
+
+            {/* Add pulse animation for call indicator */}
+            <style>{`
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.3; }
+                }
+            `}</style>
         </div>
     );
 }
