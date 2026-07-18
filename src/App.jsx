@@ -222,6 +222,11 @@ function ChatApp({ user, onLogout }) {
     // Responsive Mobile State
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
+    // Keep the selectedContactRef in sync with the state so the realtime listener uses the correct value
+    useEffect(() => {
+        selectedContactRef.current = selectedContact;
+    }, [selectedContact]);
+
     useEffect(() => {
         const handleResize = () => {
             setIsMobile(window.innerWidth <= 768);
@@ -901,7 +906,7 @@ function ChatApp({ user, onLogout }) {
     };
 
     return (
-        <div style={{ display: 'flex', height: '100vh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
 
             {/* INCOMING CALL MODAL */}
             {incomingCall && (
@@ -1104,7 +1109,7 @@ function ChatApp({ user, onLogout }) {
                                 })}
                             </div>
 
-                            <form onSubmit={sendMessage} style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', alignItems: 'center', zIndex: 10, flexShrink: 0 }}>
+                            <form onSubmit={sendMessage} style={{ padding: '15px', paddingBottom: 'calc(15px + env(safe-area-inset-bottom, 0px))', backgroundColor: '#202c33', display: 'flex', alignItems: 'center', zIndex: 10, flexShrink: 0 }}>
                                 <textarea
                                     value={chatInput}
                                     onChange={(e) => setChatInput(e.target.value)}
@@ -1211,7 +1216,7 @@ export default function App() {
     if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
 
     return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
             <div style={{ backgroundColor: '#202c33', padding: '40px', borderRadius: '8px', width: '350px', maxWidth: '90%', textAlign: 'center', boxShadow: '0 17px 50px 0 rgba(11,20,26,.19)' }}>
                 <h2 style={{ color: '#00a884', marginBottom: '30px' }}>TotalRecall</h2>
                 {showConfirmation ? (
