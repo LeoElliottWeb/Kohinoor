@@ -669,6 +669,11 @@ function ChatApp({ user, onLogout }) {
     const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
     const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
 
+    // Calculate member count excluding current user
+    const memberCount = members.filter(m => m.email?.toLowerCase() !== safeEmail).length;
+    // Calculate total online count including current user
+    const totalOnlineCount = onlineUsers.length + 1; // +1 for current user
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -783,6 +788,25 @@ function ChatApp({ user, onLogout }) {
                         )}
                     </div>
                 )}
+            </div>
+            {/* FOOTER */}
+            <div style={{
+                backgroundColor: '#202c33',
+                padding: '10px 20px',
+                borderTop: '1px solid #222d34',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px',
+                fontSize: '13px',
+                color: '#8696a0'
+            }}>
+                <span>© NoirSoft Creation 2026</span>
+                <div style={{ display: 'flex', gap: '20px' }}>
+                    <span>👥 Members: {memberCount}</span>
+                    <span>🟢 Online: {totalOnlineCount}</span>
+                </div>
             </div>
         </div>
     );
