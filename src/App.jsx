@@ -2,9 +2,6 @@
 import { supabase } from './supabaseClient';
 import './App.css';
 
-// ==========================================
-// 🎵 SIMPLE BELL RINGER
-// ==========================================
 class RingerManager {
     constructor() {
         this.audioContext = null;
@@ -14,7 +11,6 @@ class RingerManager {
         this.timeoutId = null;
         this.timeoutCallback = null;
     }
-
     playBell() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -33,7 +29,6 @@ class RingerManager {
             this.oscillator.stop(this.audioContext.currentTime + 0.8);
         } catch (e) { }
     }
-
     start(type, onTimeout) {
         this.stop();
         this.isRinging = true;
@@ -48,7 +43,6 @@ class RingerManager {
         };
         scheduleNextRing();
     }
-
     stop() {
         this.isRinging = false;
         if (this.timeoutId) { clearTimeout(this.timeoutId); this.timeoutId = null; }
@@ -56,67 +50,49 @@ class RingerManager {
         this.gainNode = null;
         this.timeoutCallback = null;
     }
-
     isActive() { return this.isRinging; }
 }
-
 const ringer = new RingerManager();
 
-// ==========================================
-// 📺 LOCAL VIDEO COMPONENT
-// ==========================================
 function LocalVideo({ stream }) {
     const videoRef = useRef(null);
-
     useEffect(() => {
-        const videoEl = videoRef.current;
-        if (!videoEl || !stream) return;
-        videoEl.srcObject = stream;
-        videoEl.muted = true;
-        videoEl.play().catch(() => { });
-        return () => { if (videoEl) videoEl.srcObject = null; };
+        const el = videoRef.current;
+        if (!el || !stream) return;
+        el.srcObject = stream;
+        el.muted = true;
+        el.play().catch(() => { });
+        return () => { if (el) el.srcObject = null; };
     }, [stream]);
-
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
-            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff' }}>You</span>
+        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: 8, overflow: 'hidden' }}>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: 4, fontSize: 13, color: '#fff' }}>You</span>
         </div>
     );
 }
 
-// ==========================================
-// 📺 REMOTE VIDEO COMPONENT
-// ==========================================
 function RemoteVideo({ stream, email, allKnownUsers }) {
     const videoRef = useRef(null);
-
     useEffect(() => {
-        const videoEl = videoRef.current;
-        if (!videoEl || !stream) return;
-        videoEl.srcObject = stream;
-        videoEl.play().catch(() => { });
-        return () => { if (videoEl) videoEl.srcObject = null; };
+        const el = videoRef.current;
+        if (!el || !stream) return;
+        el.srcObject = stream;
+        el.play().catch(() => { });
+        return () => { if (el) el.srcObject = null; };
     }, [stream, email]);
-
-    const safeEmail = email?.trim().toLowerCase();
-    const contactName = allKnownUsers.find(c => c.email?.trim().toLowerCase() === safeEmail)?.name || email.split('@')[0];
-
+    const name = allKnownUsers.find(c => c.email?.toLowerCase() === email?.toLowerCase())?.name || email?.split('@')[0] || '';
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
-            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff' }}>{contactName}</span>
+        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: 8, overflow: 'hidden' }}>
+            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: 4, fontSize: 13, color: '#fff' }}>{name}</span>
         </div>
     );
 }
 
-// ==========================================
-// 🛡️ MAIN CHAT COMPONENT
-// ==========================================
 function ChatApp({ user, onLogout }) {
     const userEmail = user?.email || '';
     const displayName = userEmail.split('@')[0];
-
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [members, setMembers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
@@ -144,35 +120,26 @@ function ChatApp({ user, onLogout }) {
     const lastActionRef = useRef(0);
 
     useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
-    useEffect(() => {
-        const h = () => setIsMobile(window.innerWidth <= 768);
-        window.addEventListener('resize', h);
-        return () => window.removeEventListener('resize', h);
-    }, []);
+    useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
 
-    const METERED_USERNAME = "b7cf8da6379b050323098734";
-    const METERED_CREDENTIAL = "AMGwLNr1/IaRrZGQ";
+    // REPLACE THESE with your actual Metered credentials
+    const TURN_USER = "b7cf8da6379b050323098734";
+    const TURN_PASS = "AMGwLNr1/IaRrZGQ";
 
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
             {
-                urls: [
-                    'turn:standard.relay.metered.ca:80',
-                    'turn:standard.relay.metered.ca:443',
-                    'turn:standard.relay.metered.ca:80?transport=tcp',
-                    'turn:standard.relay.metered.ca:443?transport=tcp'
-                ],
-                username: METERED_USERNAME,
-                credential: METERED_CREDENTIAL
+                urls: ['turn:standard.relay.metered.ca:80', 'turn:standard.relay.metered.ca:443', 'turn:standard.relay.metered.ca:80?transport=tcp', 'turn:standard.relay.metered.ca:443?transport=tcp'],
+                username: TURN_USER,
+                credential: TURN_PASS
             }
         ],
-        iceCandidatePoolSize: 10
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all'
     };
 
     useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
-
     useEffect(() => {
         if ((incomingCall || isCallingOut) && !ringer.isActive()) {
             ringer.start('incoming', () => {
@@ -181,25 +148,22 @@ function ChatApp({ user, onLogout }) {
                     setIncomingCall(null);
                 }
             });
-        } else if (!incomingCall && !isCallingOut && ringer.isActive()) {
-            ringer.stop();
-        }
+        } else if (!incomingCall && !isCallingOut && ringer.isActive()) ringer.stop();
+        return () => { if (ringer.isActive()) ringer.stop(); };
     }, [incomingCall, isCallingOut]);
 
     useEffect(() => {
         supabase.from('profiles').select('email, name').then(({ data }) => { if (data) setMembers(data); });
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) try { setSavedContacts(JSON.parse(stored)); } catch (e) { }
-        const pc = supabase.channel('public:profiles')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, p => {
-                setMembers(prev => prev.find(m => m.email === p.new.email) ? prev : [...prev, { name: p.new.name || p.new.email.split('@')[0], email: p.new.email }]);
-            }).subscribe();
+        const pc = supabase.channel('public:profiles').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, p => {
+            setMembers(prev => prev.find(m => m.email === p.new.email) ? prev : [...prev, { name: p.new.name || p.new.email.split('@')[0], email: p.new.email }]);
+        }).subscribe();
         return () => { supabase.removeChannel(pc); };
     }, []);
 
     useEffect(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, [chatMessages]);
     useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
-
     useEffect(() => {
         if (!selectedContact || !userEmail) return;
         Promise.all([
@@ -209,69 +173,59 @@ function ChatApp({ user, onLogout }) {
     }, [selectedContact, userEmail]);
 
     const getMedia = async () => {
-        const s = await navigator.mediaDevices.getUserMedia({
+        return await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
             audio: { echoCancellation: true, noiseSuppression: true }
         });
-        return s;
     };
 
     const createPC = (email) => {
-        if (peersRef.current[email]) {
-            peersRef.current[email].close();
-        }
-
-        console.log("[WebRTC] Creating PC for:", email);
+        if (peersRef.current[email]) peersRef.current[email].close();
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[email] = pc;
         pendingCandidatesRef.current[email] = [];
 
         if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(t => {
-                pc.addTrack(t, localStreamRef.current);
-            });
+            localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
         }
 
-        // CRITICAL: Serialize ICE candidate properly before sending
+        // Collect ALL ICE candidates before sending
+        let iceCandidates = [];
         pc.onicecandidate = (e) => {
             if (e.candidate) {
-                console.log("[WebRTC] ICE candidate:", e.candidate.type, e.candidate.protocol);
-                const serialized = {
+                iceCandidates.push({
                     candidate: e.candidate.candidate,
                     sdpMid: e.candidate.sdpMid,
                     sdpMLineIndex: e.candidate.sdpMLineIndex,
                     usernameFragment: e.candidate.usernameFragment
-                };
-                channelRef.current?.send({
-                    type: 'broadcast',
-                    event: 'webrtc-ice',
-                    payload: { targetEmail: email, candidate: serialized, sender: userEmail }
                 });
+            } else {
+                // ICE gathering complete - send all candidates at once
+                console.log("[WebRTC] ICE gathering complete, sending", iceCandidates.length, "candidates to:", email);
+                if (channelRef.current && iceCandidates.length > 0) {
+                    channelRef.current.send({
+                        type: 'broadcast',
+                        event: 'webrtc-ice-batch',
+                        payload: { targetEmail: email, candidates: iceCandidates, sender: userEmail }
+                    });
+                }
+                iceCandidates = [];
             }
         };
 
         pc.onconnectionstatechange = () => {
-            console.log("[WebRTC] Connection:", pc.connectionState, "for:", email);
-            if (pc.connectionState === 'connected') {
-                setIsCallingOut(false);
-            } else if (pc.connectionState === 'failed') {
-                cleanPeer(email);
-            } else if (pc.connectionState === 'disconnected') {
-                setTimeout(() => {
-                    if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email);
-                }, 5000);
+            console.log("[WebRTC] State:", pc.connectionState, email);
+            if (pc.connectionState === 'connected') setIsCallingOut(false);
+            else if (pc.connectionState === 'failed') cleanPeer(email);
+            else if (pc.connectionState === 'disconnected') {
+                setTimeout(() => { if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email); }, 5000);
             }
         };
 
-        pc.oniceconnectionstatechange = () => {
-            console.log("[WebRTC] ICE:", pc.iceConnectionState, "for:", email);
-        };
+        pc.oniceconnectionstatechange = () => console.log("[WebRTC] ICE:", pc.iceConnectionState, email);
 
         pc.ontrack = (event) => {
-            console.log("[WebRTC] Track:", event.track.kind, "from:", email);
-            if (event.streams && event.streams.length > 0) {
-                setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
-            }
+            if (event.streams?.[0]) setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
         };
 
         return pc;
@@ -282,9 +236,7 @@ function ChatApp({ user, onLogout }) {
         delete peersRef.current[email];
         setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
         delete pendingCandidatesRef.current[email];
-        if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
-            endCall(false);
-        }
+        if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) endCall(false);
     };
 
     const endCall = (broadcast = true) => {
@@ -294,18 +246,11 @@ function ChatApp({ user, onLogout }) {
         if (ringer.isActive()) ringer.stop();
         setIsCallingOut(false);
         setIncomingCall(null);
-
-        if (broadcast) {
-            Object.keys(peersRef.current).forEach(email => {
-                channelRef.current?.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } });
-            });
-        }
-
+        if (broadcast) Object.keys(peersRef.current).forEach(email => channelRef.current?.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } }));
         Object.values(peersRef.current).forEach(pc => { try { pc.close(); } catch (e) { } });
         peersRef.current = {};
         pendingCandidatesRef.current = {};
         setRemoteStreams({});
-
         setTimeout(() => {
             if (!inCallRef.current && localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(t => t.stop());
@@ -313,7 +258,6 @@ function ChatApp({ user, onLogout }) {
                 setLocalStream(null);
             }
         }, 2000);
-
         setInVoiceCall(false);
         setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
@@ -322,35 +266,19 @@ function ChatApp({ user, onLogout }) {
         if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
         if (!channelRef.current) return;
-
-        console.log("[WebRTC] Calling:", email);
         inCallRef.current = true;
         setIsCallingOut(true);
-
         try {
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
-            }
+            if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); }
             const s = await getMedia();
             localStreamRef.current = s;
             setLocalStream(s);
-
             const pc = createPC(email);
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
-
-            channelRef.current.send({
-                type: 'broadcast',
-                event: 'webrtc-offer',
-                payload: { targetEmail: email, offer: pc.localDescription, sender: userEmail }
-            });
-
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: email, offer: pc.localDescription, sender: userEmail } });
             setInVoiceCall(true);
-        } catch (err) {
-            console.error("[WebRTC] Call error:", err);
-            alert("Call failed: " + err.message);
-            endCall(false);
-        }
+        } catch (err) { alert("Call failed: " + err.message); endCall(false); }
     };
 
     const acceptIncoming = async () => {
@@ -358,47 +286,26 @@ function ChatApp({ user, onLogout }) {
         if (!call) return;
         if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
-
-        console.log("[WebRTC] Accepting:", call.sender);
         inCallRef.current = true;
         if (ringer.isActive()) ringer.stop();
         setIncomingCall(null);
-
         try {
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
-            }
+            if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); }
             const s = await getMedia();
             localStreamRef.current = s;
             setLocalStream(s);
-
             const pc = createPC(call.sender);
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
             const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
-
-            channelRef.current.send({
-                type: 'broadcast',
-                event: 'webrtc-answer',
-                payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
-            });
-
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail } });
+            // Process any ICE candidates that arrived before answer was set
             const pending = pendingCandidatesRef.current[call.sender] || [];
-            for (const c of pending) {
-                try {
-                    console.log("[WebRTC] Adding pending ICE:", c.type, c.protocol);
-                    await pc.addIceCandidate(new RTCIceCandidate(c));
-                } catch (e) { }
-            }
+            for (const c of pending) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { } }
             pendingCandidatesRef.current[call.sender] = [];
-
             setInVoiceCall(true);
             setSelectedContact(call.sender);
-        } catch (err) {
-            console.error("[WebRTC] Accept error:", err);
-            alert("Accept failed: " + err.message);
-            endCall(false);
-        }
+        } catch (err) { alert("Accept failed: " + err.message); endCall(false); }
     };
 
     const decline = () => {
@@ -416,18 +323,13 @@ function ChatApp({ user, onLogout }) {
         ch.on('presence', { event: 'sync' }, () => {
             const st = ch.presenceState();
             const users = [];
-            for (const k in st) {
-                const p = st[k]?.[0];
-                if (p?.email && p.email !== userEmail && !users.find(u => u.email === p.email)) users.push({ email: p.email });
-            }
+            for (const k in st) { const p = st[k]?.[0]; if (p?.email && p.email !== userEmail && !users.find(u => u.email === p.email)) users.push({ email: p.email }); }
             setOnlineUsers(users);
         });
 
         ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, p => {
-            if ((p.new.sender_email === selectedContactRef.current && p.new.receiver_email === userEmail) ||
-                (p.new.sender_email === userEmail && p.new.receiver_email === selectedContactRef.current)) {
+            if ((p.new.sender_email === selectedContactRef.current && p.new.receiver_email === userEmail) || (p.new.sender_email === userEmail && p.new.receiver_email === selectedContactRef.current))
                 setChatMessages(prev => prev.find(m => m.id === p.new.id) ? prev : [...prev, p.new]);
-            }
         });
 
         ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
@@ -449,75 +351,39 @@ function ChatApp({ user, onLogout }) {
             setIsCallingOut(false);
             const pc = peersRef.current[payload.sender];
             if (pc && pc.signalingState === 'have-local-offer') {
-                try {
-                    await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
-                    const pending = pendingCandidatesRef.current[payload.sender] || [];
-                    for (const c of pending) {
-                        try {
-                            console.log("[WebRTC] Adding pending ICE after answer:", c.type, c.protocol);
-                            await pc.addIceCandidate(new RTCIceCandidate(c));
-                        } catch (e) { }
-                    }
-                    pendingCandidatesRef.current[payload.sender] = [];
-                } catch (e) { }
+                await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                const pending = pendingCandidatesRef.current[payload.sender] || [];
+                for (const c of pending) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { } }
+                pendingCandidatesRef.current[payload.sender] = [];
             }
         });
 
-        // CRITICAL: Deserialize ICE candidate properly when receiving
-        ch.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
+        // Handle batched ICE candidates
+        ch.on('broadcast', { event: 'webrtc-ice-batch' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-
-            const candidateData = payload.candidate;
-            console.log("[WebRTC] Received ICE - type:", candidateData?.type || candidateData?.candidate?.split(' ')[7],
-                "protocol:", candidateData?.protocol || candidateData?.candidate?.split(' ')[2]);
-
             const pc = peersRef.current[payload.sender];
-
-            // Reconstruct the candidate from serialized data
-            const candidate = new RTCIceCandidate({
-                candidate: candidateData.candidate,
-                sdpMid: candidateData.sdpMid,
-                sdpMLineIndex: candidateData.sdpMLineIndex,
-                usernameFragment: candidateData.usernameFragment
-            });
+            const candidates = payload.candidates || [];
+            console.log("[WebRTC] Received ICE batch:", candidates.length, "candidates from:", payload.sender);
 
             if (pc?.remoteDescription) {
-                try {
-                    await pc.addIceCandidate(candidate);
-                    console.log("[WebRTC] ✅ Added ICE successfully");
-                } catch (e) {
-                    console.error("[WebRTC] Error adding ICE:", e);
+                for (const c of candidates) {
+                    try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { console.error("ICE add error:", e); }
                 }
+                console.log("[WebRTC] Added all ICE candidates from batch");
             } else {
-                console.log("[WebRTC] Queuing ICE (no remote description)");
-                if (!pendingCandidatesRef.current[payload.sender]) {
-                    pendingCandidatesRef.current[payload.sender] = [];
-                }
-                pendingCandidatesRef.current[payload.sender].push(candidate);
+                console.log("[WebRTC] Queuing ICE batch (no remote description)");
+                if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
+                pendingCandidatesRef.current[payload.sender].push(...candidates);
             }
         });
 
-        ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) { setIsCallingOut(false); endCall(false); }
-        });
+        ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => { if (payload.targetEmail === userEmail) { setIsCallingOut(false); endCall(false); } });
 
-        ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) {
-                setIncomingCall(null);
-                cleanPeer(payload.sender);
-            }
-        });
+        ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => { if (payload.targetEmail === userEmail) { setIncomingCall(null); cleanPeer(payload.sender); } });
 
-        ch.subscribe(async (status) => {
-            if (status === 'SUBSCRIBED') {
-                try { await ch.track({ email: userEmail, online: true }); } catch (e) { }
-            }
-        });
+        ch.subscribe(async (status) => { if (status === 'SUBSCRIBED') { try { await ch.track({ email: userEmail, online: true }); } catch (e) { } } });
 
-        return () => {
-            try { ch.untrack(); supabase.removeChannel(ch); } catch (e) { }
-            channelRef.current = null;
-        };
+        return () => { try { ch.untrack(); supabase.removeChannel(ch); } catch (e) { } channelRef.current = null; };
     }, [userEmail]);
 
     const sendMsg = async (e) => {
@@ -525,28 +391,24 @@ function ChatApp({ user, onLogout }) {
         if (!chatInput.trim() || !selectedContact) return;
         const txt = chatInput;
         setChatInput('');
-        const { data, error } = await supabase.from('messages').insert([
-            { sender_email: userEmail, receiver_email: selectedContact, text: txt }
-        ]).select();
+        const { data, error } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: txt }]).select();
         if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
     };
 
+    const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
     const showSidebar = !isMobile || !selectedContact;
     const showChat = !isMobile || !!selectedContact;
-    const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
-
     const safeEmail = userEmail?.toLowerCase() || '';
     const allKnown = [...members, ...savedContacts];
     const dispMembers = members.filter(m => m.email?.toLowerCase() !== safeEmail);
     const dispContacts = savedContacts.filter(c => c.email?.toLowerCase() !== safeEmail);
-    const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
-    const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
+    const activeName = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase())?.name || selectedContact?.split('@')[0] || '';
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                 {incomingCall && (
-                    <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: 20, borderRadius: 8, zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                    <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: 20, borderRadius: 8, zIndex: 1000, border: '1px solid #00a884' }}>
                         <h4 style={{ margin: '0 0 10px' }}>📹 Incoming Call</h4>
                         <p style={{ margin: '0 0 15px' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
                         <div style={{ display: 'flex', gap: 10 }}>
@@ -555,7 +417,6 @@ function ChatApp({ user, onLogout }) {
                         </div>
                     </div>
                 )}
-
                 {showSidebar && (
                     <div style={{ width: isMobile ? '100%' : '30%', minWidth: 250, borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21', height: '100%', overflow: 'hidden' }}>
                         <div style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -599,7 +460,6 @@ function ChatApp({ user, onLogout }) {
                         </div>
                     </div>
                 )}
-
                 {showChat && (
                     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', height: '100%', overflow: 'hidden' }}>
                         {selectedContact ? (
@@ -618,7 +478,6 @@ function ChatApp({ user, onLogout }) {
                                         )}
                                     </div>
                                 </div>
-
                                 {inVoiceCall && (
                                     <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Math.max(Object.keys(remoteStreams).length + 1, 2)}, 1fr)`, gap: 10, padding: 10 }}>
                                         <LocalVideo stream={localStream} />
@@ -627,22 +486,18 @@ function ChatApp({ user, onLogout }) {
                                         ))}
                                     </div>
                                 )}
-
                                 <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
                                     {chatMessages.map((m, i) => (
                                         <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word' }}>{m.text}</div>
                                     ))}
                                 </div>
-
                                 <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10 }}>
                                     <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} placeholder="Message" rows={1} style={{ flexGrow: 1, padding: 12, backgroundColor: '#2a3942', border: 'none', borderRadius: 8, color: 'white', outline: 'none', resize: 'none' }} />
                                     <button type="submit" disabled={!chatInput.trim()} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0 }}>➤</button>
                                 </form>
                             </>
                         ) : (
-                            <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', color: '#8696a0', textAlign: 'center' }}>
-                                <div><h2>TotalRecall</h2><p>Select a contact to start</p></div>
-                            </div>
+                            <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', color: '#8696a0', textAlign: 'center' }}><div><h2>TotalRecall</h2><p>Select a contact to start</p></div></div>
                         )}
                     </div>
                 )}
@@ -651,9 +506,6 @@ function ChatApp({ user, onLogout }) {
     );
 }
 
-// ==========================================
-// 🛡️ AUTHENTICATION WRAPPER
-// ==========================================
 export default function App() {
     const [user, setUser] = useState(null);
     const [email, setEmail] = useState('');
@@ -672,19 +524,9 @@ export default function App() {
         if (!email || !password) return alert("Fill all fields");
         setLoading(true);
         try {
-            if (type === 'login') {
-                const { error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) throw error;
-            } else {
-                const { data, error } = await supabase.auth.signUp({ email, password });
-                if (error) throw error;
-                if (data?.user) {
-                    await supabase.from('profiles').upsert([{ email, name: email.split('@')[0] }]);
-                    if (!data.session) { setShowConfirm(true); setEmail(''); setPassword(''); }
-                }
-            }
-        } catch (err) { alert(err.message); }
-        finally { setLoading(false); }
+            if (type === 'login') { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; }
+            else { const { data, error } = await supabase.auth.signUp({ email, password }); if (error) throw error; if (data?.user) { await supabase.from('profiles').upsert([{ email, name: email.split('@')[0] }]); if (!data.session) { setShowConfirm(true); setEmail(''); setPassword(''); } } }
+        } catch (err) { alert(err.message); } finally { setLoading(false); }
     };
 
     if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
