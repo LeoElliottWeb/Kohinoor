@@ -31,9 +31,7 @@ class RingerManager {
             this.gainNode.connect(this.audioContext.destination);
             this.oscillator.start(this.audioContext.currentTime);
             this.oscillator.stop(this.audioContext.currentTime + 0.8);
-        } catch (e) {
-            console.error("Bell error:", e);
-        }
+        } catch (e) { }
     }
 
     start(type, onTimeout) {
@@ -65,6 +63,48 @@ class RingerManager {
 const ringer = new RingerManager();
 
 // ==========================================
+// 📺 LOCAL VIDEO COMPONENT
+// ==========================================
+function LocalVideo({ stream }) {
+    const videoRef = useRef(null);
+
+    useEffect(() => {
+        const videoEl = videoRef.current;
+        if (!videoEl || !stream) return;
+
+        console.log("[LocalVideo] Setting local stream, tracks:", stream.getTracks().map(t => `${t.kind}:${t.readyState}`));
+
+        videoEl.srcObject = stream;
+        videoEl.muted = true; // Always mute local video to prevent feedback
+
+        videoEl.play().then(() => {
+            console.log("[LocalVideo] Playing successfully");
+        }).catch(err => {
+            console.warn("[LocalVideo] Play error:", err.message);
+        });
+
+        return () => {
+            if (videoEl) videoEl.srcObject = null;
+        };
+    }, [stream]);
+
+    return (
+        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
+            <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }}
+            />
+            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff' }}>
+                You
+            </span>
+        </div>
+    );
+}
+
+// ==========================================
 // 📺 REMOTE VIDEO COMPONENT
 // ==========================================
 function RemoteVideo({ stream, email, allKnownUsers }) {
@@ -72,47 +112,26 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
 
     useEffect(() => {
         const videoEl = videoRef.current;
-        if (!videoEl || !stream) {
-            console.log("[RemoteVideo] Missing video element or stream for:", email);
-            return;
-        }
+        if (!videoEl || !stream) return;
 
         console.log("[RemoteVideo] Attaching stream for:", email, "Tracks:", stream.getTracks().map(t => `${t.kind}:${t.readyState}`));
 
-        // Always set the srcObject
         videoEl.srcObject = stream;
 
-        // Handle the case where video might already be playing
-        const playVideo = async () => {
-            try {
-                await videoEl.play();
+        const playVideo = () => {
+            videoEl.play().then(() => {
                 console.log("[RemoteVideo] Playing:", email);
-            } catch (err) {
+            }).catch(err => {
                 console.warn("[RemoteVideo] Play error:", err.message);
-                // Retry after a short delay
-                setTimeout(async () => {
-                    try {
-                        await videoEl.play();
-                        console.log("[RemoteVideo] Playing after retry:", email);
-                    } catch (retryErr) {
-                        console.error("[RemoteVideo] Retry failed:", retryErr.message);
-                    }
-                }, 500);
-            }
+                setTimeout(playVideo, 500);
+            });
         };
 
-        // Listen for loadedmetadata to ensure video data is available
-        const onLoadedMetadata = () => {
-            console.log("[RemoteVideo] Metadata loaded for:", email);
-            playVideo();
-        };
-
-        videoEl.addEventListener('loadedmetadata', onLoadedMetadata);
+        videoEl.addEventListener('loadedmetadata', playVideo);
         playVideo();
 
         return () => {
-            videoEl.removeEventListener('loadedmetadata', onLoadedMetadata);
-            // Don't set srcObject to null here as it can interrupt playback
+            videoEl.removeEventListener('loadedmetadata', playVideo);
         };
     }, [stream, email]);
 
@@ -156,21 +175,16 @@ function ChatApp({ user, onLogout }) {
     const [incomingCall, setIncomingCall] = useState(null);
     const incomingCallRef = useRef(null);
     const [isCallingOut, setIsCallingOut] = useState(false);
-    const [localMediaStream, setLocalMediaStream] = useState(null);
+    const [localStream, setLocalStream] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({});
     const peersRef = useRef({});
     const pendingCandidatesRef = useRef({});
-    const [isScreenSharing, setIsScreenSharing] = useState(false);
-    const screenStreamRef = useRef(null);
     const localStreamRef = useRef(null);
     const chatContainerRef = useRef(null);
-    const localVideoRef = useRef(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-    const [isImporting, setIsImporting] = useState(false);
     const inCallRef = useRef(false);
     const isEndingRef = useRef(false);
     const lastActionRef = useRef(0);
-    const hasReceivedRemoteStreamRef = useRef(false);
 
     useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
 
@@ -219,29 +233,17 @@ function ChatApp({ user, onLogout }) {
     useEffect(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, [chatMessages]);
 
     useEffect(() => {
-        if (localVideoRef.current && localMediaStream) {
-            console.log("[LocalVideo] Setting local stream, tracks:", localMediaStream.getTracks().map(t => t.kind));
-            localVideoRef.current.srcObject = localMediaStream;
-            localVideoRef.current.play().catch(e => console.warn("[LocalVideo] Play error:", e.message));
-        }
-    }, [localMediaStream]);
-
-    // Effect to log remote streams
-    useEffect(() => {
-        const streamCount = Object.keys(remoteStreams).length;
-        console.log("[RemoteStreams] Updated:", streamCount, "streams", Object.keys(remoteStreams));
-        if (streamCount > 0) {
-            hasReceivedRemoteStreamRef.current = true;
-        }
-    }, [remoteStreams]);
-
-    useEffect(() => {
         if (!selectedContact || !userEmail) return;
         Promise.all([
             supabase.from('messages').select('*').eq('sender_email', userEmail).eq('receiver_email', selectedContact).limit(50),
             supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
+
+    // IMPORTANT: Keep localStreamRef in sync with localStream state
+    useEffect(() => {
+        localStreamRef.current = localStream;
+    }, [localStream]);
 
     const getMedia = async () => {
         console.log("[Media] Requesting user media...");
@@ -264,28 +266,25 @@ function ChatApp({ user, onLogout }) {
         peersRef.current[email] = pc;
         pendingCandidatesRef.current[email] = [];
 
-        // Add local tracks
+        // Add local tracks if available
         if (localStreamRef.current) {
             const tracks = localStreamRef.current.getTracks();
-            console.log("[WebRTC] Adding", tracks.length, "local tracks to PC for:", email);
+            console.log("[WebRTC] Adding", tracks.length, "local tracks to PC");
             tracks.forEach(t => {
                 console.log("[WebRTC] Adding track:", t.kind, t.label);
                 pc.addTrack(t, localStreamRef.current);
             });
         } else {
-            console.warn("[WebRTC] No local stream available when creating PC for:", email);
+            console.warn("[WebRTC] No local stream available!");
         }
 
         pc.onicecandidate = (e) => {
-            if (e.candidate) {
-                console.log("[WebRTC] ICE candidate for:", email);
-                channelRef.current?.send({
+            if (e.candidate && channelRef.current) {
+                channelRef.current.send({
                     type: 'broadcast',
                     event: 'webrtc-ice',
                     payload: { targetEmail: email, candidate: e.candidate, sender: userEmail }
                 });
-            } else {
-                console.log("[WebRTC] ICE gathering complete for:", email);
             }
         };
 
@@ -295,15 +294,10 @@ function ChatApp({ user, onLogout }) {
                 console.log("[WebRTC] ✅ Connected to:", email);
                 setIsCallingOut(false);
             } else if (pc.connectionState === 'failed') {
-                console.log("[WebRTC] ❌ Connection failed for:", email);
                 cleanPeer(email);
             } else if (pc.connectionState === 'disconnected') {
-                console.log("[WebRTC] ⚠️ Disconnected from:", email);
                 setTimeout(() => {
-                    if (peersRef.current[email]?.connectionState === 'disconnected') {
-                        console.log("[WebRTC] Still disconnected, cleaning up:", email);
-                        cleanPeer(email);
-                    }
+                    if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email);
                 }, 3000);
             }
         };
@@ -312,26 +306,12 @@ function ChatApp({ user, onLogout }) {
             console.log("[WebRTC] ICE state:", pc.iceConnectionState, "for:", email);
         };
 
-        // CRITICAL: Handle incoming tracks properly
         pc.ontrack = (event) => {
-            console.log("[WebRTC] 📹 ontrack event for:", email);
-            console.log("[WebRTC] Track kind:", event.track.kind);
-            console.log("[WebRTC] Track label:", event.track.label);
-            console.log("[WebRTC] Streams count:", event.streams.length);
-
+            console.log("[WebRTC] 📹 ontrack event for:", email, "kind:", event.track.kind);
             if (event.streams && event.streams.length > 0) {
                 const remoteStream = event.streams[0];
-                console.log("[WebRTC] Remote stream tracks:", remoteStream.getTracks().map(t => `${t.kind}:${t.label}`));
-
-                // Force update remote streams
-                setRemoteStreams(prev => {
-                    console.log("[WebRTC] Setting remote stream for:", email);
-                    const updated = { ...prev, [email]: remoteStream };
-                    console.log("[WebRTC] Updated streams:", Object.keys(updated));
-                    return updated;
-                });
-            } else {
-                console.warn("[WebRTC] No streams in ontrack event for:", email);
+                console.log("[WebRTC] Setting remote stream for:", email);
+                setRemoteStreams(prev => ({ ...prev, [email]: remoteStream }));
             }
         };
 
@@ -342,16 +322,10 @@ function ChatApp({ user, onLogout }) {
         console.log("[WebRTC] Cleaning peer:", email);
         peersRef.current[email]?.close();
         delete peersRef.current[email];
-        setRemoteStreams(prev => {
-            const n = { ...prev };
-            delete n[email];
-            console.log("[WebRTC] Removed stream for:", email, "Remaining:", Object.keys(n));
-            return n;
-        });
+        setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
         delete pendingCandidatesRef.current[email];
 
         if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
-            console.log("[WebRTC] No more peers, ending call");
             endCall(false);
         }
     };
@@ -361,7 +335,6 @@ function ChatApp({ user, onLogout }) {
         if (isEndingRef.current) return;
         isEndingRef.current = true;
         inCallRef.current = false;
-        hasReceivedRemoteStreamRef.current = false;
 
         if (ringer.isActive()) ringer.stop();
         setIsCallingOut(false);
@@ -369,7 +342,6 @@ function ChatApp({ user, onLogout }) {
 
         if (broadcast) {
             Object.keys(peersRef.current).forEach(email => {
-                console.log("[WebRTC] Sending end event to:", email);
                 channelRef.current?.send({
                     type: 'broadcast',
                     event: 'webrtc-end',
@@ -378,62 +350,47 @@ function ChatApp({ user, onLogout }) {
             });
         }
 
-        Object.values(peersRef.current).forEach(pc => {
-            try { pc.close(); } catch (e) { }
-        });
-
+        Object.values(peersRef.current).forEach(pc => { try { pc.close(); } catch (e) { } });
         peersRef.current = {};
         pendingCandidatesRef.current = {};
         setRemoteStreams({});
 
+        // Stop local stream after a delay
         setTimeout(() => {
             if (!inCallRef.current && localStreamRef.current) {
-                console.log("[WebRTC] Stopping local stream tracks");
+                console.log("[WebRTC] Stopping local stream");
                 localStreamRef.current.getTracks().forEach(t => t.stop());
                 localStreamRef.current = null;
-                setLocalMediaStream(null);
+                setLocalStream(null);
             }
         }, 2000);
 
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(t => t.stop());
-            screenStreamRef.current = null;
-        }
-
-        setIsScreenSharing(false);
         setInVoiceCall(false);
         setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
 
     const initiateCall = async (email) => {
-        if (Date.now() - lastActionRef.current < 2000) {
-            console.log("[WebRTC] Too soon to call again");
-            return;
-        }
+        if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
         if (!channelRef.current) return;
-        if (peersRef.current[email]?.connectionState === 'connected') {
-            console.log("[WebRTC] Already connected to:", email);
-            return;
-        }
 
         console.log("[WebRTC] 📞 Initiating call to:", email);
         inCallRef.current = true;
         setIsCallingOut(true);
 
         try {
-            if (!localStreamRef.current || localStreamRef.current.getTracks().some(t => t.readyState === 'ended')) {
-                if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
-                const s = await getMedia();
-                localStreamRef.current = s;
-                setLocalMediaStream(s);
+            // Always get fresh media for a new call
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(t => t.stop());
             }
+            const s = await getMedia();
+            localStreamRef.current = s;
+            setLocalStream(s);
 
             const pc = createPC(email);
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
 
-            console.log("[WebRTC] Sending offer to:", email);
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-offer',
@@ -450,14 +407,8 @@ function ChatApp({ user, onLogout }) {
 
     const acceptIncoming = async () => {
         const call = incomingCallRef.current;
-        if (!call) {
-            console.warn("[WebRTC] No incoming call to accept");
-            return;
-        }
-        if (Date.now() - lastActionRef.current < 2000) {
-            console.log("[WebRTC] Too soon to accept again");
-            return;
-        }
+        if (!call) return;
+        if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
 
         console.log("[WebRTC] ✅ Accepting call from:", call.sender);
@@ -466,32 +417,27 @@ function ChatApp({ user, onLogout }) {
         setIncomingCall(null);
 
         try {
-            if (!localStreamRef.current || localStreamRef.current.getTracks().some(t => t.readyState === 'ended')) {
-                if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
-                const s = await getMedia();
-                localStreamRef.current = s;
-                setLocalMediaStream(s);
+            // Always get fresh media
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(t => t.stop());
             }
+            const s = await getMedia();
+            localStreamRef.current = s;
+            setLocalStream(s);
 
             const pc = createPC(call.sender);
 
-            console.log("[WebRTC] Setting remote description");
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
-
-            console.log("[WebRTC] Creating answer");
             const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
 
-            console.log("[WebRTC] Sending answer to:", call.sender);
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-answer',
                 payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
             });
 
-            // Process pending candidates
             const pending = pendingCandidatesRef.current[call.sender] || [];
-            console.log("[WebRTC] Processing", pending.length, "pending candidates");
             for (const c of pending) {
                 try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { }
             }
@@ -507,7 +453,6 @@ function ChatApp({ user, onLogout }) {
     };
 
     const decline = () => {
-        console.log("[WebRTC] Declining call");
         if (ringer.isActive()) ringer.stop();
         const call = incomingCallRef.current;
         if (call) channelRef.current?.send({
@@ -521,7 +466,6 @@ function ChatApp({ user, onLogout }) {
     useEffect(() => {
         if (!userEmail) return;
 
-        console.log("[Setup] Setting up channel for:", userEmail);
         const ch = supabase.channel('totalrecall-global', { config: { presence: { key: `u_${userEmail}` } } });
         channelRef.current = ch;
 
@@ -544,93 +488,56 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // Handle incoming offer
         ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-            console.log("[WebRTC] 📩 Received offer from:", payload.sender);
+            console.log("[WebRTC] 📩 Offer from:", payload.sender);
 
-            // If already connected, renegotiate
             if (peersRef.current[payload.sender]) {
-                console.log("[WebRTC] Renegotiating with:", payload.sender);
                 try {
-                    await peersRef.current[payload.sender].setRemoteDescription(
-                        new RTCSessionDescription(payload.offer)
-                    );
-                    const ans = await peersRef.current[payload.sender].createAnswer({
-                        offerToReceiveAudio: true,
-                        offerToReceiveVideo: true
-                    });
+                    await peersRef.current[payload.sender].setRemoteDescription(new RTCSessionDescription(payload.offer));
+                    const ans = await peersRef.current[payload.sender].createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
                     await peersRef.current[payload.sender].setLocalDescription(ans);
-                    ch.send({
-                        type: 'broadcast',
-                        event: 'webrtc-answer',
-                        payload: { targetEmail: payload.sender, answer: ans, sender: userEmail }
-                    });
-                } catch (e) {
-                    console.error("[WebRTC] Renegotiation error:", e);
-                }
+                    ch.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: payload.sender, answer: ans, sender: userEmail } });
+                } catch (e) { }
                 return;
             }
 
             setIncomingCall(payload);
         });
 
-        // Handle answer
         ch.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-            console.log("[WebRTC] 📩 Received answer from:", payload.sender);
+            console.log("[WebRTC] 📩 Answer from:", payload.sender);
             setIsCallingOut(false);
 
             const pc = peersRef.current[payload.sender];
             if (pc && pc.signalingState === 'have-local-offer') {
                 try {
-                    console.log("[WebRTC] Setting remote description from answer");
                     await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
-
                     const pending = pendingCandidatesRef.current[payload.sender] || [];
-                    console.log("[WebRTC] Processing", pending.length, "pending candidates");
-                    for (const c of pending) {
-                        try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { }
-                    }
+                    for (const c of pending) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { } }
                     pendingCandidatesRef.current[payload.sender] = [];
-                } catch (e) {
-                    console.error("[WebRTC] Error handling answer:", e);
-                }
-            } else {
-                console.warn("[WebRTC] Cannot set answer - PC state:", pc?.signalingState);
+                } catch (e) { }
             }
         });
 
-        // Handle ICE candidates
         ch.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-
             const pc = peersRef.current[payload.sender];
             if (pc?.remoteDescription) {
-                try {
-                    await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                } catch (e) {
-                    console.error("[WebRTC] Error adding ICE:", e);
-                }
+                try { await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) { }
             } else {
-                if (!pendingCandidatesRef.current[payload.sender]) {
-                    pendingCandidatesRef.current[payload.sender] = [];
-                }
+                if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
                 pendingCandidatesRef.current[payload.sender].push(payload.candidate);
             }
         });
 
         ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) {
-                console.log("[WebRTC] Call declined by:", payload.sender);
-                setIsCallingOut(false);
-                endCall(false);
-            }
+            if (payload.targetEmail === userEmail) { setIsCallingOut(false); endCall(false); }
         });
 
         ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                console.log("[WebRTC] Remote ended call:", payload.sender);
                 setIncomingCall(null);
                 cleanPeer(payload.sender);
             }
@@ -638,15 +545,11 @@ function ChatApp({ user, onLogout }) {
 
         ch.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                console.log("[Setup] Channel subscribed, tracking presence");
-                try { await ch.track({ email: userEmail, online: true }); } catch (e) {
-                    console.error("[Setup] Track error:", e);
-                }
+                try { await ch.track({ email: userEmail, online: true }); } catch (e) { }
             }
         });
 
         return () => {
-            console.log("[Setup] Cleaning up channel");
             try { ch.untrack(); supabase.removeChannel(ch); } catch (e) { }
             channelRef.current = null;
         };
@@ -676,8 +579,6 @@ function ChatApp({ user, onLogout }) {
     const dispContacts = savedContacts.filter(c => c.email?.toLowerCase() !== safeEmail);
     const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
     const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
-
-    console.log("[Render] inVoiceCall:", inVoiceCall, "remoteStreams:", Object.keys(remoteStreams).length);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
@@ -757,25 +658,13 @@ function ChatApp({ user, onLogout }) {
                                 </div>
 
                                 {inVoiceCall && (
-                                    <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Math.max(Object.keys(remoteStreams).length + 1, 1)}, 1fr)`, gap: 10, padding: 10 }}>
-                                        {/* Local video */}
-                                        <div style={{ position: 'relative', backgroundColor: '#111', borderRadius: 8, overflow: 'hidden' }}>
-                                            <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                            <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: 4, fontSize: 13 }}>You</span>
-                                        </div>
+                                    <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Math.max(Object.keys(remoteStreams).length + 1, 2)}, 1fr)`, gap: 10, padding: 10 }}>
+                                        {/* Local video - always show */}
+                                        <LocalVideo stream={localStream} />
                                         {/* Remote videos */}
                                         {Object.entries(remoteStreams).map(([email, stream]) => (
                                             <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} />
                                         ))}
-                                        {/* Show placeholder if no remote streams yet */}
-                                        {Object.keys(remoteStreams).length === 0 && (
-                                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: 8, color: '#8696a0' }}>
-                                                <div style={{ textAlign: 'center' }}>
-                                                    <div style={{ fontSize: 48 }}>📹</div>
-                                                    <div>Waiting for video...</div>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 )}
 
