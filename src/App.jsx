@@ -150,17 +150,13 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', h);
     }, []);
 
-    // UPDATED: Use Metered TURN with your account credentials
-    // Sign up at https://metered.ca for free TURN credentials
-    const METERED_USERNAME = "b7cf8da6379b050323098734"; // Replace with actual username from Metered dashboard
-    const METERED_CREDENTIAL = "AMGwLNr1/IaRrZGQ"; // Replace with actual credential from Metered dashboard
+    const METERED_USERNAME = "b7cf8da6379b050323098734";
+    const METERED_CREDENTIAL = "AMGwLNr1/IaRrZGQ";
 
     const rtcConfig = {
         iceServers: [
-            // Google STUN
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            // Metered TURN with your own credentials (much more reliable)
             {
                 urls: [
                     'turn:standard.relay.metered.ca:80',
@@ -170,21 +166,9 @@ function ChatApp({ user, onLogout }) {
                 ],
                 username: METERED_USERNAME,
                 credential: METERED_CREDENTIAL
-            },
-            // Backup TURN
-            {
-                urls: [
-                    'turn:openrelay.metered.ca:80',
-                    'turn:openrelay.metered.ca:443',
-                    'turn:openrelay.metered.ca:80?transport=tcp',
-                    'turn:openrelay.metered.ca:443?transport=tcp'
-                ],
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
             }
         ],
-        iceCandidatePoolSize: 10,
-        iceTransportPolicy: 'all'
+        iceCandidatePoolSize: 10
     };
 
     useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
@@ -229,7 +213,6 @@ function ChatApp({ user, onLogout }) {
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
             audio: { echoCancellation: true, noiseSuppression: true }
         });
-        console.log("[Media] Got stream with tracks:", s.getTracks().map(t => `${t.kind}:${t.label}`));
         return s;
     };
 
@@ -239,38 +222,36 @@ function ChatApp({ user, onLogout }) {
         }
 
         console.log("[WebRTC] Creating PC for:", email);
-        console.log("[WebRTC] ICE servers:", rtcConfig.iceServers.length);
-
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[email] = pc;
         pendingCandidatesRef.current[email] = [];
 
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(t => {
-                console.log("[WebRTC] Adding track:", t.kind, t.label);
                 pc.addTrack(t, localStreamRef.current);
             });
         }
 
+        // CRITICAL: Serialize ICE candidate properly before sending
         pc.onicecandidate = (e) => {
             if (e.candidate) {
-                console.log("[WebRTC] ICE candidate - type:", e.candidate.type, "protocol:", e.candidate.protocol, "address:", e.candidate.address);
+                console.log("[WebRTC] ICE candidate:", e.candidate.type, e.candidate.protocol);
+                const serialized = {
+                    candidate: e.candidate.candidate,
+                    sdpMid: e.candidate.sdpMid,
+                    sdpMLineIndex: e.candidate.sdpMLineIndex,
+                    usernameFragment: e.candidate.usernameFragment
+                };
                 channelRef.current?.send({
                     type: 'broadcast',
                     event: 'webrtc-ice',
-                    payload: { targetEmail: email, candidate: e.candidate, sender: userEmail }
+                    payload: { targetEmail: email, candidate: serialized, sender: userEmail }
                 });
-            } else {
-                console.log("[WebRTC] ICE gathering complete - no more candidates for:", email);
             }
         };
 
-        pc.onicegatheringstatechange = () => {
-            console.log("[WebRTC] ICE gathering state:", pc.iceGatheringState, "for:", email);
-        };
-
         pc.onconnectionstatechange = () => {
-            console.log("[WebRTC] Connection state:", pc.connectionState, "for:", email);
+            console.log("[WebRTC] Connection:", pc.connectionState, "for:", email);
             if (pc.connectionState === 'connected') {
                 setIsCallingOut(false);
             } else if (pc.connectionState === 'failed') {
@@ -283,11 +264,11 @@ function ChatApp({ user, onLogout }) {
         };
 
         pc.oniceconnectionstatechange = () => {
-            console.log("[WebRTC] ICE state:", pc.iceConnectionState, "for:", email);
+            console.log("[WebRTC] ICE:", pc.iceConnectionState, "for:", email);
         };
 
         pc.ontrack = (event) => {
-            console.log("[WebRTC] 📹 ontrack:", event.track.kind, "from:", email);
+            console.log("[WebRTC] Track:", event.track.kind, "from:", email);
             if (event.streams && event.streams.length > 0) {
                 setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
             }
@@ -342,7 +323,7 @@ function ChatApp({ user, onLogout }) {
         lastActionRef.current = Date.now();
         if (!channelRef.current) return;
 
-        console.log("[WebRTC] 📞 Calling:", email);
+        console.log("[WebRTC] Calling:", email);
         inCallRef.current = true;
         setIsCallingOut(true);
 
@@ -358,7 +339,6 @@ function ChatApp({ user, onLogout }) {
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
 
-            console.log("[WebRTC] Sending offer with ICE candidates...");
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-offer',
@@ -379,7 +359,7 @@ function ChatApp({ user, onLogout }) {
         if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
 
-        console.log("[WebRTC] ✅ Accepting:", call.sender);
+        console.log("[WebRTC] Accepting:", call.sender);
         inCallRef.current = true;
         if (ringer.isActive()) ringer.stop();
         setIncomingCall(null);
@@ -405,7 +385,10 @@ function ChatApp({ user, onLogout }) {
 
             const pending = pendingCandidatesRef.current[call.sender] || [];
             for (const c of pending) {
-                try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { }
+                try {
+                    console.log("[WebRTC] Adding pending ICE:", c.type, c.protocol);
+                    await pc.addIceCandidate(new RTCIceCandidate(c));
+                } catch (e) { }
             }
             pendingCandidatesRef.current[call.sender] = [];
 
@@ -469,23 +452,48 @@ function ChatApp({ user, onLogout }) {
                 try {
                     await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
                     const pending = pendingCandidatesRef.current[payload.sender] || [];
-                    for (const c of pending) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { } }
+                    for (const c of pending) {
+                        try {
+                            console.log("[WebRTC] Adding pending ICE after answer:", c.type, c.protocol);
+                            await pc.addIceCandidate(new RTCIceCandidate(c));
+                        } catch (e) { }
+                    }
                     pendingCandidatesRef.current[payload.sender] = [];
                 } catch (e) { }
             }
         });
 
+        // CRITICAL: Deserialize ICE candidate properly when receiving
         ch.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
+
+            const candidateData = payload.candidate;
+            console.log("[WebRTC] Received ICE - type:", candidateData?.type || candidateData?.candidate?.split(' ')[7],
+                "protocol:", candidateData?.protocol || candidateData?.candidate?.split(' ')[2]);
+
             const pc = peersRef.current[payload.sender];
+
+            // Reconstruct the candidate from serialized data
+            const candidate = new RTCIceCandidate({
+                candidate: candidateData.candidate,
+                sdpMid: candidateData.sdpMid,
+                sdpMLineIndex: candidateData.sdpMLineIndex,
+                usernameFragment: candidateData.usernameFragment
+            });
+
             if (pc?.remoteDescription) {
                 try {
-                    console.log("[WebRTC] Adding remote ICE:", payload.candidate?.type, payload.candidate?.protocol);
-                    await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                } catch (e) { }
+                    await pc.addIceCandidate(candidate);
+                    console.log("[WebRTC] ✅ Added ICE successfully");
+                } catch (e) {
+                    console.error("[WebRTC] Error adding ICE:", e);
+                }
             } else {
-                if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
-                pendingCandidatesRef.current[payload.sender].push(payload.candidate);
+                console.log("[WebRTC] Queuing ICE (no remote description)");
+                if (!pendingCandidatesRef.current[payload.sender]) {
+                    pendingCandidatesRef.current[payload.sender] = [];
+                }
+                pendingCandidatesRef.current[payload.sender].push(candidate);
             }
         });
 
