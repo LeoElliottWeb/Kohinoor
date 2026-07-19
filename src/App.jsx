@@ -158,52 +158,41 @@ if (typeof document !== 'undefined') {
 // ==========================================
 function RemoteVideo({ stream, email, allKnownUsers }) {
     const videoRef = useRef(null);
-    const [trackCount, setTrackCount] = useState(0);
-
-    // CRITICAL FIX: Listen for late-arriving video tracks to prevent permanent black screens
-    useEffect(() => {
-        if (!stream) return;
-
-        const updateTrackCount = () => setTrackCount(stream.getTracks().length);
-
-        stream.addEventListener('addtrack', updateTrackCount);
-        stream.addEventListener('removetrack', updateTrackCount);
-        updateTrackCount();
-
-        return () => {
-            stream.removeEventListener('addtrack', updateTrackCount);
-            stream.removeEventListener('removetrack', updateTrackCount);
-        };
-    }, [stream]);
 
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
 
-        console.log(`[WebRTC Debug] RemoteVideo applying stream for ${email}. Active tracks:`, stream.getTracks().map(t => `${t.kind} (${t.readyState})`));
-
-        // CRITICAL FIX: Nullifying srcObject briefly forces the HTML element to render the newly added video track
-        videoEl.srcObject = null;
+        // Force-set srcObject
         videoEl.srcObject = stream;
+
+        // CRITICAL: Explicitly set display properties to ensure it doesn't collapse to 0px
+        videoEl.style.display = 'block';
+        videoEl.style.width = '100%';
+        videoEl.style.height = '100%';
 
         const playPromise = videoEl.play();
         if (playPromise !== undefined) {
-            playPromise.then(() => {
-                console.log(`[WebRTC Debug] Remote video for ${email} is now actively playing.`);
-            }).catch((error) => {
-                if (error.name !== 'AbortError') {
-                    console.error(`[WebRTC Debug] Remote playback error for ${email}:`, error);
-                }
+            playPromise.catch((e) => {
+                if (e.name !== 'AbortError') console.error("Playback error:", e);
             });
         }
-    }, [stream, email, trackCount]); // Re-runs instantly when a new track is detected
+    }, [stream]);
 
     const safeEmail = email?.trim().toLowerCase();
     const contactName = allKnownUsers.find(c => c.email?.trim().toLowerCase() === safeEmail)?.name || email.split('@')[0];
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        // Added 'flexShrink: 0' and 'minWidth: 0' to ensure the parent div doesn't crush the video size
+        <div style={{ position: 'relative', width: '100%', height: '100%', flexShrink: 0, minWidth: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
+            <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                // Added controls temporarily so you can right-click the video to check stats
+                controls
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
             <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px', color: '#fff' }}>
                 {contactName}
             </span>
