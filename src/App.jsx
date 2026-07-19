@@ -258,15 +258,35 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+
+    // CRITICAL FIX: Re-added TURN servers. 
+    // STUN handles standard networks, but TURN is strictly required to relay media 
+    // when strict firewalls or Symmetric NATs block direct Peer-to-Peer connections.
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            }
         ]
     };
+
+
+
 
     const autoAcceptOfferRef = useRef(null);
     const initiateCallRef = useRef(null);
