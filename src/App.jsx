@@ -158,29 +158,35 @@ if (typeof document !== 'undefined') {
 // ==========================================
 function RemoteVideo({ stream, email, allKnownUsers }) {
     const videoRef = useRef(null);
+    const [trackCount, setTrackCount] = useState(0);
 
+    // CRITICAL FIX: Track arrival desync. Listen for late-arriving video tracks.
+    useEffect(() => {
+        if (!stream) return;
+
+        const updateTrackCount = () => setTrackCount(stream.getTracks().length);
+
+        stream.addEventListener('addtrack', updateTrackCount);
+        stream.addEventListener('removetrack', updateTrackCount);
+        updateTrackCount(); // Initialize
+
+        return () => {
+            stream.removeEventListener('addtrack', updateTrackCount);
+            stream.removeEventListener('removetrack', updateTrackCount);
+        };
+    }, [stream]);
+
+    // CRITICAL FIX: Re-mount the stream whenever trackCount changes to force browser render
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
 
-        // FIXED: Only assign if different to prevent re-rendering loops
-        if (videoEl.srcObject !== stream) {
-            videoEl.srcObject = stream;
-        }
+        // Briefly clearing the srcObject forces the HTML video element to acknowledge the new video track
+        videoEl.srcObject = null;
+        videoEl.srcObject = stream;
 
-        const handleLoadedMetadata = () => {
-            videoEl.play().catch((e) => console.warn("Remote playback delayed by browser:", e));
-        };
-
-        videoEl.addEventListener('loadedmetadata', handleLoadedMetadata);
-
-        // Fallback catch if stream is already loaded
-        videoEl.play().catch(() => { });
-
-        return () => {
-            videoEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        };
-    }, [stream]);
+        videoEl.play().catch((e) => console.warn("Remote playback delayed by browser:", e));
+    }, [stream, trackCount]);
 
     const safeEmail = email?.trim().toLowerCase();
     const contactName = allKnownUsers.find(c => c.email?.trim().toLowerCase() === safeEmail)?.name || email.split('@')[0];
@@ -241,9 +247,6 @@ function ChatApp({ user, onLogout }) {
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [isImporting, setIsImporting] = useState(false);
 
-    const [isVonageCalling, setIsVonageCalling] = useState(false);
-    const [vonageStatus, setVonageStatus] = useState('');
-
     useEffect(() => {
         selectedContactRef.current = selectedContact;
     }, [selectedContact]);
@@ -254,28 +257,14 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // FIXED: Enhanced NAT traversal configuration for cross-country
+    // CRITICAL FIX: Removed unreliable TURN servers. Google STUN cluster is far more resilient for cross-country NAT traversal.
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' },
-            {
-                urls: 'turn:openrelay.metered.ca:80',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-            },
-            {
-                urls: 'turn:openrelay.metered.ca:443',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-            },
-            {
-                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-            }
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
         ]
     };
 
@@ -662,7 +651,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // FIXED: Upgraded Media Constraints to handle latency & resolution scaling cleanly
     const getMediaStream = async () => {
         try {
             return await navigator.mediaDevices.getUserMedia({
@@ -705,6 +693,7 @@ function ChatApp({ user, onLogout }) {
                 const batcher = iceBatchersRef.current[targetEmail];
                 batcher.candidates.push(e.candidate);
 
+                // CRITICAL FIX: Increased batching time. Supabase Broadcast chokes on rapid-fire ICE candidates internationally.
                 if (!batcher.timer) {
                     batcher.timer = setTimeout(() => {
                         const candidatesToSend = [...batcher.candidates];
@@ -717,31 +706,35 @@ function ChatApp({ user, onLogout }) {
                                 payload: { targetEmail, candidates: candidatesToSend, sender: userEmail }
                             });
                         }
-                    }, 400);
+                    }, 1500);
                 }
             }
         };
 
-        // FIXED: Critical structural fix. Do not reconstruct streams; it severs the RTCRtpReceiver link.
         pc.ontrack = (e) => {
             setRemoteStreams(prev => {
                 const existingStream = prev[targetEmail];
                 if (existingStream) {
-                    // Inject missing tracks into the existing managed stream
                     if (e.track && !existingStream.getTracks().find(t => t.id === e.track.id)) {
                         existingStream.addTrack(e.track);
                     }
                     return { ...prev };
                 } else {
-                    // Keep the browser's raw MediaStream which inherently listens to replaceTrack events!
-                    const streamToUse = (e.streams && e.streams.length > 0) ? e.streams[0] : new MediaStream([e.track]);
-                    return { ...prev, [targetEmail]: streamToUse };
+                    const newStream = new MediaStream();
+                    if (e.streams && e.streams.length > 0) {
+                        e.streams[0].getTracks().forEach(t => newStream.addTrack(t));
+                    } else {
+                        newStream.addTrack(e.track);
+                    }
+                    return { ...prev, [targetEmail]: newStream };
                 }
             });
         };
 
+        // CRITICAL FIX: Do NOT instantly terminate the call on "disconnected". 
+        // Cross-country WebRTC regularly drops to "disconnected" momentarily during packet loss and auto-recovers.
         pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
                 handlePeerDisconnect(targetEmail);
             }
         };
@@ -946,9 +939,9 @@ function ChatApp({ user, onLogout }) {
 
             Object.values(peersRef.current).forEach(pc => {
                 const senders = pc.getSenders();
-                const videoSender = senders.find(s => s.track?.kind === 'video');
+                // CRITICAL FIX: Explicit safety check for s.track existence before replacement
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
 
-                // Thanks to the ontrack structure fix, replaceTrack now perfectly channels over to the remote peer
                 if (videoSender) {
                     videoSender.replaceTrack(screenTrack).catch(err => { });
                 }
@@ -978,7 +971,7 @@ function ChatApp({ user, onLogout }) {
 
             Object.values(peersRef.current).forEach(pc => {
                 const senders = pc.getSenders();
-                const videoSender = senders.find(s => s.track?.kind === 'video');
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
 
                 if (videoSender) {
                     videoSender.replaceTrack(webcamTrack || null).catch(err => { });
