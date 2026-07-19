@@ -223,6 +223,20 @@ function ChatApp({ user, onLogout }) {
         return s;
     };
 
+    // Broadcasts to all connected peers who else is in the call
+    const broadcastMeshState = () => {
+        if (!inCallRef.current || !channelRef.current) return;
+        const connectedPeers = Object.keys(peersRef.current).filter(e => peersRef.current[e].connectionState === 'connected');
+
+        connectedPeers.forEach(target => {
+            channelRef.current.send({
+                type: 'broadcast',
+                event: 'webrtc-mesh-sync',
+                payload: { targetEmail: target, peers: connectedPeers, sender: userEmail }
+            });
+        });
+    };
+
     const createPC = (email) => {
         if (peersRef.current[email]) {
             peersRef.current[email].close();
@@ -245,7 +259,6 @@ function ChatApp({ user, onLogout }) {
 
         pc.onicecandidate = (e) => {
             if (e.candidate) {
-                console.log("[WebRTC] ICE candidate:", e.candidate.type, e.candidate.protocol);
                 const serialized = {
                     candidate: e.candidate.candidate,
                     sdpMid: e.candidate.sdpMid,
@@ -264,6 +277,7 @@ function ChatApp({ user, onLogout }) {
             console.log("[WebRTC] Connection:", pc.connectionState, "for:", email);
             if (pc.connectionState === 'connected') {
                 setIsCallingOut(false);
+                broadcastMeshState(); // Automatically sync mesh when peer connects
             } else if (pc.connectionState === 'failed') {
                 cleanPeer(email);
             } else if (pc.connectionState === 'disconnected') {
@@ -293,8 +307,11 @@ function ChatApp({ user, onLogout }) {
         setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
         setActiveCallEmails(prev => prev.filter(e => e !== email));
         delete pendingCandidatesRef.current[email];
+
         if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
             endCall(false);
+        } else if (inCallRef.current) {
+            broadcastMeshState();
         }
     };
 
@@ -331,17 +348,18 @@ function ChatApp({ user, onLogout }) {
         setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
 
-    const initiateCall = async (email) => {
-        if (Date.now() - lastActionRef.current < 2000) return;
-        lastActionRef.current = Date.now();
+    const initiateCall = async (email, isAuto = false) => {
+        if (!isAuto) {
+            if (Date.now() - lastActionRef.current < 2000) return;
+            lastActionRef.current = Date.now();
+        }
         if (!channelRef.current) return;
 
-        console.log("[WebRTC] Calling:", email);
+        console.log("[WebRTC] Calling:", email, isAuto ? "(Auto-Mesh)" : "");
         inCallRef.current = true;
-        setIsCallingOut(true);
+        if (!isAuto) setIsCallingOut(true);
 
         try {
-            // ONLY get new media if we aren't already actively streaming
             if (!localStreamRef.current) {
                 const s = await getMedia();
                 localStreamRef.current = s;
@@ -355,20 +373,52 @@ function ChatApp({ user, onLogout }) {
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-offer',
-                payload: { targetEmail: email, offer: pc.localDescription, sender: userEmail }
+                payload: { targetEmail: email, offer: pc.localDescription, sender: userEmail, isAuto }
             });
 
             setInVoiceCall(true);
         } catch (err) {
             console.error("[WebRTC] Call error:", err);
-            alert("Call failed: " + err.message);
-            // Only end the whole call if we fail and there are no other active peers
+            if (!isAuto) alert("Call failed: " + err.message);
+
             if (Object.keys(peersRef.current).length === 0) {
                 endCall(false);
             } else {
-                setIsCallingOut(false);
+                if (!isAuto) setIsCallingOut(false);
                 cleanPeer(email);
             }
+        }
+    };
+
+    // Automatically accepts mesh network background calls if we are already in a call
+    const autoAcceptCall = async (call) => {
+        console.log("[WebRTC] Auto-accepting mesh call from:", call.sender);
+        try {
+            if (!localStreamRef.current) {
+                const s = await getMedia();
+                localStreamRef.current = s;
+                setLocalStream(s);
+            }
+
+            const pc = createPC(call.sender);
+            await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
+            const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+            await pc.setLocalDescription(answer);
+
+            channelRef.current?.send({
+                type: 'broadcast',
+                event: 'webrtc-answer',
+                payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
+            });
+
+            const pending = pendingCandidatesRef.current[call.sender] || [];
+            for (const c of pending) {
+                try { await pc.addIceCandidate(c); } catch (e) { }
+            }
+            pendingCandidatesRef.current[call.sender] = [];
+        } catch (err) {
+            console.error("[WebRTC] Auto-Accept error:", err);
+            cleanPeer(call.sender);
         }
     };
 
@@ -384,7 +434,6 @@ function ChatApp({ user, onLogout }) {
         setIncomingCall(null);
 
         try {
-            // ONLY get new media if we aren't already actively streaming
             if (!localStreamRef.current) {
                 const s = await getMedia();
                 localStreamRef.current = s;
@@ -404,12 +453,7 @@ function ChatApp({ user, onLogout }) {
 
             const pending = pendingCandidatesRef.current[call.sender] || [];
             for (const c of pending) {
-                try {
-                    console.log("[WebRTC] Adding pending ICE:", c.type || "unknown", c.protocol || "unknown");
-                    await pc.addIceCandidate(c);
-                } catch (e) {
-                    console.error("[WebRTC] Pending ICE error:", e);
-                }
+                try { await pc.addIceCandidate(c); } catch (e) { }
             }
             pendingCandidatesRef.current[call.sender] = [];
 
@@ -431,56 +475,43 @@ function ChatApp({ user, onLogout }) {
 
         try {
             if (isScreenSharing) {
-                // Revert back to Camera
                 const newCameraStream = await navigator.mediaDevices.getUserMedia({
                     video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
                 });
                 const newVideoTrack = newCameraStream.getVideoTracks()[0];
 
-                // Replace video track in all active peer connections
                 Object.values(peersRef.current).forEach(pc => {
                     const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
                     if (sender) sender.replaceTrack(newVideoTrack);
                 });
 
-                // Update the local view stream
                 const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
                 const newStream = new MediaStream([newVideoTrack]);
                 if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
 
-                // Stop the old display stream track
                 localStreamRef.current.getVideoTracks().forEach(t => t.stop());
-
                 localStreamRef.current = newStream;
                 setLocalStream(newStream);
                 setIsScreenSharing(false);
 
             } else {
-                // Switch to Screen Share
                 const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 const screenVideoTrack = screenStream.getVideoTracks()[0];
 
-                // Handle if the user clicks "Stop Sharing" from the browser's native floating bar
                 screenVideoTrack.onended = () => {
-                    if (inCallRef.current) {
-                        toggleScreenShare();
-                    }
+                    if (inCallRef.current) toggleScreenShare();
                 };
 
-                // Replace video track in all active peer connections
                 Object.values(peersRef.current).forEach(pc => {
                     const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
                     if (sender) sender.replaceTrack(screenVideoTrack);
                 });
 
-                // Update the local view stream
                 const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
                 const newStream = new MediaStream([screenVideoTrack]);
                 if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
 
-                // Stop the old camera track
                 localStreamRef.current.getVideoTracks().forEach(t => t.stop());
-
                 localStreamRef.current = newStream;
                 setLocalStream(newStream);
                 setIsScreenSharing(true);
@@ -521,6 +552,7 @@ function ChatApp({ user, onLogout }) {
 
         ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
+
             if (peersRef.current[payload.sender]) {
                 try {
                     await peersRef.current[payload.sender].setRemoteDescription(new RTCSessionDescription(payload.offer));
@@ -530,7 +562,13 @@ function ChatApp({ user, onLogout }) {
                 } catch (e) { }
                 return;
             }
-            setIncomingCall(payload);
+
+            // If we are ALREADY in a call, auto-accept this background Mesh offer to link us to the new user
+            if (inCallRef.current) {
+                autoAcceptCall(payload);
+            } else {
+                setIncomingCall(payload);
+            }
         });
 
         ch.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
@@ -542,10 +580,7 @@ function ChatApp({ user, onLogout }) {
                     await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
                     const pending = pendingCandidatesRef.current[payload.sender] || [];
                     for (const c of pending) {
-                        try {
-                            console.log("[WebRTC] Adding pending ICE after answer:", c.type || "unknown", c.protocol || "unknown");
-                            await pc.addIceCandidate(c);
-                        } catch (e) { }
+                        try { await pc.addIceCandidate(c); } catch (e) { }
                     }
                     pendingCandidatesRef.current[payload.sender] = [];
                 } catch (e) { }
@@ -554,13 +589,8 @@ function ChatApp({ user, onLogout }) {
 
         ch.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-
             const candidateData = payload.candidate;
-            console.log("[WebRTC] Received ICE - type:", candidateData?.type || candidateData?.candidate?.split(' ')[7],
-                "protocol:", candidateData?.protocol || candidateData?.candidate?.split(' ')[2]);
-
             const pc = peersRef.current[payload.sender];
-
             const candidate = new RTCIceCandidate({
                 candidate: candidateData.candidate,
                 sdpMid: candidateData.sdpMid,
@@ -569,19 +599,29 @@ function ChatApp({ user, onLogout }) {
             });
 
             if (pc?.remoteDescription) {
-                try {
-                    await pc.addIceCandidate(candidate);
-                    console.log("[WebRTC] ✅ Added ICE successfully");
-                } catch (e) {
-                    console.error("[WebRTC] Error adding ICE:", e);
-                }
+                try { await pc.addIceCandidate(candidate); } catch (e) { }
             } else {
-                console.log("[WebRTC] Queuing ICE (no remote description)");
-                if (!pendingCandidatesRef.current[payload.sender]) {
-                    pendingCandidatesRef.current[payload.sender] = [];
-                }
+                if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
                 pendingCandidatesRef.current[payload.sender].push(candidate);
             }
+        });
+
+        // 🛡️ Mesh Gossip Protocol Handler
+        ch.on('broadcast', { event: 'webrtc-mesh-sync' }, ({ payload }) => {
+            if (payload.targetEmail !== userEmail) return;
+            if (!inCallRef.current) return; // Ignore if we aren't actively in a call
+
+            payload.peers.forEach(peer => {
+                // If we don't know this peer from the room list, we should connect.
+                if (peer !== userEmail && !peersRef.current[peer]) {
+                    // To avoid glare (both people calling each other simultaneously), 
+                    // only the person with the alphabetically smaller email initiates.
+                    if (userEmail.toLowerCase() < peer.toLowerCase()) {
+                        console.log(`[WebRTC Mesh] Discovered ${peer}, initiating auto-call`);
+                        initiateCall(peer, true);
+                    }
+                }
+            });
         });
 
         ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
@@ -702,17 +742,14 @@ function ChatApp({ user, onLogout }) {
                                             <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>📹 Call</button>
                                         ) : (
                                             <>
-                                                {/* MULTIPARTY ADD TO CALL BUTTON */}
                                                 {!activeCallEmails.includes(selectedContact) && (
                                                     <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
                                                         ➕ Add to Call
                                                     </button>
                                                 )}
-
                                                 <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
                                                     {isScreenSharing ? '💻 Stop Share' : '💻 Share'}
                                                 </button>
-
                                                 <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>🔴 End</button>
                                             </>
                                         )}
