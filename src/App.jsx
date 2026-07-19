@@ -300,40 +300,23 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Use Google's STUN servers and multiple TURN servers for better connectivity
+
     const rtcConfig = {
         iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
             {
-                urls: 'turn:openrelay.metered.ca:80',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-            },
-            {
-                urls: 'turn:openrelay.metered.ca:443',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-            },
-            {
-                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-            },
-            {
-                urls: 'turn:numb.viagenie.ca:3478',
-                username: 'webrtc@live.com',
-                credential: 'muazkh'
+                urls: [
+                    'stun:stun.relay.metered.ca:80',
+                    'turn:standard.relay.metered.ca:80',
+                    'turn:standard.relay.metered.ca:80?transport=tcp',
+                    'turn:standard.relay.metered.ca:443',
+                    'turn:standard.relay.metered.ca:443?transport=tcp'
+                ],
+                username: 'sales@noirsoft.net',
+                credential: '232laDDD213%%122026AD1TOTL'
             }
-        ],
-        iceCandidatePoolSize: 10,
-        iceTransportPolicy: 'all',
-        bundlePolicy: 'max-bundle',
-        rtcpMuxPolicy: 'require'
+        ]
     };
+
 
     useEffect(() => {
         incomingCallRef.current = incomingCall;
