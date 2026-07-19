@@ -168,19 +168,16 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
         if (streamRef.current === stream) return;
         streamRef.current = stream;
 
-        console.log("[RemoteVideo] Attaching stream for:", email);
+        console.log("[RemoteVideo] Attaching stream for:", email, "Tracks:", stream.getTracks().map(t => `${t.kind}:${t.readyState}`));
 
-        // Set the stream
         videoEl.srcObject = stream;
 
-        // Force play
         const playVideo = async () => {
             try {
                 await videoEl.play();
                 console.log("[RemoteVideo] Playing successfully for:", email);
             } catch (err) {
                 console.warn("[RemoteVideo] Play failed, retrying:", err.message);
-                // Retry once
                 setTimeout(async () => {
                     try {
                         await videoEl.play();
@@ -191,13 +188,17 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
             }
         };
 
+        // Add loadedmetadata listener to ensure video plays when data is available
+        const onLoadedMetadata = () => {
+            console.log("[RemoteVideo] Metadata loaded for:", email);
+            playVideo();
+        };
+        videoEl.addEventListener('loadedmetadata', onLoadedMetadata);
+
         playVideo();
 
         return () => {
-            // Don't stop tracks, just cleanup
-            if (videoEl) {
-                videoEl.srcObject = null;
-            }
+            videoEl.removeEventListener('loadedmetadata', onLoadedMetadata);
         };
     }, [stream, email]);
 
@@ -287,6 +288,7 @@ function ChatApp({ user, onLogout }) {
 
     const processingOfferRef = useRef(false);
     const callActiveRef = useRef(false);
+    const reconnectTimeoutRef = useRef(null);
 
     useEffect(() => {
         selectedContactRef.current = selectedContact;
@@ -298,10 +300,14 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // Use Google's STUN servers and multiple TURN servers for better connectivity
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
             {
                 urls: 'turn:openrelay.metered.ca:80',
                 username: 'openrelayproject',
@@ -316,8 +322,17 @@ function ChatApp({ user, onLogout }) {
                 urls: 'turn:openrelay.metered.ca:443?transport=tcp',
                 username: 'openrelayproject',
                 credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:numb.viagenie.ca:3478',
+                username: 'webrtc@live.com',
+                credential: 'muazkh'
             }
-        ]
+        ],
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all',
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require'
     };
 
     useEffect(() => {
@@ -428,15 +443,34 @@ function ChatApp({ user, onLogout }) {
     const getMediaStream = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-                audio: { echoCancellation: true, noiseSuppression: true }
+                video: {
+                    facingMode: "user",
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    frameRate: { ideal: 24 }
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
             });
             return stream;
         } catch (err) {
-            try { return await navigator.mediaDevices.getUserMedia({ audio: true }); }
-            catch (err2) {
-                try { return await navigator.mediaDevices.getUserMedia({ video: true }); }
-                catch (err3) { throw new Error("No media devices available or permissions denied."); }
+            console.warn("Failed to get full media, trying audio only:", err);
+            try {
+                return await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: true, noiseSuppression: true }
+                });
+            } catch (err2) {
+                console.warn("Failed to get audio, trying video only:", err2);
+                try {
+                    return await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
+                    });
+                } catch (err3) {
+                    throw new Error("No media devices available or permissions denied.");
+                }
             }
         }
     };
@@ -460,12 +494,14 @@ function ChatApp({ user, onLogout }) {
         // Add local tracks
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => {
+                console.log("[WebRTC] Adding local track:", track.kind, track.readyState);
                 pc.addTrack(track, localStreamRef.current);
             });
         }
 
         pc.onicecandidate = (e) => {
             if (e.candidate && channelRef.current) {
+                console.log("[WebRTC] New ICE candidate for:", targetEmail);
                 channelRef.current.send({
                     type: 'broadcast',
                     event: 'webrtc-ice-candidate',
@@ -475,32 +511,89 @@ function ChatApp({ user, onLogout }) {
                         sender: userEmail
                     }
                 });
+            } else if (!e.candidate) {
+                console.log("[WebRTC] ICE gathering complete for:", targetEmail);
             }
         };
 
         pc.onconnectionstatechange = () => {
-            console.log("[WebRTC] Connection state:", pc.connectionState, "for:", targetEmail);
-            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            console.log("[WebRTC] Connection state for", targetEmail, ":", pc.connectionState);
+
+            if (pc.connectionState === 'connected') {
+                console.log("[WebRTC] Successfully connected to:", targetEmail);
+                // Clear any reconnection timeout
+                if (reconnectTimeoutRef.current) {
+                    clearTimeout(reconnectTimeoutRef.current);
+                    reconnectTimeoutRef.current = null;
+                }
+            } else if (pc.connectionState === 'failed') {
+                console.error("[WebRTC] Connection failed for:", targetEmail);
+                // Try to restart ICE before giving up
+                handleConnectionFailure(targetEmail);
+            } else if (pc.connectionState === 'disconnected') {
+                console.warn("[WebRTC] Connection disconnected for:", targetEmail);
+                // Wait a bit before closing - sometimes it reconnects
+                reconnectTimeoutRef.current = setTimeout(() => {
+                    if (peersRef.current[targetEmail]?.connectionState === 'disconnected') {
+                        console.log("[WebRTC] Connection still disconnected after timeout, closing");
+                        handlePeerDisconnect(targetEmail);
+                    }
+                }, 5000);
+            } else if (pc.connectionState === 'closed') {
+                console.log("[WebRTC] Connection closed for:", targetEmail);
                 handlePeerDisconnect(targetEmail);
             }
         };
 
         pc.oniceconnectionstatechange = () => {
-            console.log("[WebRTC] ICE state:", pc.iceConnectionState, "for:", targetEmail);
-        };
+            console.log("[WebRTC] ICE state for", targetEmail, ":", pc.iceConnectionState);
 
-        pc.ontrack = (e) => {
-            console.log("[WebRTC] Received track from:", targetEmail, e.track.kind);
-
-            if (e.streams && e.streams[0]) {
-                setRemoteStreams(prev => ({
-                    ...prev,
-                    [targetEmail]: e.streams[0]
-                }));
+            if (pc.iceConnectionState === 'failed') {
+                console.error("[WebRTC] ICE failed for:", targetEmail);
+                handleConnectionFailure(targetEmail);
             }
         };
 
+        pc.ontrack = (e) => {
+            console.log("[WebRTC] Received track from:", targetEmail, e.track.kind, "state:", e.track.readyState);
+
+            if (e.streams && e.streams[0]) {
+                const remoteStream = e.streams[0];
+                console.log("[WebRTC] Setting remote stream for:", targetEmail, "Tracks:", remoteStream.getTracks().map(t => `${t.kind}:${t.readyState}`));
+
+                setRemoteStreams(prev => {
+                    // Don't update if it's the same stream reference
+                    if (prev[targetEmail] === remoteStream) return prev;
+                    return { ...prev, [targetEmail]: remoteStream };
+                });
+            }
+        };
+
+        // Log signaling state changes
+        pc.onsignalingstatechange = () => {
+            console.log("[WebRTC] Signaling state for", targetEmail, ":", pc.signalingState);
+        };
+
         return pc;
+    };
+
+    const handleConnectionFailure = (targetEmail) => {
+        const pc = peersRef.current[targetEmail];
+        if (!pc) return;
+
+        console.log("[WebRTC] Attempting connection recovery for:", targetEmail);
+
+        // Try ICE restart first
+        try {
+            pc.restartIce();
+            console.log("[WebRTC] ICE restart initiated for:", targetEmail);
+        } catch (err) {
+            console.error("[WebRTC] ICE restart failed:", err);
+            // If ICE restart fails, disconnect the peer
+            setTimeout(() => {
+                handlePeerDisconnect(targetEmail);
+            }, 3000);
+        }
     };
 
     const handlePeerDisconnect = (email) => {
@@ -512,6 +605,7 @@ function ChatApp({ user, onLogout }) {
         }
 
         setRemoteStreams(prev => {
+            if (!prev[email]) return prev;
             const newStreams = { ...prev };
             delete newStreams[email];
             return newStreams;
@@ -519,8 +613,9 @@ function ChatApp({ user, onLogout }) {
 
         delete iceCandidateQueues.current[email];
 
-        // Only end call if no more peers
+        // Only end call if no more peers and call is active
         if (Object.keys(peersRef.current).length === 0 && callActiveRef.current) {
+            console.log("[WebRTC] No more peers, ending call");
             endVoiceCall(false);
         }
     };
@@ -533,13 +628,23 @@ function ChatApp({ user, onLogout }) {
             ringer.stop();
         }
 
+        // Clear any reconnect timeout
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+        }
+
         setIsCallingOut(false);
         setIncomingCall(null);
         processingOfferRef.current = false;
 
         // Close all peer connections
         Object.entries(peersRef.current).forEach(([email, pc]) => {
-            pc.close();
+            try {
+                pc.close();
+            } catch (err) {
+                console.error("[WebRTC] Error closing peer connection:", err);
+            }
             if (broadcast && channelRef.current) {
                 channelRef.current.send({
                     type: 'broadcast',
@@ -553,11 +658,16 @@ function ChatApp({ user, onLogout }) {
         setRemoteStreams({});
         iceCandidateQueues.current = {};
 
-        // Clean up media streams
+        // Stop all tracks in local stream
         if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => track.stop());
+            localStreamRef.current.getTracks().forEach(track => {
+                track.stop();
+                console.log("[WebRTC] Stopped local track:", track.kind);
+            });
             localStreamRef.current = null;
         }
+
+        // Stop screen share if active
         if (screenStreamRef.current) {
             screenStreamRef.current.getTracks().forEach(track => track.stop());
             screenStreamRef.current = null;
@@ -570,29 +680,47 @@ function ChatApp({ user, onLogout }) {
     };
 
     const startCall = async (targetEmail) => {
-        if (!channelRef.current || callActiveRef.current) return;
+        if (!channelRef.current) {
+            console.error("[WebRTC] No channel available");
+            return;
+        }
+
+        if (callActiveRef.current && Object.keys(peersRef.current).includes(targetEmail)) {
+            console.warn("[WebRTC] Already in call with:", targetEmail);
+            return;
+        }
 
         console.log("[WebRTC] Starting call to:", targetEmail);
         callActiveRef.current = true;
         setIsCallingOut(true);
 
         try {
+            // Get media stream if we don't have one
             if (!localStreamRef.current) {
+                console.log("[WebRTC] Getting local media stream");
                 const stream = await getMediaStream();
                 localStreamRef.current = stream;
                 setLocalMediaStream(stream);
             }
 
             const pc = createPeerConnection(targetEmail);
-            const offer = await pc.createOffer();
+
+            console.log("[WebRTC] Creating offer");
+            const offer = await pc.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+
+            console.log("[WebRTC] Setting local description");
             await pc.setLocalDescription(offer);
 
+            console.log("[WebRTC] Sending offer to:", targetEmail);
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-offer',
                 payload: {
                     targetEmail,
-                    offer,
+                    offer: pc.localDescription,
                     sender: userEmail
                 }
             });
@@ -607,7 +735,10 @@ function ChatApp({ user, onLogout }) {
 
     const acceptCall = async () => {
         const currentIncomingCall = incomingCallRef.current;
-        if (!currentIncomingCall || processingOfferRef.current) return;
+        if (!currentIncomingCall || processingOfferRef.current) {
+            console.warn("[WebRTC] Cannot accept call - no incoming call or already processing");
+            return;
+        }
 
         console.log("[WebRTC] Accepting call from:", currentIncomingCall.sender);
         processingOfferRef.current = true;
@@ -620,7 +751,9 @@ function ChatApp({ user, onLogout }) {
         setIncomingCall(null);
 
         try {
+            // Get media stream if we don't have one
             if (!localStreamRef.current) {
+                console.log("[WebRTC] Getting local media stream for accepting call");
                 const stream = await getMediaStream();
                 localStreamRef.current = stream;
                 setLocalMediaStream(stream);
@@ -629,22 +762,32 @@ function ChatApp({ user, onLogout }) {
             const senderEmail = currentIncomingCall.sender;
             const pc = createPeerConnection(senderEmail);
 
+            console.log("[WebRTC] Setting remote description from offer");
             await pc.setRemoteDescription(new RTCSessionDescription(currentIncomingCall.offer));
-            const answer = await pc.createAnswer();
+
+            console.log("[WebRTC] Creating answer");
+            const answer = await pc.createAnswer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+
+            console.log("[WebRTC] Setting local description");
             await pc.setLocalDescription(answer);
 
+            console.log("[WebRTC] Sending answer to:", senderEmail);
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-answer',
                 payload: {
                     targetEmail: senderEmail,
-                    answer,
+                    answer: pc.localDescription,
                     sender: userEmail
                 }
             });
 
             // Process any queued ICE candidates
             const queue = iceCandidateQueues.current[senderEmail] || [];
+            console.log("[WebRTC] Processing", queue.length, "queued ICE candidates");
             for (const candidate of queue) {
                 try {
                     await pc.addIceCandidate(new RTCIceCandidate(candidate));
@@ -767,79 +910,97 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
+        // Handle incoming offer
         channel.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
-            if (payload.targetEmail === userEmail) {
-                console.log("[WebRTC] Received offer from:", payload.sender);
+            if (payload.targetEmail !== userEmail) return;
 
-                // Auto-accept if we're already in a call
-                if (callActiveRef.current && localStreamRef.current) {
-                    try {
-                        const pc = createPeerConnection(payload.sender);
-                        await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
-                        const answer = await pc.createAnswer();
-                        await pc.setLocalDescription(answer);
+            console.log("[WebRTC] Received offer from:", payload.sender);
 
-                        channelRef.current.send({
-                            type: 'broadcast',
-                            event: 'webrtc-answer',
-                            payload: { targetEmail: payload.sender, answer, sender: userEmail }
-                        });
+            // If we're already in a call, auto-accept
+            if (callActiveRef.current && localStreamRef.current) {
+                console.log("[WebRTC] Auto-accepting offer (already in call)");
+                try {
+                    const pc = createPeerConnection(payload.sender);
+                    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+                    const answer = await pc.createAnswer({
+                        offerToReceiveAudio: true,
+                        offerToReceiveVideo: true
+                    });
+                    await pc.setLocalDescription(answer);
 
-                        // Process queued ICE
-                        const queue = iceCandidateQueues.current[payload.sender] || [];
-                        for (const candidate of queue) {
-                            try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (err) { }
-                        }
-                        iceCandidateQueues.current[payload.sender] = [];
-                    } catch (err) {
-                        console.error("[WebRTC] Auto-accept error:", err);
+                    channelRef.current.send({
+                        type: 'broadcast',
+                        event: 'webrtc-answer',
+                        payload: { targetEmail: payload.sender, answer: pc.localDescription, sender: userEmail }
+                    });
+
+                    // Process queued ICE
+                    const queue = iceCandidateQueues.current[payload.sender] || [];
+                    for (const candidate of queue) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (err) { }
                     }
-                } else {
-                    setIncomingCall(payload);
+                    iceCandidateQueues.current[payload.sender] = [];
+                } catch (err) {
+                    console.error("[WebRTC] Auto-accept error:", err);
                 }
+            } else {
+                // Show incoming call notification
+                setIncomingCall(payload);
             }
         });
 
+        // Handle answer
         channel.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
-            if (payload.targetEmail === userEmail) {
-                console.log("[WebRTC] Received answer from:", payload.sender);
-                setIsCallingOut(false);
+            if (payload.targetEmail !== userEmail) return;
 
-                const pc = peersRef.current[payload.sender];
-                if (pc) {
-                    try {
-                        await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+            console.log("[WebRTC] Received answer from:", payload.sender);
+            setIsCallingOut(false);
 
-                        // Process queued ICE candidates
-                        const queue = iceCandidateQueues.current[payload.sender] || [];
-                        for (const candidate of queue) {
-                            try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (err) { }
+            const pc = peersRef.current[payload.sender];
+            if (pc) {
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                    console.log("[WebRTC] Remote description set from answer");
+
+                    // Process queued ICE candidates
+                    const queue = iceCandidateQueues.current[payload.sender] || [];
+                    console.log("[WebRTC] Processing", queue.length, "queued ICE candidates after answer");
+                    for (const candidate of queue) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                        } catch (err) {
+                            console.error("[WebRTC] Error adding queued ICE:", err);
                         }
-                        iceCandidateQueues.current[payload.sender] = [];
-                    } catch (err) {
-                        console.error("[WebRTC] Error handling answer:", err);
                     }
+                    iceCandidateQueues.current[payload.sender] = [];
+                } catch (err) {
+                    console.error("[WebRTC] Error handling answer:", err);
                 }
+            } else {
+                console.error("[WebRTC] No peer connection for:", payload.sender);
             }
         });
 
+        // Handle ICE candidates
         channel.on('broadcast', { event: 'webrtc-ice-candidate' }, async ({ payload }) => {
-            if (payload.targetEmail === userEmail) {
-                const pc = peersRef.current[payload.sender];
+            if (payload.targetEmail !== userEmail) return;
 
-                if (pc && pc.remoteDescription) {
-                    try {
-                        await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                    } catch (err) {
-                        console.error("[WebRTC] Error adding ICE:", err);
-                    }
-                } else {
-                    // Queue the candidate
-                    if (!iceCandidateQueues.current[payload.sender]) {
-                        iceCandidateQueues.current[payload.sender] = [];
-                    }
-                    iceCandidateQueues.current[payload.sender].push(payload.candidate);
+            const pc = peersRef.current[payload.sender];
+
+            if (pc && pc.remoteDescription) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                    console.log("[WebRTC] Added ICE candidate from:", payload.sender);
+                } catch (err) {
+                    console.error("[WebRTC] Error adding ICE:", err);
                 }
+            } else {
+                // Queue the candidate for later
+                console.log("[WebRTC] Queueing ICE candidate (no PC or remote description)");
+                if (!iceCandidateQueues.current[payload.sender]) {
+                    iceCandidateQueues.current[payload.sender] = [];
+                }
+                iceCandidateQueues.current[payload.sender].push(payload.candidate);
             }
         });
 
@@ -853,6 +1014,7 @@ function ChatApp({ user, onLogout }) {
 
         channel.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
+                console.log("[WebRTC] Remote peer ended call:", payload.sender);
                 setIncomingCall(null);
                 handlePeerDisconnect(payload.sender);
             }
