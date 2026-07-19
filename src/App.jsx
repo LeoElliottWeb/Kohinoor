@@ -72,16 +72,10 @@ function LocalVideo({ stream }) {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
 
-        console.log("[LocalVideo] Setting local stream, tracks:", stream.getTracks().map(t => `${t.kind}:${t.readyState}`));
-
+        console.log("[LocalVideo] Setting local stream");
         videoEl.srcObject = stream;
-        videoEl.muted = true; // Always mute local video to prevent feedback
-
-        videoEl.play().then(() => {
-            console.log("[LocalVideo] Playing successfully");
-        }).catch(err => {
-            console.warn("[LocalVideo] Play error:", err.message);
-        });
+        videoEl.muted = true;
+        videoEl.play().catch(() => { });
 
         return () => {
             if (videoEl) videoEl.srcObject = null;
@@ -90,16 +84,8 @@ function LocalVideo({ stream }) {
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }}
-            />
-            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff' }}>
-                You
-            </span>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
+            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff' }}>You</span>
         </div>
     );
 }
@@ -114,24 +100,12 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
 
-        console.log("[RemoteVideo] Attaching stream for:", email, "Tracks:", stream.getTracks().map(t => `${t.kind}:${t.readyState}`));
-
+        console.log("[RemoteVideo] Attaching stream for:", email);
         videoEl.srcObject = stream;
-
-        const playVideo = () => {
-            videoEl.play().then(() => {
-                console.log("[RemoteVideo] Playing:", email);
-            }).catch(err => {
-                console.warn("[RemoteVideo] Play error:", err.message);
-                setTimeout(playVideo, 500);
-            });
-        };
-
-        videoEl.addEventListener('loadedmetadata', playVideo);
-        playVideo();
+        videoEl.play().catch(() => { });
 
         return () => {
-            videoEl.removeEventListener('loadedmetadata', playVideo);
+            if (videoEl) videoEl.srcObject = null;
         };
     }, [stream, email]);
 
@@ -140,15 +114,8 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }}
-            />
-            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff' }}>
-                {contactName}
-            </span>
+            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
+            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff' }}>{contactName}</span>
         </div>
     );
 }
@@ -194,13 +161,39 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', h);
     }, []);
 
+    // CRITICAL: Force TURN usage for cross-network calls
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443'], username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:numb.viagenie.ca:3478', username: 'webrtc@live.com', credential: 'muazkh' }
-        ]
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+            // Primary TURN servers
+            {
+                urls: [
+                    'turn:openrelay.metered.ca:80?transport=tcp',
+                    'turn:openrelay.metered.ca:443?transport=tcp',
+                    'turn:openrelay.metered.ca:80',
+                    'turn:openrelay.metered.ca:443'
+                ],
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            // Backup TURN server
+            {
+                urls: [
+                    'turn:numb.viagenie.ca:3478?transport=tcp',
+                    'turn:numb.viagenie.ca:3478'
+                ],
+                username: 'webrtc@live.com',
+                credential: 'muazkh'
+            }
+        ],
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all', // 'all' allows both STUN and TURN
+        rtcpMuxPolicy: 'require',
+        bundlePolicy: 'max-bundle'
     };
 
     useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
@@ -232,6 +225,8 @@ function ChatApp({ user, onLogout }) {
 
     useEffect(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, [chatMessages]);
 
+    useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
+
     useEffect(() => {
         if (!selectedContact || !userEmail) return;
         Promise.all([
@@ -239,11 +234,6 @@ function ChatApp({ user, onLogout }) {
             supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
-
-    // IMPORTANT: Keep localStreamRef in sync with localStream state
-    useEffect(() => {
-        localStreamRef.current = localStream;
-    }, [localStream]);
 
     const getMedia = async () => {
         console.log("[Media] Requesting user media...");
@@ -266,26 +256,28 @@ function ChatApp({ user, onLogout }) {
         peersRef.current[email] = pc;
         pendingCandidatesRef.current[email] = [];
 
-        // Add local tracks if available
         if (localStreamRef.current) {
-            const tracks = localStreamRef.current.getTracks();
-            console.log("[WebRTC] Adding", tracks.length, "local tracks to PC");
-            tracks.forEach(t => {
+            localStreamRef.current.getTracks().forEach(t => {
                 console.log("[WebRTC] Adding track:", t.kind, t.label);
                 pc.addTrack(t, localStreamRef.current);
             });
-        } else {
-            console.warn("[WebRTC] No local stream available!");
         }
 
         pc.onicecandidate = (e) => {
-            if (e.candidate && channelRef.current) {
-                channelRef.current.send({
+            if (e.candidate) {
+                console.log("[WebRTC] ICE candidate type:", e.candidate.type, "protocol:", e.candidate.protocol, "for:", email);
+                channelRef.current?.send({
                     type: 'broadcast',
                     event: 'webrtc-ice',
                     payload: { targetEmail: email, candidate: e.candidate, sender: userEmail }
                 });
+            } else {
+                console.log("[WebRTC] ICE gathering complete for:", email);
             }
+        };
+
+        pc.onicegatheringstatechange = () => {
+            console.log("[WebRTC] ICE gathering state:", pc.iceGatheringState, "for:", email);
         };
 
         pc.onconnectionstatechange = () => {
@@ -294,24 +286,39 @@ function ChatApp({ user, onLogout }) {
                 console.log("[WebRTC] ✅ Connected to:", email);
                 setIsCallingOut(false);
             } else if (pc.connectionState === 'failed') {
+                console.log("[WebRTC] ❌ Connection failed for:", email);
                 cleanPeer(email);
             } else if (pc.connectionState === 'disconnected') {
+                console.log("[WebRTC] ⚠️ Disconnected from:", email, "- waiting for reconnect");
                 setTimeout(() => {
-                    if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email);
-                }, 3000);
+                    if (peersRef.current[email]?.connectionState === 'disconnected') {
+                        console.log("[WebRTC] No reconnect, cleaning up:", email);
+                        cleanPeer(email);
+                    }
+                }, 5000);
             }
         };
 
         pc.oniceconnectionstatechange = () => {
             console.log("[WebRTC] ICE state:", pc.iceConnectionState, "for:", email);
+            if (pc.iceConnectionState === 'failed') {
+                console.log("[WebRTC] ICE failed - this usually means TURN servers aren't reachable");
+                // Log ICE transport stats
+                pc.getStats(null).then(stats => {
+                    stats.forEach(report => {
+                        if (report.type === 'candidate-pair' && report.state === 'failed') {
+                            console.log("[WebRTC] Failed candidate pair:", report);
+                        }
+                    });
+                });
+            }
         };
 
         pc.ontrack = (event) => {
-            console.log("[WebRTC] 📹 ontrack event for:", email, "kind:", event.track.kind);
+            console.log("[WebRTC] 📹 ontrack:", event.track.kind, "from:", email);
             if (event.streams && event.streams.length > 0) {
-                const remoteStream = event.streams[0];
                 console.log("[WebRTC] Setting remote stream for:", email);
-                setRemoteStreams(prev => ({ ...prev, [email]: remoteStream }));
+                setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
             }
         };
 
@@ -326,6 +333,7 @@ function ChatApp({ user, onLogout }) {
         delete pendingCandidatesRef.current[email];
 
         if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
+            console.log("[WebRTC] No more peers, ending call");
             endCall(false);
         }
     };
@@ -355,7 +363,6 @@ function ChatApp({ user, onLogout }) {
         pendingCandidatesRef.current = {};
         setRemoteStreams({});
 
-        // Stop local stream after a delay
         setTimeout(() => {
             if (!inCallRef.current && localStreamRef.current) {
                 console.log("[WebRTC] Stopping local stream");
@@ -379,7 +386,6 @@ function ChatApp({ user, onLogout }) {
         setIsCallingOut(true);
 
         try {
-            // Always get fresh media for a new call
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(t => t.stop());
             }
@@ -388,9 +394,14 @@ function ChatApp({ user, onLogout }) {
             setLocalStream(s);
 
             const pc = createPC(email);
-            const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+            const offer = await pc.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true,
+                iceRestart: false
+            });
             await pc.setLocalDescription(offer);
 
+            console.log("[WebRTC] Sending offer to:", email);
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-offer',
@@ -417,7 +428,6 @@ function ChatApp({ user, onLogout }) {
         setIncomingCall(null);
 
         try {
-            // Always get fresh media
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(t => t.stop());
             }
@@ -428,7 +438,10 @@ function ChatApp({ user, onLogout }) {
             const pc = createPC(call.sender);
 
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
-            const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+            const answer = await pc.createAnswer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
             await pc.setLocalDescription(answer);
 
             channelRef.current.send({
@@ -525,7 +538,12 @@ function ChatApp({ user, onLogout }) {
             if (payload.targetEmail !== userEmail) return;
             const pc = peersRef.current[payload.sender];
             if (pc?.remoteDescription) {
-                try { await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) { }
+                try {
+                    console.log("[WebRTC] Adding ICE candidate type:", payload.candidate?.type);
+                    await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) {
+                    console.error("[WebRTC] Error adding ICE:", e);
+                }
             } else {
                 if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
                 pendingCandidatesRef.current[payload.sender].push(payload.candidate);
@@ -538,6 +556,7 @@ function ChatApp({ user, onLogout }) {
 
         ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
+                console.log("[WebRTC] Remote ended call:", payload.sender);
                 setIncomingCall(null);
                 cleanPeer(payload.sender);
             }
@@ -568,7 +587,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    const isSelectedInCall = Object.keys(remoteStreams).includes(selectedContact);
     const showSidebar = !isMobile || !selectedContact;
     const showChat = !isMobile || !!selectedContact;
     const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
@@ -659,9 +677,7 @@ function ChatApp({ user, onLogout }) {
 
                                 {inVoiceCall && (
                                     <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Math.max(Object.keys(remoteStreams).length + 1, 2)}, 1fr)`, gap: 10, padding: 10 }}>
-                                        {/* Local video - always show */}
                                         <LocalVideo stream={localStream} />
-                                        {/* Remote videos */}
                                         {Object.entries(remoteStreams).map(([email, stream]) => (
                                             <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} />
                                         ))}
