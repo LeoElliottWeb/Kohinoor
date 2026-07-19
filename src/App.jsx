@@ -158,35 +158,27 @@ if (typeof document !== 'undefined') {
 // ==========================================
 function RemoteVideo({ stream, email, allKnownUsers }) {
     const videoRef = useRef(null);
-    const [trackCount, setTrackCount] = useState(0);
 
-    // CRITICAL FIX: Track arrival desync. Listen for late-arriving video tracks.
-    useEffect(() => {
-        if (!stream) return;
-
-        const updateTrackCount = () => setTrackCount(stream.getTracks().length);
-
-        stream.addEventListener('addtrack', updateTrackCount);
-        stream.addEventListener('removetrack', updateTrackCount);
-        updateTrackCount(); // Initialize
-
-        return () => {
-            stream.removeEventListener('addtrack', updateTrackCount);
-            stream.removeEventListener('removetrack', updateTrackCount);
-        };
-    }, [stream]);
-
-    // CRITICAL FIX: Re-mount the stream whenever trackCount changes to force browser render
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
 
-        // Briefly clearing the srcObject forces the HTML video element to acknowledge the new video track
-        videoEl.srcObject = null;
-        videoEl.srcObject = stream;
+        // Check ensures we don't reset the srcObject if it's already assigned
+        if (videoEl.srcObject !== stream) {
+            videoEl.srcObject = stream;
+        }
 
-        videoEl.play().catch((e) => console.warn("Remote playback delayed by browser:", e));
-    }, [stream, trackCount]);
+        // Properly handle the Promise returned by play() to avoid the AbortError in the console
+        const playPromise = videoEl.play();
+        if (playPromise !== undefined) {
+            playPromise.catch((error) => {
+                // Ignore AbortError as it simply means the user/browser interrupted the load, which recovers naturally
+                if (error.name !== 'AbortError') {
+                    console.warn("Video playback error:", error);
+                }
+            });
+        }
+    }, [stream]);
 
     const safeEmail = email?.trim().toLowerCase();
     const contactName = allKnownUsers.find(c => c.email?.trim().toLowerCase() === safeEmail)?.name || email.split('@')[0];
@@ -257,7 +249,6 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // CRITICAL FIX: Removed unreliable TURN servers. Google STUN cluster is far more resilient for cross-country NAT traversal.
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -360,6 +351,12 @@ function ChatApp({ user, onLogout }) {
         if (localVideoRef.current && localMediaStream) {
             if (localVideoRef.current.srcObject !== localMediaStream) {
                 localVideoRef.current.srcObject = localMediaStream;
+            }
+            const playPromise = localVideoRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    if (e.name !== 'AbortError') console.warn("Local play error:", e);
+                });
             }
         }
     }, [localMediaStream, inVoiceCall]);
@@ -693,7 +690,6 @@ function ChatApp({ user, onLogout }) {
                 const batcher = iceBatchersRef.current[targetEmail];
                 batcher.candidates.push(e.candidate);
 
-                // CRITICAL FIX: Increased batching time. Supabase Broadcast chokes on rapid-fire ICE candidates internationally.
                 if (!batcher.timer) {
                     batcher.timer = setTimeout(() => {
                         const candidatesToSend = [...batcher.candidates];
@@ -711,28 +707,24 @@ function ChatApp({ user, onLogout }) {
             }
         };
 
+        // Let the stream handle itself naturally without forcing React to clone it
         pc.ontrack = (e) => {
             setRemoteStreams(prev => {
                 const existingStream = prev[targetEmail];
                 if (existingStream) {
-                    if (e.track && !existingStream.getTracks().find(t => t.id === e.track.id)) {
+                    if (e.track && !existingStream.getTracks().some(t => t.id === e.track.id)) {
                         existingStream.addTrack(e.track);
                     }
                     return { ...prev };
                 } else {
-                    const newStream = new MediaStream();
-                    if (e.streams && e.streams.length > 0) {
-                        e.streams[0].getTracks().forEach(t => newStream.addTrack(t));
-                    } else {
-                        newStream.addTrack(e.track);
-                    }
+                    const newStream = (e.streams && e.streams.length > 0)
+                        ? e.streams[0]
+                        : new MediaStream([e.track]);
                     return { ...prev, [targetEmail]: newStream };
                 }
             });
         };
 
-        // CRITICAL FIX: Do NOT instantly terminate the call on "disconnected". 
-        // Cross-country WebRTC regularly drops to "disconnected" momentarily during packet loss and auto-recovers.
         pc.onconnectionstatechange = () => {
             if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
                 handlePeerDisconnect(targetEmail);
@@ -939,7 +931,6 @@ function ChatApp({ user, onLogout }) {
 
             Object.values(peersRef.current).forEach(pc => {
                 const senders = pc.getSenders();
-                // CRITICAL FIX: Explicit safety check for s.track existence before replacement
                 const videoSender = senders.find(s => s.track && s.track.kind === 'video');
 
                 if (videoSender) {
