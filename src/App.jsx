@@ -128,15 +128,22 @@ function ChatApp({ user, onLogout }) {
     const [chatInput, setChatInput] = useState('');
     const selectedContactRef = useRef(selectedContact);
     const channelRef = useRef(null);
+
+    // Call States
     const [inVoiceCall, setInVoiceCall] = useState(false);
+    const [activeCallEmails, setActiveCallEmails] = useState([]);
     const [incomingCall, setIncomingCall] = useState(null);
     const incomingCallRef = useRef(null);
     const [isCallingOut, setIsCallingOut] = useState(false);
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+    // Media States
     const [localStream, setLocalStream] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({});
     const peersRef = useRef({});
     const pendingCandidatesRef = useRef({});
     const localStreamRef = useRef(null);
+
     const chatContainerRef = useRef(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const inCallRef = useRef(false);
@@ -224,9 +231,8 @@ function ChatApp({ user, onLogout }) {
         console.log("[WebRTC] Creating PC for:", email);
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[email] = pc;
+        setActiveCallEmails(prev => [...new Set([...prev, email])]);
 
-        // FIX: Ensure pendingCandidatesRef exists but DO NOT wipe it out 
-        // if it already contains ICE candidates sent during the ringing phase.
         if (!pendingCandidatesRef.current[email]) {
             pendingCandidatesRef.current[email] = [];
         }
@@ -285,6 +291,7 @@ function ChatApp({ user, onLogout }) {
         peersRef.current[email]?.close();
         delete peersRef.current[email];
         setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
+        setActiveCallEmails(prev => prev.filter(e => e !== email));
         delete pendingCandidatesRef.current[email];
         if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
             endCall(false);
@@ -297,6 +304,7 @@ function ChatApp({ user, onLogout }) {
         inCallRef.current = false;
         if (ringer.isActive()) ringer.stop();
         setIsCallingOut(false);
+        setIsScreenSharing(false);
         setIncomingCall(null);
 
         if (broadcast) {
@@ -309,6 +317,7 @@ function ChatApp({ user, onLogout }) {
         peersRef.current = {};
         pendingCandidatesRef.current = {};
         setRemoteStreams({});
+        setActiveCallEmails([]);
 
         setTimeout(() => {
             if (!inCallRef.current && localStreamRef.current) {
@@ -332,12 +341,12 @@ function ChatApp({ user, onLogout }) {
         setIsCallingOut(true);
 
         try {
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
+            // ONLY get new media if we aren't already actively streaming
+            if (!localStreamRef.current) {
+                const s = await getMedia();
+                localStreamRef.current = s;
+                setLocalStream(s);
             }
-            const s = await getMedia();
-            localStreamRef.current = s;
-            setLocalStream(s);
 
             const pc = createPC(email);
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
@@ -353,7 +362,13 @@ function ChatApp({ user, onLogout }) {
         } catch (err) {
             console.error("[WebRTC] Call error:", err);
             alert("Call failed: " + err.message);
-            endCall(false);
+            // Only end the whole call if we fail and there are no other active peers
+            if (Object.keys(peersRef.current).length === 0) {
+                endCall(false);
+            } else {
+                setIsCallingOut(false);
+                cleanPeer(email);
+            }
         }
     };
 
@@ -369,12 +384,12 @@ function ChatApp({ user, onLogout }) {
         setIncomingCall(null);
 
         try {
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
+            // ONLY get new media if we aren't already actively streaming
+            if (!localStreamRef.current) {
+                const s = await getMedia();
+                localStreamRef.current = s;
+                setLocalStream(s);
             }
-            const s = await getMedia();
-            localStreamRef.current = s;
-            setLocalStream(s);
 
             const pc = createPC(call.sender);
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
@@ -391,7 +406,6 @@ function ChatApp({ user, onLogout }) {
             for (const c of pending) {
                 try {
                     console.log("[WebRTC] Adding pending ICE:", c.type || "unknown", c.protocol || "unknown");
-                    // FIX: 'c' is already an RTCIceCandidate object, passing it into pc.addIceCandidate directly
                     await pc.addIceCandidate(c);
                 } catch (e) {
                     console.error("[WebRTC] Pending ICE error:", e);
@@ -404,7 +418,75 @@ function ChatApp({ user, onLogout }) {
         } catch (err) {
             console.error("[WebRTC] Accept error:", err);
             alert("Accept failed: " + err.message);
-            endCall(false);
+            if (Object.keys(peersRef.current).length === 0) {
+                endCall(false);
+            } else {
+                cleanPeer(call.sender);
+            }
+        }
+    };
+
+    const toggleScreenShare = async () => {
+        if (!localStreamRef.current || !inCallRef.current) return;
+
+        try {
+            if (isScreenSharing) {
+                // Revert back to Camera
+                const newCameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+                });
+                const newVideoTrack = newCameraStream.getVideoTracks()[0];
+
+                // Replace video track in all active peer connections
+                Object.values(peersRef.current).forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (sender) sender.replaceTrack(newVideoTrack);
+                });
+
+                // Update the local view stream
+                const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
+                const newStream = new MediaStream([newVideoTrack]);
+                if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
+
+                // Stop the old display stream track
+                localStreamRef.current.getVideoTracks().forEach(t => t.stop());
+
+                localStreamRef.current = newStream;
+                setLocalStream(newStream);
+                setIsScreenSharing(false);
+
+            } else {
+                // Switch to Screen Share
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const screenVideoTrack = screenStream.getVideoTracks()[0];
+
+                // Handle if the user clicks "Stop Sharing" from the browser's native floating bar
+                screenVideoTrack.onended = () => {
+                    if (inCallRef.current) {
+                        toggleScreenShare();
+                    }
+                };
+
+                // Replace video track in all active peer connections
+                Object.values(peersRef.current).forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (sender) sender.replaceTrack(screenVideoTrack);
+                });
+
+                // Update the local view stream
+                const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
+                const newStream = new MediaStream([screenVideoTrack]);
+                if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
+
+                // Stop the old camera track
+                localStreamRef.current.getVideoTracks().forEach(t => t.stop());
+
+                localStreamRef.current = newStream;
+                setLocalStream(newStream);
+                setIsScreenSharing(true);
+            }
+        } catch (err) {
+            console.error("[WebRTC] Screen share error/cancelled:", err);
         }
     };
 
@@ -462,7 +544,6 @@ function ChatApp({ user, onLogout }) {
                     for (const c of pending) {
                         try {
                             console.log("[WebRTC] Adding pending ICE after answer:", c.type || "unknown", c.protocol || "unknown");
-                            // FIX: pass the RTCIceCandidate directly
                             await pc.addIceCandidate(c);
                         } catch (e) { }
                     }
@@ -504,12 +585,12 @@ function ChatApp({ user, onLogout }) {
         });
 
         ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) { setIsCallingOut(false); endCall(false); }
+            if (payload.targetEmail === userEmail) { setIsCallingOut(false); cleanPeer(payload.sender); }
         });
 
         ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                setIncomingCall(null);
+                if (incomingCallRef.current?.sender === payload.sender) setIncomingCall(null);
                 cleanPeer(payload.sender);
             }
         });
@@ -620,7 +701,20 @@ function ChatApp({ user, onLogout }) {
                                         {!inVoiceCall ? (
                                             <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>📹 Call</button>
                                         ) : (
-                                            <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>🔴 End</button>
+                                            <>
+                                                {/* MULTIPARTY ADD TO CALL BUTTON */}
+                                                {!activeCallEmails.includes(selectedContact) && (
+                                                    <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
+                                                        ➕ Add to Call
+                                                    </button>
+                                                )}
+
+                                                <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
+                                                    {isScreenSharing ? '💻 Stop Share' : '💻 Share'}
+                                                </button>
+
+                                                <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>🔴 End</button>
+                                            </>
                                         )}
                                     </div>
                                 </div>
