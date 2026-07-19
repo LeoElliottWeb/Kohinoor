@@ -71,15 +71,10 @@ function LocalVideo({ stream }) {
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
-
-        console.log("[LocalVideo] Setting local stream");
         videoEl.srcObject = stream;
         videoEl.muted = true;
         videoEl.play().catch(() => { });
-
-        return () => {
-            if (videoEl) videoEl.srcObject = null;
-        };
+        return () => { if (videoEl) videoEl.srcObject = null; };
     }, [stream]);
 
     return (
@@ -99,14 +94,9 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
-
-        console.log("[RemoteVideo] Attaching stream for:", email);
         videoEl.srcObject = stream;
         videoEl.play().catch(() => { });
-
-        return () => {
-            if (videoEl) videoEl.srcObject = null;
-        };
+        return () => { if (videoEl) videoEl.srcObject = null; };
     }, [stream, email]);
 
     const safeEmail = email?.trim().toLowerCase();
@@ -154,46 +144,47 @@ function ChatApp({ user, onLogout }) {
     const lastActionRef = useRef(0);
 
     useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
-
     useEffect(() => {
         const h = () => setIsMobile(window.innerWidth <= 768);
         window.addEventListener('resize', h);
         return () => window.removeEventListener('resize', h);
     }, []);
 
-    // CRITICAL: Force TURN usage for cross-network calls
+    // UPDATED: Use Metered TURN with your account credentials
+    // Sign up at https://metered.ca for free TURN credentials
+    const METERED_USERNAME = "b7cf8da6379b050323098734"; // Replace with actual username from Metered dashboard
+    const METERED_CREDENTIAL = "AMGwLNr1/IaRrZGQ"; // Replace with actual credential from Metered dashboard
+
     const rtcConfig = {
         iceServers: [
+            // Google STUN
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
-            // Primary TURN servers
+            // Metered TURN with your own credentials (much more reliable)
             {
                 urls: [
-                    'turn:openrelay.metered.ca:80?transport=tcp',
-                    'turn:openrelay.metered.ca:443?transport=tcp',
+                    'turn:standard.relay.metered.ca:80',
+                    'turn:standard.relay.metered.ca:443',
+                    'turn:standard.relay.metered.ca:80?transport=tcp',
+                    'turn:standard.relay.metered.ca:443?transport=tcp'
+                ],
+                username: METERED_USERNAME,
+                credential: METERED_CREDENTIAL
+            },
+            // Backup TURN
+            {
+                urls: [
                     'turn:openrelay.metered.ca:80',
-                    'turn:openrelay.metered.ca:443'
+                    'turn:openrelay.metered.ca:443',
+                    'turn:openrelay.metered.ca:80?transport=tcp',
+                    'turn:openrelay.metered.ca:443?transport=tcp'
                 ],
                 username: 'openrelayproject',
                 credential: 'openrelayproject'
-            },
-            // Backup TURN server
-            {
-                urls: [
-                    'turn:numb.viagenie.ca:3478?transport=tcp',
-                    'turn:numb.viagenie.ca:3478'
-                ],
-                username: 'webrtc@live.com',
-                credential: 'muazkh'
             }
         ],
         iceCandidatePoolSize: 10,
-        iceTransportPolicy: 'all', // 'all' allows both STUN and TURN
-        rtcpMuxPolicy: 'require',
-        bundlePolicy: 'max-bundle'
+        iceTransportPolicy: 'all'
     };
 
     useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
@@ -215,7 +206,6 @@ function ChatApp({ user, onLogout }) {
         supabase.from('profiles').select('email, name').then(({ data }) => { if (data) setMembers(data); });
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) try { setSavedContacts(JSON.parse(stored)); } catch (e) { }
-
         const pc = supabase.channel('public:profiles')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, p => {
                 setMembers(prev => prev.find(m => m.email === p.new.email) ? prev : [...prev, { name: p.new.name || p.new.email.split('@')[0], email: p.new.email }]);
@@ -224,7 +214,6 @@ function ChatApp({ user, onLogout }) {
     }, []);
 
     useEffect(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, [chatMessages]);
-
     useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
 
     useEffect(() => {
@@ -236,7 +225,6 @@ function ChatApp({ user, onLogout }) {
     }, [selectedContact, userEmail]);
 
     const getMedia = async () => {
-        console.log("[Media] Requesting user media...");
         const s = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
             audio: { echoCancellation: true, noiseSuppression: true }
@@ -246,11 +234,12 @@ function ChatApp({ user, onLogout }) {
     };
 
     const createPC = (email) => {
-        console.log("[WebRTC] Creating PC for:", email);
         if (peersRef.current[email]) {
-            console.log("[WebRTC] Closing existing PC for:", email);
             peersRef.current[email].close();
         }
+
+        console.log("[WebRTC] Creating PC for:", email);
+        console.log("[WebRTC] ICE servers:", rtcConfig.iceServers.length);
 
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[email] = pc;
@@ -265,14 +254,14 @@ function ChatApp({ user, onLogout }) {
 
         pc.onicecandidate = (e) => {
             if (e.candidate) {
-                console.log("[WebRTC] ICE candidate type:", e.candidate.type, "protocol:", e.candidate.protocol, "for:", email);
+                console.log("[WebRTC] ICE candidate - type:", e.candidate.type, "protocol:", e.candidate.protocol, "address:", e.candidate.address);
                 channelRef.current?.send({
                     type: 'broadcast',
                     event: 'webrtc-ice',
                     payload: { targetEmail: email, candidate: e.candidate, sender: userEmail }
                 });
             } else {
-                console.log("[WebRTC] ICE gathering complete for:", email);
+                console.log("[WebRTC] ICE gathering complete - no more candidates for:", email);
             }
         };
 
@@ -283,41 +272,23 @@ function ChatApp({ user, onLogout }) {
         pc.onconnectionstatechange = () => {
             console.log("[WebRTC] Connection state:", pc.connectionState, "for:", email);
             if (pc.connectionState === 'connected') {
-                console.log("[WebRTC] ✅ Connected to:", email);
                 setIsCallingOut(false);
             } else if (pc.connectionState === 'failed') {
-                console.log("[WebRTC] ❌ Connection failed for:", email);
                 cleanPeer(email);
             } else if (pc.connectionState === 'disconnected') {
-                console.log("[WebRTC] ⚠️ Disconnected from:", email, "- waiting for reconnect");
                 setTimeout(() => {
-                    if (peersRef.current[email]?.connectionState === 'disconnected') {
-                        console.log("[WebRTC] No reconnect, cleaning up:", email);
-                        cleanPeer(email);
-                    }
+                    if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email);
                 }, 5000);
             }
         };
 
         pc.oniceconnectionstatechange = () => {
             console.log("[WebRTC] ICE state:", pc.iceConnectionState, "for:", email);
-            if (pc.iceConnectionState === 'failed') {
-                console.log("[WebRTC] ICE failed - this usually means TURN servers aren't reachable");
-                // Log ICE transport stats
-                pc.getStats(null).then(stats => {
-                    stats.forEach(report => {
-                        if (report.type === 'candidate-pair' && report.state === 'failed') {
-                            console.log("[WebRTC] Failed candidate pair:", report);
-                        }
-                    });
-                });
-            }
         };
 
         pc.ontrack = (event) => {
             console.log("[WebRTC] 📹 ontrack:", event.track.kind, "from:", email);
             if (event.streams && event.streams.length > 0) {
-                console.log("[WebRTC] Setting remote stream for:", email);
                 setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
             }
         };
@@ -326,35 +297,26 @@ function ChatApp({ user, onLogout }) {
     };
 
     const cleanPeer = (email) => {
-        console.log("[WebRTC] Cleaning peer:", email);
         peersRef.current[email]?.close();
         delete peersRef.current[email];
         setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
         delete pendingCandidatesRef.current[email];
-
         if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
-            console.log("[WebRTC] No more peers, ending call");
             endCall(false);
         }
     };
 
     const endCall = (broadcast = true) => {
-        console.log("[WebRTC] End call, broadcast:", broadcast);
         if (isEndingRef.current) return;
         isEndingRef.current = true;
         inCallRef.current = false;
-
         if (ringer.isActive()) ringer.stop();
         setIsCallingOut(false);
         setIncomingCall(null);
 
         if (broadcast) {
             Object.keys(peersRef.current).forEach(email => {
-                channelRef.current?.send({
-                    type: 'broadcast',
-                    event: 'webrtc-end',
-                    payload: { targetEmail: email, sender: userEmail }
-                });
+                channelRef.current?.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } });
             });
         }
 
@@ -365,7 +327,6 @@ function ChatApp({ user, onLogout }) {
 
         setTimeout(() => {
             if (!inCallRef.current && localStreamRef.current) {
-                console.log("[WebRTC] Stopping local stream");
                 localStreamRef.current.getTracks().forEach(t => t.stop());
                 localStreamRef.current = null;
                 setLocalStream(null);
@@ -381,7 +342,7 @@ function ChatApp({ user, onLogout }) {
         lastActionRef.current = Date.now();
         if (!channelRef.current) return;
 
-        console.log("[WebRTC] 📞 Initiating call to:", email);
+        console.log("[WebRTC] 📞 Calling:", email);
         inCallRef.current = true;
         setIsCallingOut(true);
 
@@ -394,14 +355,10 @@ function ChatApp({ user, onLogout }) {
             setLocalStream(s);
 
             const pc = createPC(email);
-            const offer = await pc.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: true,
-                iceRestart: false
-            });
+            const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
 
-            console.log("[WebRTC] Sending offer to:", email);
+            console.log("[WebRTC] Sending offer with ICE candidates...");
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-offer',
@@ -422,7 +379,7 @@ function ChatApp({ user, onLogout }) {
         if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
 
-        console.log("[WebRTC] ✅ Accepting call from:", call.sender);
+        console.log("[WebRTC] ✅ Accepting:", call.sender);
         inCallRef.current = true;
         if (ringer.isActive()) ringer.stop();
         setIncomingCall(null);
@@ -436,12 +393,8 @@ function ChatApp({ user, onLogout }) {
             setLocalStream(s);
 
             const pc = createPC(call.sender);
-
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
-            const answer = await pc.createAnswer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: true
-            });
+            const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
 
             channelRef.current.send({
@@ -468,17 +421,12 @@ function ChatApp({ user, onLogout }) {
     const decline = () => {
         if (ringer.isActive()) ringer.stop();
         const call = incomingCallRef.current;
-        if (call) channelRef.current?.send({
-            type: 'broadcast',
-            event: 'webrtc-decline',
-            payload: { targetEmail: call.sender, sender: userEmail }
-        });
+        if (call) channelRef.current?.send({ type: 'broadcast', event: 'webrtc-decline', payload: { targetEmail: call.sender, sender: userEmail } });
         setIncomingCall(null);
     };
 
     useEffect(() => {
         if (!userEmail) return;
-
         const ch = supabase.channel('totalrecall-global', { config: { presence: { key: `u_${userEmail}` } } });
         channelRef.current = ch;
 
@@ -487,9 +435,7 @@ function ChatApp({ user, onLogout }) {
             const users = [];
             for (const k in st) {
                 const p = st[k]?.[0];
-                if (p?.email && p.email !== userEmail && !users.find(u => u.email === p.email)) {
-                    users.push({ email: p.email });
-                }
+                if (p?.email && p.email !== userEmail && !users.find(u => u.email === p.email)) users.push({ email: p.email });
             }
             setOnlineUsers(users);
         });
@@ -503,8 +449,6 @@ function ChatApp({ user, onLogout }) {
 
         ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-            console.log("[WebRTC] 📩 Offer from:", payload.sender);
-
             if (peersRef.current[payload.sender]) {
                 try {
                     await peersRef.current[payload.sender].setRemoteDescription(new RTCSessionDescription(payload.offer));
@@ -514,15 +458,12 @@ function ChatApp({ user, onLogout }) {
                 } catch (e) { }
                 return;
             }
-
             setIncomingCall(payload);
         });
 
         ch.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-            console.log("[WebRTC] 📩 Answer from:", payload.sender);
             setIsCallingOut(false);
-
             const pc = peersRef.current[payload.sender];
             if (pc && pc.signalingState === 'have-local-offer') {
                 try {
@@ -539,11 +480,9 @@ function ChatApp({ user, onLogout }) {
             const pc = peersRef.current[payload.sender];
             if (pc?.remoteDescription) {
                 try {
-                    console.log("[WebRTC] Adding ICE candidate type:", payload.candidate?.type);
+                    console.log("[WebRTC] Adding remote ICE:", payload.candidate?.type, payload.candidate?.protocol);
                     await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                } catch (e) {
-                    console.error("[WebRTC] Error adding ICE:", e);
-                }
+                } catch (e) { }
             } else {
                 if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
                 pendingCandidatesRef.current[payload.sender].push(payload.candidate);
@@ -556,7 +495,6 @@ function ChatApp({ user, onLogout }) {
 
         ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                console.log("[WebRTC] Remote ended call:", payload.sender);
                 setIncomingCall(null);
                 cleanPeer(payload.sender);
             }
@@ -582,9 +520,7 @@ function ChatApp({ user, onLogout }) {
         const { data, error } = await supabase.from('messages').insert([
             { sender_email: userEmail, receiver_email: selectedContact, text: txt }
         ]).select();
-        if (!error && data?.length) {
-            setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
-        }
+        if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
     };
 
     const showSidebar = !isMobile || !selectedContact;
