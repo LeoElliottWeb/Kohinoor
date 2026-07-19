@@ -224,7 +224,12 @@ function ChatApp({ user, onLogout }) {
         console.log("[WebRTC] Creating PC for:", email);
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[email] = pc;
-        pendingCandidatesRef.current[email] = [];
+
+        // FIX: Ensure pendingCandidatesRef exists but DO NOT wipe it out 
+        // if it already contains ICE candidates sent during the ringing phase.
+        if (!pendingCandidatesRef.current[email]) {
+            pendingCandidatesRef.current[email] = [];
+        }
 
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(t => {
@@ -232,7 +237,6 @@ function ChatApp({ user, onLogout }) {
             });
         }
 
-        // CRITICAL: Serialize ICE candidate properly before sending
         pc.onicecandidate = (e) => {
             if (e.candidate) {
                 console.log("[WebRTC] ICE candidate:", e.candidate.type, e.candidate.protocol);
@@ -386,9 +390,12 @@ function ChatApp({ user, onLogout }) {
             const pending = pendingCandidatesRef.current[call.sender] || [];
             for (const c of pending) {
                 try {
-                    console.log("[WebRTC] Adding pending ICE:", c.type, c.protocol);
-                    await pc.addIceCandidate(new RTCIceCandidate(c));
-                } catch (e) { }
+                    console.log("[WebRTC] Adding pending ICE:", c.type || "unknown", c.protocol || "unknown");
+                    // FIX: 'c' is already an RTCIceCandidate object, passing it into pc.addIceCandidate directly
+                    await pc.addIceCandidate(c);
+                } catch (e) {
+                    console.error("[WebRTC] Pending ICE error:", e);
+                }
             }
             pendingCandidatesRef.current[call.sender] = [];
 
@@ -454,8 +461,9 @@ function ChatApp({ user, onLogout }) {
                     const pending = pendingCandidatesRef.current[payload.sender] || [];
                     for (const c of pending) {
                         try {
-                            console.log("[WebRTC] Adding pending ICE after answer:", c.type, c.protocol);
-                            await pc.addIceCandidate(new RTCIceCandidate(c));
+                            console.log("[WebRTC] Adding pending ICE after answer:", c.type || "unknown", c.protocol || "unknown");
+                            // FIX: pass the RTCIceCandidate directly
+                            await pc.addIceCandidate(c);
                         } catch (e) { }
                     }
                     pendingCandidatesRef.current[payload.sender] = [];
@@ -463,7 +471,6 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // CRITICAL: Deserialize ICE candidate properly when receiving
         ch.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
 
@@ -473,7 +480,6 @@ function ChatApp({ user, onLogout }) {
 
             const pc = peersRef.current[payload.sender];
 
-            // Reconstruct the candidate from serialized data
             const candidate = new RTCIceCandidate({
                 candidate: candidateData.candidate,
                 sdpMid: candidateData.sdpMid,
