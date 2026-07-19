@@ -19,28 +19,19 @@ class RingerManager {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
-            if (!this.audioContext || this.audioContext.state === 'closed') {
-                this.audioContext = new AudioContext();
-            }
-            if (this.audioContext.state === 'suspended') {
-                this.audioContext.resume();
-            }
+            if (!this.audioContext || this.audioContext.state === 'closed') this.audioContext = new AudioContext();
+            if (this.audioContext.state === 'suspended') this.audioContext.resume();
             this.oscillator = this.audioContext.createOscillator();
             this.gainNode = this.audioContext.createGain();
             this.oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
-            this.oscillator.frequency.exponentialRampToValueAtTime(1000, this.audioContext.currentTime + 0.1);
-            this.oscillator.frequency.exponentialRampToValueAtTime(600, this.audioContext.currentTime + 0.3);
             this.oscillator.type = 'sine';
-            this.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-            this.gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + 0.05);
+            this.gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
             this.gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.8);
             this.oscillator.connect(this.gainNode);
             this.gainNode.connect(this.audioContext.destination);
             this.oscillator.start(this.audioContext.currentTime);
             this.oscillator.stop(this.audioContext.currentTime + 0.8);
-        } catch (e) {
-            console.error("Error playing bell:", e);
-        }
+        } catch (e) { }
     }
 
     start(type, onTimeout) {
@@ -49,42 +40,24 @@ class RingerManager {
         this.timeoutCallback = onTimeout;
         this.playBell();
         let ringCount = 0;
-        const maxRings = 20;
         const scheduleNextRing = () => {
             if (!this.isRinging) return;
             ringCount++;
-            if (ringCount >= maxRings) {
-                this.stop();
-                if (this.timeoutCallback) this.timeoutCallback();
-                return;
-            }
-            this.timeoutId = setTimeout(() => {
-                if (this.isRinging) {
-                    this.playBell();
-                    scheduleNextRing();
-                }
-            }, 3000);
+            if (ringCount >= 20) { this.stop(); if (this.timeoutCallback) this.timeoutCallback(); return; }
+            this.timeoutId = setTimeout(() => { if (this.isRinging) { this.playBell(); scheduleNextRing(); } }, 3000);
         };
         scheduleNextRing();
     }
 
     stop() {
         this.isRinging = false;
-        if (this.timeoutId) {
-            clearTimeout(this.timeoutId);
-            this.timeoutId = null;
-        }
-        if (this.oscillator) {
-            try { this.oscillator.stop(); } catch (e) { }
-            this.oscillator = null;
-        }
+        if (this.timeoutId) { clearTimeout(this.timeoutId); this.timeoutId = null; }
+        if (this.oscillator) { try { this.oscillator.stop(); } catch (e) { } this.oscillator = null; }
         this.gainNode = null;
         this.timeoutCallback = null;
     }
 
-    isActive() {
-        return this.isRinging;
-    }
+    isActive() { return this.isRinging; }
 }
 
 const ringer = new RingerManager();
@@ -98,13 +71,8 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
-
         videoEl.srcObject = stream;
         videoEl.play().catch(() => { });
-
-        return () => {
-            if (videoEl) videoEl.srcObject = null;
-        };
     }, [stream, email]);
 
     const safeEmail = email?.trim().toLowerCase();
@@ -112,8 +80,8 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
-            <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px', color: '#fff' }}>{contactName}</span>
+            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff' }}>{contactName}</span>
         </div>
     );
 }
@@ -152,697 +120,373 @@ function ChatApp({ user, onLogout }) {
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [isImporting, setIsImporting] = useState(false);
     const inCallRef = useRef(false);
-    const callTimeoutRef = useRef(null);
-    const lastCallActionRef = useRef(0);
+    const isEndingRef = useRef(false);
+    const lastActionRef = useRef(0);
 
     useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth <= 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
+        const h = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', h);
+        return () => window.removeEventListener('resize', h);
     }, []);
 
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
-            { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443'], username: 'openrelayproject', credential: 'openrelayproject' },
             { urls: 'turn:numb.viagenie.ca:3478', username: 'webrtc@live.com', credential: 'muazkh' }
-        ],
-        iceCandidatePoolSize: 10
+        ]
     };
 
     useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
 
     useEffect(() => {
-        const shouldRing = !!incomingCall || isCallingOut;
-        if (shouldRing && !ringer.isActive()) {
-            const timeoutAction = () => {
+        if ((incomingCall || isCallingOut) && !ringer.isActive()) {
+            ringer.start('incoming', () => {
                 if (incomingCallRef.current) {
-                    const callToDecline = incomingCallRef.current;
-                    if (channelRef.current) {
-                        channelRef.current.send({ type: 'broadcast', event: 'webrtc-decline', payload: { targetEmail: callToDecline.sender, sender: userEmail } });
-                    }
+                    channelRef.current?.send({ type: 'broadcast', event: 'webrtc-decline', payload: { targetEmail: incomingCallRef.current.sender, sender: userEmail } });
                     setIncomingCall(null);
-                } else if (isCallingOut) {
-                    endVoiceCall(true);
-                    alert("No answer. The call timed out after 60 seconds.");
                 }
-            };
-            ringer.start(incomingCall ? 'incoming' : 'outgoing', timeoutAction);
-        } else if (!shouldRing && ringer.isActive()) {
+            });
+        } else if (!incomingCall && !isCallingOut && ringer.isActive()) {
             ringer.stop();
         }
-        return () => { if (ringer.isActive()) ringer.stop(); };
     }, [incomingCall, isCallingOut]);
 
     useEffect(() => {
-        const fetchMembers = async () => {
-            try {
-                const { data, error } = await supabase.from('profiles').select('email, name');
-                if (!error && data) setMembers(data);
-            } catch (err) { }
-            const stored = localStorage.getItem('totalRecallContacts');
-            if (stored) { try { setSavedContacts(JSON.parse(stored)); } catch (e) { } }
-        };
-        fetchMembers();
-        const profilesChannel = supabase.channel('public:profiles')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, payload => {
-                const newProfile = payload.new;
-                setMembers(prev => {
-                    if (prev.find(m => m.email?.trim().toLowerCase() === newProfile.email?.trim().toLowerCase())) return prev;
-                    return [...prev, { name: newProfile.name || newProfile.email.split('@')[0], email: newProfile.email }];
-                });
+        supabase.from('profiles').select('email, name').then(({ data }) => { if (data) setMembers(data); });
+        const stored = localStorage.getItem('totalRecallContacts');
+        if (stored) try { setSavedContacts(JSON.parse(stored)); } catch (e) { }
+
+        const pc = supabase.channel('public:profiles')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, p => {
+                setMembers(prev => prev.find(m => m.email === p.new.email) ? prev : [...prev, { name: p.new.name || p.new.email.split('@')[0], email: p.new.email }]);
             }).subscribe();
-        return () => { supabase.removeChannel(profilesChannel); };
+        return () => { supabase.removeChannel(pc); };
     }, []);
 
     useEffect(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, [chatMessages]);
-
-    useEffect(() => {
-        if (localVideoRef.current && localMediaStream) {
-            localVideoRef.current.srcObject = localMediaStream;
-            localVideoRef.current.play().catch(() => { });
-        }
-    }, [localMediaStream]);
+    useEffect(() => { if (localVideoRef.current && localMediaStream) { localVideoRef.current.srcObject = localMediaStream; localVideoRef.current.play().catch(() => { }); } }, [localMediaStream]);
 
     useEffect(() => {
         if (!selectedContact || !userEmail) return;
-        const fetchHistory = async () => {
-            const [sent, received] = await Promise.all([
-                supabase.from('messages').select('*').eq('sender_email', userEmail).eq('receiver_email', selectedContact).limit(50),
-                supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
-            ]);
-            setChatMessages([...(sent.data || []), ...(received.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
-        };
-        fetchHistory();
+        Promise.all([
+            supabase.from('messages').select('*').eq('sender_email', userEmail).eq('receiver_email', selectedContact).limit(50),
+            supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
+        ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
 
-    const getMediaStream = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } },
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    const getMedia = async () => {
+        const s = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: true
         });
-        console.log("[Media] Got stream with tracks:", stream.getTracks().map(t => t.kind));
-        return stream;
+        return s;
     };
 
-    const createPeerConnection = (targetEmail) => {
-        if (peersRef.current[targetEmail]) {
-            peersRef.current[targetEmail].close();
-        }
+    const createPC = (email) => {
+        if (peersRef.current[email]) peersRef.current[email].close();
         const pc = new RTCPeerConnection(rtcConfig);
-        peersRef.current[targetEmail] = pc;
-
-        if (!pendingCandidatesRef.current[targetEmail]) {
-            pendingCandidatesRef.current[targetEmail] = [];
-        }
+        peersRef.current[email] = pc;
+        pendingCandidatesRef.current[email] = [];
 
         if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => {
-                pc.addTrack(track, localStreamRef.current);
-            });
+            localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
         }
 
-        pc.onicecandidate = (event) => {
-            if (event.candidate && channelRef.current) {
-                channelRef.current.send({
-                    type: 'broadcast',
-                    event: 'webrtc-ice-candidate',
-                    payload: { targetEmail, candidate: event.candidate, sender: userEmail }
-                });
-            }
+        pc.onicecandidate = (e) => {
+            if (e.candidate) channelRef.current?.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: email, candidate: e.candidate, sender: userEmail } });
         };
 
         pc.onconnectionstatechange = () => {
-            console.log("[WebRTC] State:", pc.connectionState, "for:", targetEmail);
             if (pc.connectionState === 'connected') {
-                console.log("[WebRTC] ✅ Connected to:", targetEmail);
                 setIsCallingOut(false);
             } else if (pc.connectionState === 'failed') {
-                cleanupPeer(targetEmail);
+                cleanPeer(email);
             } else if (pc.connectionState === 'disconnected') {
-                // Wait before cleanup
-                setTimeout(() => {
-                    if (peersRef.current[targetEmail]?.connectionState === 'disconnected') {
-                        cleanupPeer(targetEmail);
-                    }
-                }, 5000);
-            } else if (pc.connectionState === 'closed') {
-                cleanupPeer(targetEmail);
+                setTimeout(() => { if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email); }, 3000);
             }
         };
 
-        pc.oniceconnectionstatechange = () => {
-            console.log("[WebRTC] ICE:", pc.iceConnectionState, "for:", targetEmail);
-        };
-
-        pc.ontrack = (event) => {
-            console.log("[WebRTC] Track:", event.track.kind, "from:", targetEmail);
-            if (event.streams && event.streams[0]) {
-                setRemoteStreams(prev => ({ ...prev, [targetEmail]: event.streams[0] }));
-            }
+        pc.ontrack = (e) => {
+            if (e.streams?.[0]) setRemoteStreams(prev => ({ ...prev, [email]: e.streams[0] }));
         };
 
         return pc;
     };
 
-    const cleanupPeer = (email) => {
-        console.log("[WebRTC] Cleanup:", email);
-        if (peersRef.current[email]) {
-            peersRef.current[email].close();
-            delete peersRef.current[email];
-        }
-        setRemoteStreams(prev => {
-            const newStreams = { ...prev };
-            delete newStreams[email];
-            return newStreams;
-        });
+    const cleanPeer = (email) => {
+        peersRef.current[email]?.close();
+        delete peersRef.current[email];
+        setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
         delete pendingCandidatesRef.current[email];
-
-        if (Object.keys(peersRef.current).length === 0 && inCallRef.current) {
-            endVoiceCall(false);
-        }
+        if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) endCall(false);
     };
 
-    const endVoiceCall = (broadcast = true) => {
-        console.log("[WebRTC] End call, broadcast:", broadcast);
+    const endCall = (broadcast = true) => {
+        if (isEndingRef.current) return;
+        isEndingRef.current = true;
         inCallRef.current = false;
-
-        // Clear any pending call timeout
-        if (callTimeoutRef.current) {
-            clearTimeout(callTimeoutRef.current);
-            callTimeoutRef.current = null;
-        }
-
         if (ringer.isActive()) ringer.stop();
         setIsCallingOut(false);
         setIncomingCall(null);
 
-        // Send end event to all peers
-        if (broadcast && channelRef.current) {
+        if (broadcast) {
             Object.keys(peersRef.current).forEach(email => {
-                channelRef.current.send({
-                    type: 'broadcast',
-                    event: 'webrtc-end',
-                    payload: { targetEmail: email, sender: userEmail }
-                });
+                channelRef.current?.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } });
             });
         }
 
-        // Close all peer connections
-        Object.values(peersRef.current).forEach(pc => {
-            try { pc.close(); } catch (e) { }
-        });
-
+        Object.values(peersRef.current).forEach(pc => { try { pc.close(); } catch (e) { } });
         peersRef.current = {};
         pendingCandidatesRef.current = {};
         setRemoteStreams({});
 
-        // DON'T stop the local stream - keep it for quick reconnection
-        // Only stop if we're not going to use it again soon
         setTimeout(() => {
             if (!inCallRef.current && localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => track.stop());
+                localStreamRef.current.getTracks().forEach(t => t.stop());
                 localStreamRef.current = null;
                 setLocalMediaStream(null);
             }
-        }, 30000); // Keep stream for 30 seconds after call ends
+        }, 5000);
 
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(track => track.stop());
-            screenStreamRef.current = null;
-        }
-
+        if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(t => t.stop()); screenStreamRef.current = null; }
         setIsScreenSharing(false);
         setInVoiceCall(false);
+        setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
 
-    const startCall = async (targetEmail) => {
-        // Prevent rapid call attempts
-        const now = Date.now();
-        if (now - lastCallActionRef.current < 2000) {
-            console.log("[WebRTC] Too soon to start another call");
-            return;
-        }
-        lastCallActionRef.current = now;
-
+    const initiateCall = async (email) => {
+        if (Date.now() - lastActionRef.current < 2000) return;
+        lastActionRef.current = Date.now();
         if (!channelRef.current) return;
-        console.log("[WebRTC] 📞 Starting call to:", targetEmail);
-
-        // Don't start a new call if we're already connected to this person
-        if (peersRef.current[targetEmail]?.connectionState === 'connected') {
-            console.log("[WebRTC] Already connected to:", targetEmail);
-            return;
-        }
+        if (peersRef.current[email]?.connectionState === 'connected') return;
 
         inCallRef.current = true;
         setIsCallingOut(true);
 
         try {
-            // Reuse existing stream if available
             if (!localStreamRef.current || localStreamRef.current.getTracks().some(t => t.readyState === 'ended')) {
-                if (localStreamRef.current) {
-                    localStreamRef.current.getTracks().forEach(t => t.stop());
-                }
-                const stream = await getMediaStream();
-                localStreamRef.current = stream;
-                setLocalMediaStream(stream);
+                if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+                const s = await getMedia();
+                localStreamRef.current = s;
+                setLocalMediaStream(s);
             }
-
-            const pc = createPeerConnection(targetEmail);
+            const pc = createPC(email);
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
-
-            channelRef.current.send({
-                type: 'broadcast',
-                event: 'webrtc-offer',
-                payload: { targetEmail, offer: pc.localDescription, sender: userEmail }
-            });
-
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: email, offer: pc.localDescription, sender: userEmail } });
             setInVoiceCall(true);
-
-            // Set timeout for no answer
-            if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
-            callTimeoutRef.current = setTimeout(() => {
-                if (isCallingOut && !peersRef.current[targetEmail]?.connectionState === 'connected') {
-                    console.log("[WebRTC] Call timeout");
-                    endVoiceCall(true);
-                }
-            }, 30000);
-
         } catch (err) {
-            console.error("[WebRTC] Start call error:", err);
-            alert("Failed to start call: " + err.message);
-            endVoiceCall(false);
+            alert("Call failed: " + err.message);
+            endCall(false);
         }
     };
 
-    const acceptCall = async () => {
-        const currentIncomingCall = incomingCallRef.current;
-        if (!currentIncomingCall) return;
-
-        console.log("[WebRTC] ✅ Accepting call from:", currentIncomingCall.sender);
-
-        // Prevent rapid accept attempts
-        const now = Date.now();
-        if (now - lastCallActionRef.current < 2000) {
-            console.log("[WebRTC] Too soon to accept another call");
-            return;
-        }
-        lastCallActionRef.current = now;
+    const acceptIncoming = async () => {
+        const call = incomingCallRef.current;
+        if (!call) return;
+        if (Date.now() - lastActionRef.current < 2000) return;
+        lastActionRef.current = Date.now();
 
         inCallRef.current = true;
         if (ringer.isActive()) ringer.stop();
         setIncomingCall(null);
 
         try {
-            // Reuse existing stream if available
             if (!localStreamRef.current || localStreamRef.current.getTracks().some(t => t.readyState === 'ended')) {
-                if (localStreamRef.current) {
-                    localStreamRef.current.getTracks().forEach(t => t.stop());
-                }
-                const stream = await getMediaStream();
-                localStreamRef.current = stream;
-                setLocalMediaStream(stream);
+                if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+                const s = await getMedia();
+                localStreamRef.current = s;
+                setLocalMediaStream(s);
             }
-
-            const senderEmail = currentIncomingCall.sender;
-            const pc = createPeerConnection(senderEmail);
-
-            await pc.setRemoteDescription(new RTCSessionDescription(currentIncomingCall.offer));
+            const pc = createPC(call.sender);
+            await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
             const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail } });
 
-            channelRef.current.send({
-                type: 'broadcast',
-                event: 'webrtc-answer',
-                payload: { targetEmail: senderEmail, answer: pc.localDescription, sender: userEmail }
-            });
-
-            // Process pending candidates
-            const pending = pendingCandidatesRef.current[senderEmail] || [];
-            for (const candidate of pending) {
-                try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (err) { }
-            }
-            pendingCandidatesRef.current[senderEmail] = [];
+            const pending = pendingCandidatesRef.current[call.sender] || [];
+            for (const c of pending) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { } }
+            pendingCandidatesRef.current[call.sender] = [];
 
             setInVoiceCall(true);
-            setSelectedContact(senderEmail);
-
+            setSelectedContact(call.sender);
         } catch (err) {
-            console.error("[WebRTC] Accept call error:", err);
-            alert("Failed to accept call: " + err.message);
-            endVoiceCall(false);
+            alert("Accept failed: " + err.message);
+            endCall(false);
         }
     };
 
-    const handleDeclineCall = () => {
+    const decline = () => {
         if (ringer.isActive()) ringer.stop();
-        const callToDecline = incomingCallRef.current;
-        if (callToDecline && channelRef.current) {
-            channelRef.current.send({
-                type: 'broadcast',
-                event: 'webrtc-decline',
-                payload: { targetEmail: callToDecline.sender, sender: userEmail }
-            });
-        }
+        const call = incomingCallRef.current;
+        if (call) channelRef.current?.send({ type: 'broadcast', event: 'webrtc-decline', payload: { targetEmail: call.sender, sender: userEmail } });
         setIncomingCall(null);
-    };
-
-    const toggleScreenShare = async () => {
-        if (isScreenSharing) { stopScreenShare(); return; }
-        try {
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            screenStreamRef.current = screenStream;
-            screenStream.getVideoTracks()[0].onended = () => stopScreenShare();
-            Object.values(peersRef.current).forEach(pc => {
-                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                if (sender) sender.replaceTrack(screenStream.getVideoTracks()[0]);
-            });
-            setIsScreenSharing(true);
-        } catch (err) { }
-    };
-
-    const stopScreenShare = () => {
-        setIsScreenSharing(false);
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(t => t.stop());
-            screenStreamRef.current = null;
-        }
     };
 
     useEffect(() => {
         if (!userEmail) return;
+        const ch = supabase.channel('totalrecall-global', { config: { presence: { key: `u_${userEmail}` } } });
+        channelRef.current = ch;
 
-        const channel = supabase.channel('totalrecall-global', {
-            config: { presence: { key: `user_${userEmail}` } }
-        });
-        channelRef.current = channel;
-
-        channel.on('presence', { event: 'sync' }, () => {
-            const state = channel.presenceState();
-            const activeUsers = [];
-            for (const key in state) {
-                const presences = state[key];
-                if (presences?.length > 0) {
-                    const presence = presences[0];
-                    if (presence?.email && presence.email !== userEmail) {
-                        if (!activeUsers.some(u => u.email === presence.email)) {
-                            activeUsers.push({ email: presence.email });
-                        }
-                    }
-                }
+        ch.on('presence', { event: 'sync' }, () => {
+            const st = ch.presenceState();
+            const users = [];
+            for (const k in st) {
+                const p = st[k]?.[0];
+                if (p?.email && p.email !== userEmail && !users.find(u => u.email === p.email)) users.push({ email: p.email });
             }
-            setOnlineUsers(activeUsers);
+            setOnlineUsers(users);
         });
 
-        channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            const newMsg = payload.new;
-            const currentContact = selectedContactRef.current;
-            if ((newMsg.sender_email === currentContact && newMsg.receiver_email === userEmail) ||
-                (newMsg.sender_email === userEmail && newMsg.receiver_email === currentContact)) {
-                setChatMessages(prev => {
-                    if (prev.find(m => m.id === newMsg.id)) return prev;
-                    return [...prev, newMsg];
-                });
+        ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, p => {
+            if ((p.new.sender_email === selectedContactRef.current && p.new.receiver_email === userEmail) ||
+                (p.new.sender_email === userEmail && p.new.receiver_email === selectedContactRef.current)) {
+                setChatMessages(prev => prev.find(m => m.id === p.new.id) ? prev : [...prev, p.new]);
             }
         });
 
-        // Handle incoming offer
-        channel.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
+        ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-            console.log("[WebRTC] 📩 Offer from:", payload.sender);
 
-            // If we're already in a call with this person, just accept
+            // If already connected to this person, renegotiate
             if (peersRef.current[payload.sender]) {
-                console.log("[WebRTC] Already have PC for:", payload.sender);
                 try {
-                    await peersRef.current[payload.sender].setRemoteDescription(
-                        new RTCSessionDescription(payload.offer)
-                    );
-                    const answer = await peersRef.current[payload.sender].createAnswer({
-                        offerToReceiveAudio: true, offerToReceiveVideo: true
-                    });
-                    await peersRef.current[payload.sender].setLocalDescription(answer);
-                    channelRef.current.send({
-                        type: 'broadcast', event: 'webrtc-answer',
-                        payload: { targetEmail: payload.sender, answer: answer, sender: userEmail }
-                    });
-                    return;
-                } catch (err) {
-                    console.error("[WebRTC] Error handling re-offer:", err);
-                }
+                    await peersRef.current[payload.sender].setRemoteDescription(new RTCSessionDescription(payload.offer));
+                    const ans = await peersRef.current[payload.sender].createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+                    await peersRef.current[payload.sender].setLocalDescription(ans);
+                    ch.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: payload.sender, answer: ans, sender: userEmail } });
+                } catch (e) { }
+                return;
             }
 
-            // Show incoming call notification
             setIncomingCall(payload);
         });
 
-        // Handle answer
-        channel.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
+        ch.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-            console.log("[WebRTC] 📩 Answer from:", payload.sender);
-
-            if (callTimeoutRef.current) {
-                clearTimeout(callTimeoutRef.current);
-                callTimeoutRef.current = null;
-            }
             setIsCallingOut(false);
-
             const pc = peersRef.current[payload.sender];
             if (pc && pc.signalingState === 'have-local-offer') {
                 try {
                     await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
                     const pending = pendingCandidatesRef.current[payload.sender] || [];
-                    for (const candidate of pending) {
-                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (err) { }
-                    }
+                    for (const c of pending) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { } }
                     pendingCandidatesRef.current[payload.sender] = [];
-                } catch (err) {
-                    console.error("[WebRTC] Error setting answer:", err);
-                }
+                } catch (e) { }
             }
         });
 
-        // Handle ICE candidates
-        channel.on('broadcast', { event: 'webrtc-ice-candidate' }, async ({ payload }) => {
+        ch.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
             const pc = peersRef.current[payload.sender];
             if (pc?.remoteDescription) {
-                try {
-                    await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                } catch (err) { }
+                try { await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) { }
             } else {
-                if (!pendingCandidatesRef.current[payload.sender]) {
-                    pendingCandidatesRef.current[payload.sender] = [];
-                }
+                if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
                 pendingCandidatesRef.current[payload.sender].push(payload.candidate);
             }
         });
 
-        // Handle decline
-        channel.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) {
-                setIsCallingOut(false);
-                endVoiceCall(false);
-            }
+        ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail) { setIsCallingOut(false); endCall(false); }
         });
 
-        // Handle remote end - CRITICAL FIX: Don't auto-restart call
-        channel.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
+        // CRITICAL: Handle remote end - but DON'T restart call automatically
+        ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
-                console.log("[WebRTC] Remote ended call:", payload.sender);
                 setIncomingCall(null);
-                cleanupPeer(payload.sender);
-                // DO NOT automatically call back - let the user decide
+                cleanPeer(payload.sender);
             }
         });
 
-        channel.subscribe(async (status) => {
+        ch.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                try {
-                    await channel.track({ email: userEmail, online: true });
-                } catch (error) { }
+                try { await ch.track({ email: userEmail, online: true }); } catch (e) { }
             }
         });
 
         return () => {
-            if (channelRef.current) {
-                try {
-                    channelRef.current.untrack();
-                    supabase.removeChannel(channelRef.current);
-                } catch (error) { }
-                channelRef.current = null;
-            }
+            try { ch.untrack(); supabase.removeChannel(ch); } catch (e) { }
+            channelRef.current = null;
         };
     }, [userEmail]);
 
-    const sendMessage = async (e) => {
+    const sendMsg = async (e) => {
         e.preventDefault();
         if (!chatInput.trim() || !selectedContact) return;
-        const textToSend = chatInput;
+        const txt = chatInput;
         setChatInput('');
-        const { data, error } = await supabase.from('messages').insert([
-            { sender_email: userEmail, receiver_email: selectedContact, text: textToSend }
-        ]).select();
-        if (error) { alert(`Error: ${error.message}`); return; }
-        if (data?.length > 0) {
-            setChatMessages(prev => {
-                if (prev.find(m => m.id === data[0].id)) return prev;
-                return [...prev, data[0]];
-            });
-        }
+        const { data, error } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: txt }]).select();
+        if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
     };
 
-    const generatePrettyEmailHTML = (contactName, inviterName, inviterEmail) => {
-        return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:-apple-system,sans-serif;background:#f4f6f8;margin:0;padding:0}.container{max-width:600px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden}.header{background:linear-gradient(135deg,#00a884,#008f72);padding:40px 30px;text-align:center}.header h1{color:#fff;font-size:32px;margin:0}.content{padding:40px 30px;color:#1e293b}.cta-button{display:inline-block;background:linear-gradient(135deg,#00a884,#008f72);color:#fff!important;text-decoration:none;padding:16px 40px;border-radius:50px;font-weight:600;font-size:18px}</style></head><body><div class="container"><div class="header"><h1>📱 TotalRecall</h1></div><div class="content"><p>Hello ${contactName || 'there'}! 👋</p><p><strong>${inviterName}</strong> (${inviterEmail}) has invited you!</p><div style="text-align:center"><a href="${window.location.origin}" class="cta-button">🚀 Join Now</a></div></div></div></body></html>`;
-    };
-
-    const handleImportContacts = async () => {
-        if (isImporting) return;
-        setIsImporting(true);
-        try {
-            const supported = ('contacts' in navigator && 'ContactsManager' in window);
-            let contactsToProcess = [];
-            if (supported) {
-                try {
-                    const contacts = await navigator.contacts.select(['name', 'email'], { multiple: true });
-                    contactsToProcess = contacts.filter(c => c.email?.length > 0).map(c => ({
-                        name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0]
-                    }));
-                } catch (err) { setIsImporting(false); return; }
-            } else {
-                const emailInput = prompt("Enter email:");
-                if (emailInput?.trim()?.includes('@')) {
-                    contactsToProcess = [{ name: emailInput.split('@')[0], email: emailInput.trim() }];
-                } else { setIsImporting(false); return; }
-            }
-
-            const existing = new Set(savedContacts.map(c => c.email?.toLowerCase()));
-            const toAdd = contactsToProcess.filter(c => !existing.has(c.email.toLowerCase()));
-
-            if (toAdd.length > 0) {
-                setSavedContacts(prev => {
-                    const merged = [...prev, ...toAdd];
-                    localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
-                    return merged;
-                });
-            }
-
-            for (const contact of contactsToProcess) {
-                try {
-                    await supabase.functions.invoke('send-email', {
-                        body: {
-                            to: contact.email, subject: `📱 ${displayName} wants to connect!`,
-                            html: generatePrettyEmailHTML(contact.name, displayName, userEmail)
-                        }
-                    });
-                } catch (error) { }
-            }
-            alert(`Processed ${contactsToProcess.length} contacts.`);
-        } finally { setIsImporting(false); }
-    };
-
-    const handleRemoveContact = (e, email) => {
-        e.stopPropagation();
-        if (window.confirm('Remove?')) {
-            setSavedContacts(prev => {
-                const updated = prev.filter(c => c.email !== email);
-                localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
-                return updated;
-            });
-            if (selectedContact === email) setSelectedContact(null);
-        }
-    };
-
-    const refreshPresence = async () => {
-        if (channelRef.current) {
-            try { await channelRef.current.track({ email: userEmail, online: true }); } catch (error) { }
-        }
-    };
-
-    const isSelectedContactInCall = Object.keys(remoteStreams).includes(selectedContact);
+    const isSelectedInCall = Object.keys(remoteStreams).includes(selectedContact);
     const showSidebar = !isMobile || !selectedContact;
     const showChat = !isMobile || !!selectedContact;
-    const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(e); } };
+    const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
 
-    const safeUserEmail = userEmail?.toLowerCase() || '';
-    const allKnownUsers = [...members, ...savedContacts];
-    const displayMembers = members.filter(m => m.email?.toLowerCase() !== safeUserEmail);
-    const displayLocalContacts = savedContacts.filter(c => c.email?.toLowerCase() !== safeUserEmail);
-    const activeContactObj = allKnownUsers.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
-    const activeContactName = activeContactObj?.name || selectedContact?.split('@')[0] || '';
-    const getMemberDisplayName = (m) => m.name?.trim() || m.email.split('@')[0];
+    const safeEmail = userEmail?.toLowerCase() || '';
+    const allKnown = [...members, ...savedContacts];
+    const dispMembers = members.filter(m => m.email?.toLowerCase() !== safeEmail);
+    const dispContacts = savedContacts.filter(c => c.email?.toLowerCase() !== safeEmail);
+    const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
+    const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                 {incomingCall && (
-                    <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: '20px', borderRadius: '8px', zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-                        <h4 style={{ margin: '0 0 10px 0' }}>📹 Incoming Call</h4>
-                        <p style={{ margin: '0 0 15px 0' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <button onClick={acceptCall} style={{ flex: 1, backgroundColor: '#00a884', border: 'none', padding: '8px', borderRadius: '4px', color: '#111', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
-                            <button onClick={handleDeclineCall} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
+                    <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: 20, borderRadius: 8, zIndex: 1000, border: '1px solid #00a884' }}>
+                        <h4 style={{ margin: '0 0 10px' }}>📹 Incoming Call</h4>
+                        <p style={{ margin: '0 0 15px' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button onClick={acceptIncoming} style={{ flex: 1, backgroundColor: '#00a884', border: 'none', padding: 8, borderRadius: 4, color: '#111', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
+                            <button onClick={decline} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: 8, borderRadius: 4, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
                         </div>
                     </div>
                 )}
 
                 {showSidebar && (
-                    <div style={{ width: isMobile ? '100%' : '30%', minWidth: isMobile ? '100%' : '250px', borderRight: isMobile ? 'none' : '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21', height: '100%', overflow: 'hidden' }}>
-                        <div style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>{displayName[0]?.toUpperCase()}</div>
+                    <div style={{ width: isMobile ? '100%' : '30%', minWidth: 250, borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21', height: '100%', overflow: 'hidden' }}>
+                        <div style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>{displayName[0]?.toUpperCase()}</div>
                                 <b style={{ color: '#00a884' }}>{displayName}</b>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={refreshPresence} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>🔄</button>
-                                <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>Logout</button>
-                            </div>
+                            <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>Logout</button>
                         </div>
                         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-                            <div onClick={() => setIsOnlineExpanded(!isOnlineExpanded)} style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34' }}>
-                                <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Online ({onlineUsers.length})</span>
+                            <div onClick={() => setIsOnlineExpanded(!isOnlineExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34' }}>
+                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Online ({onlineUsers.length})</span>
                                 <span style={{ color: '#8696a0' }}>{isOnlineExpanded ? '▼' : '▶'}</span>
                             </div>
-                            {isOnlineExpanded && onlineUsers.map(u => {
-                                const name = allKnownUsers.find(k => k.email?.toLowerCase() === u.email?.toLowerCase())?.name || u.email.split('@')[0];
-                                return (
-                                    <div key={u.email} onClick={() => setSelectedContact(u.email)} style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent' }}>
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>{u.email[0]?.toUpperCase()}</div>
-                                        <span>{name}</span>
-                                    </div>
-                                );
-                            })}
-                            <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: '10px' }}>
-                                <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({displayMembers.length})</span>
-                                <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
-                            </div>
-                            {isMembersExpanded && displayMembers.map(c => (
-                                <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
-                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
-                                    <span>{getMemberDisplayName(c)}</span>
+                            {isOnlineExpanded && onlineUsers.map(u => (
+                                <div key={u.email} onClick={() => setSelectedContact(u.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{u.email[0]?.toUpperCase()}</div>
+                                    <span>{allKnown.find(k => k.email?.toLowerCase() === u.email?.toLowerCase())?.name || u.email.split('@')[0]}</span>
                                 </div>
                             ))}
-                            <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginTop: '10px', borderBottom: '1px solid #222d34' }}>
-                                <span style={{ color: '#8696a0', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({displayLocalContacts.length})</span>
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                    <button onClick={(e) => { e.stopPropagation(); handleImportContacts(); }} style={{ backgroundColor: '#2a3942', color: '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>+ Add</button>
-                                    <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
-                                </div>
+                            <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
+                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({dispMembers.length})</span>
+                                <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
                             </div>
-                            {isContactsExpanded && displayLocalContacts.map(c => (
-                                <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
-                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
-                                    <div style={{ flexGrow: 1 }}>
-                                        <div>{c.name || c.email.split('@')[0]}</div>
-                                        <div style={{ fontSize: '12px', color: '#8696a0' }}>{c.email}</div>
-                                    </div>
-                                    <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer' }}>❌</button>
+                            {isMembersExpanded && dispMembers.map(c => (
+                                <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
+                                    <span>{c.name?.trim() || c.email.split('@')[0]}</span>
+                                </div>
+                            ))}
+                            <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
+                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({dispContacts.length})</span>
+                                <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
+                            </div>
+                            {isContactsExpanded && dispContacts.map(c => (
+                                <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
+                                    <div style={{ flexGrow: 1 }}><div>{c.name || c.email.split('@')[0]}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
                                 </div>
                             ))}
                         </div>
@@ -850,65 +494,54 @@ function ChatApp({ user, onLogout }) {
                 )}
 
                 {showChat && (
-                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', width: isMobile ? '100%' : 'auto', height: '100%', overflow: 'hidden' }}>
+                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', height: '100%', overflow: 'hidden' }}>
                         {selectedContact ? (
                             <>
-                                <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', flexShrink: 0 }}>
+                                <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        {isMobile && <button onClick={() => setSelectedContact(null)} style={{ background: 'none', border: 'none', color: '#00a884', fontSize: '20px', marginRight: '15px', cursor: 'pointer' }}>🔙</button>}
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '15px', color: '#111', fontWeight: 'bold' }}>{activeContactName[0]?.toUpperCase()}</div>
-                                        <b>{activeContactName}</b>
+                                        {isMobile && <button onClick={() => setSelectedContact(null)} style={{ background: 'none', border: 'none', color: '#00a884', fontSize: 20, marginRight: 15, cursor: 'pointer' }}>🔙</button>}
+                                        <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{activeName[0]?.toUpperCase()}</div>
+                                        <b>{activeName}</b>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', gap: 10 }}>
                                         {!inVoiceCall ? (
-                                            <button onClick={() => startCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>📹 Video Call</button>
+                                            <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>📹 Call</button>
                                         ) : (
-                                            <>
-                                                {!isSelectedContactInCall && <button onClick={() => startCall(selectedContact)} style={{ backgroundColor: '#00a884', color: '#111', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>➕ Add</button>}
-                                                <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#334155' : 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>{isScreenSharing ? '⏹️ Stop' : '🖥️ Share'}</button>
-                                                <button onClick={() => endVoiceCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>🔴 End</button>
-                                            </>
+                                            <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>🔴 End</button>
                                         )}
                                     </div>
                                 </div>
 
                                 {inVoiceCall && (
-                                    <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Object.keys(remoteStreams).length + 1}, 1fr)`, gap: '10px', padding: '10px', borderBottom: '1px solid #222d34', flexShrink: 0 }}>
-                                        <div style={{ position: 'relative', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Object.keys(remoteStreams).length + 1}, 1fr)`, gap: 10, padding: 10 }}>
+                                        <div style={{ position: 'relative', backgroundColor: '#111', borderRadius: 8, overflow: 'hidden' }}>
                                             <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                            <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>{isScreenSharing ? "Screen" : "You"}</span>
+                                            <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: 4, fontSize: 13 }}>You</span>
                                         </div>
                                         {Object.entries(remoteStreams).map(([email, stream]) => (
-                                            <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnownUsers} />
+                                            <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} />
                                         ))}
                                     </div>
                                 )}
 
-                                <div ref={chatContainerRef} style={{ flexGrow: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)', backgroundSize: 'contain' }}>
+                                <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
                                     {chatMessages.map((m, i) => (
-                                        <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: '8px', maxWidth: '65%', wordWrap: 'break-word' }}>{m.text}</div>
+                                        <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word' }}>{m.text}</div>
                                     ))}
                                 </div>
 
-                                <form onSubmit={sendMessage} style={{ padding: '15px', backgroundColor: '#202c33', display: 'flex', gap: '10px', flexShrink: 0 }}>
-                                    <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Type a message" rows={1} style={{ flexGrow: 1, padding: '12px', backgroundColor: '#2a3942', border: 'none', borderRadius: '8px', color: 'white', outline: 'none', resize: 'none', fontFamily: 'inherit' }} />
-                                    <button type="submit" disabled={!chatInput.trim()} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: chatInput.trim() ? 'pointer' : 'default', flexShrink: 0, color: '#111', fontSize: '18px' }}>➤</button>
+                                <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10 }}>
+                                    <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} placeholder="Message" rows={1} style={{ flexGrow: 1, padding: 12, backgroundColor: '#2a3942', border: 'none', borderRadius: 8, color: 'white', outline: 'none', resize: 'none' }} />
+                                    <button type="submit" disabled={!chatInput.trim()} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0 }}>➤</button>
                                 </form>
                             </>
                         ) : (
-                            <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', color: '#8696a0' }}>
-                                <div style={{ textAlign: 'center' }}>
-                                    <h2>TotalRecall</h2>
-                                    <p>Select a contact to start messaging</p>
-                                </div>
+                            <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', color: '#8696a0', textAlign: 'center' }}>
+                                <div><h2>TotalRecall</h2><p>Select a contact to start</p></div>
                             </div>
                         )}
                     </div>
                 )}
-            </div>
-            <div style={{ backgroundColor: '#0b141a', padding: '8px 20px', display: 'flex', justifyContent: 'space-between', color: '#8696a0', fontSize: '12px', flexShrink: 0 }}>
-                <span>© NoirSoft 2026 | Members: <strong style={{ color: '#e9edef' }}>{displayMembers.length}</strong></span>
-                <span>v1.0.0</span>
             </div>
         </div>
     );
@@ -922,17 +555,17 @@ export default function App() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showConfirmation, setShowConfirmation] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user || null));
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => setUser(s?.user || null));
         return () => subscription.unsubscribe();
     }, []);
 
-    const handleAuth = async (e, type) => {
+    const auth = async (e, type) => {
         e.preventDefault();
-        if (!email || !password) return alert("Fill in both fields.");
+        if (!email || !password) return alert("Fill all fields");
         setLoading(true);
         try {
             if (type === 'login') {
@@ -941,11 +574,9 @@ export default function App() {
             } else {
                 const { data, error } = await supabase.auth.signUp({ email, password });
                 if (error) throw error;
-                if (data?.user) await supabase.from('profiles').upsert([{ email, name: email.split('@')[0] }]);
-                if (data?.user && !data?.session) {
-                    setShowConfirmation(true);
-                    setEmail('');
-                    setPassword('');
+                if (data?.user) {
+                    await supabase.from('profiles').upsert([{ email, name: email.split('@')[0] }]);
+                    if (!data.session) { setShowConfirm(true); setEmail(''); setPassword(''); }
                 }
             }
         } catch (err) { alert(err.message); }
@@ -956,20 +587,16 @@ export default function App() {
 
     return (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
-            <div style={{ backgroundColor: '#202c33', padding: '40px', borderRadius: '8px', width: '350px', maxWidth: '90%', textAlign: 'center' }}>
-                <h2 style={{ color: '#00a884', marginBottom: '30px' }}>TotalRecall</h2>
-                {showConfirmation ? (
-                    <div>
-                        <h3>Check your email</h3>
-                        <p style={{ color: '#8696a0', marginBottom: '20px' }}>Confirmation link sent!</p>
-                        <button onClick={() => setShowConfirmation(false)} style={{ padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}>Back to Login</button>
-                    </div>
+            <div style={{ backgroundColor: '#202c33', padding: 40, borderRadius: 8, width: 350, maxWidth: '90%', textAlign: 'center' }}>
+                <h2 style={{ color: '#00a884', marginBottom: 30 }}>TotalRecall</h2>
+                {showConfirm ? (
+                    <div><h3>Check your email</h3><p style={{ color: '#8696a0' }}>Confirmation sent!</p><button onClick={() => setShowConfirm(false)} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back</button></div>
                 ) : (
-                    <form onSubmit={(e) => e.preventDefault()}>
-                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '4px', border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} />
-                        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '4px', border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} />
-                        <button type="button" onClick={(e) => handleAuth(e, 'login')} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '10px' }}>{loading ? '...' : 'Log In'}</button>
-                        <button type="button" onClick={(e) => handleAuth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>{loading ? '...' : 'Sign Up'}</button>
+                    <form onSubmit={e => e.preventDefault()}>
+                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} />
+                        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} />
+                        <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', marginBottom: 10 }}>{loading ? '...' : 'Log In'}</button>
+                        <button onClick={e => auth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>{loading ? '...' : 'Sign Up'}</button>
                     </form>
                 )}
             </div>
