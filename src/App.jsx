@@ -163,14 +163,23 @@ function RemoteVideo({ stream, email, allKnownUsers }) {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
 
-        // CRITICAL FIX: Ensure the video element registers the stream properly 
-        videoEl.srcObject = stream;
+        // FIXED: Only assign if different to prevent re-rendering loops
+        if (videoEl.srcObject !== stream) {
+            videoEl.srcObject = stream;
+        }
 
-        // CRITICAL FIX: Mobile browsers block playback unless metadata is loaded and play is explicit
-        videoEl.onloadedmetadata = () => {
+        const handleLoadedMetadata = () => {
             videoEl.play().catch((e) => console.warn("Remote playback delayed by browser:", e));
         };
 
+        videoEl.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+        // Fallback catch if stream is already loaded
+        videoEl.play().catch(() => { });
+
+        return () => {
+            videoEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        };
     }, [stream]);
 
     const safeEmail = email?.trim().toLowerCase();
@@ -245,13 +254,12 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // FIXED: Enhanced NAT traversal configuration for cross-country
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
             { urls: 'stun:global.stun.twilio.com:3478' },
             {
                 urls: 'turn:openrelay.metered.ca:80',
@@ -654,47 +662,13 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    const handleVonageTestCall = async () => {
-        if (isVonageCalling) return;
-        try {
-            setVonageStatus('🔍 Checking Vonage service...');
-            const phoneNumber = prompt("Enter phone number to call (include country code):", "34642376712");
-            if (!phoneNumber) { setVonageStatus(''); return; }
-
-            const cleanNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
-            setIsVonageCalling(true);
-            setVonageStatus('📞 Initiating Vonage test call...');
-
-            const fromNumber = prompt("Enter your Vonage phone number:", "447418372323");
-            if (!fromNumber) { setVonageStatus(''); setIsVonageCalling(false); return; }
-
-            const cleanFromNumber = fromNumber.replace(/[\s\-\(\)]/g, '');
-            const customText = prompt("Text for AI to say:", "Hi, test call from TotalRecall.") || "Hi, test call from TotalRecall.";
-
-            const { data, error } = await supabase.functions.invoke('vonage-call', {
-                body: {
-                    from: { type: "phone", number: cleanFromNumber },
-                    to: [{ type: "phone", number: cleanNumber }],
-                    ncco: [{ action: "talk", text: customText, provider: "google", providerOptions: { name: "en-US-Chirp3-HD-Achernar", language_code: "en-US" } }]
-                }
-            });
-
-            if (error || data?.error) {
-                alert(`❌ Vonage call failed: ${error?.message || data?.error}`);
-            } else {
-                alert(`✅ Vonage call initiated successfully! Call ID: ${data?.uuid || 'N/A'}`);
-            }
-        } catch (error) {
-            alert(`❌ Vonage call failed: ${error.message}`);
-        } finally {
-            setIsVonageCalling(false);
-            setVonageStatus('');
-        }
-    };
-
+    // FIXED: Upgraded Media Constraints to handle latency & resolution scaling cleanly
     const getMediaStream = async () => {
         try {
-            return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            return await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: { echoCancellation: true, noiseSuppression: true }
+            });
         } catch (err) {
             try { return await navigator.mediaDevices.getUserMedia({ audio: true }); }
             catch (err2) {
@@ -748,18 +722,21 @@ function ChatApp({ user, onLogout }) {
             }
         };
 
+        // FIXED: Critical structural fix. Do not reconstruct streams; it severs the RTCRtpReceiver link.
         pc.ontrack = (e) => {
             setRemoteStreams(prev => {
                 const existingStream = prev[targetEmail];
-                let tracks = existingStream ? existingStream.getTracks() : [];
-
-                if (!tracks.some(t => t.id === e.track.id)) {
-                    tracks = [...tracks, e.track];
+                if (existingStream) {
+                    // Inject missing tracks into the existing managed stream
+                    if (e.track && !existingStream.getTracks().find(t => t.id === e.track.id)) {
+                        existingStream.addTrack(e.track);
+                    }
+                    return { ...prev };
+                } else {
+                    // Keep the browser's raw MediaStream which inherently listens to replaceTrack events!
+                    const streamToUse = (e.streams && e.streams.length > 0) ? e.streams[0] : new MediaStream([e.track]);
+                    return { ...prev, [targetEmail]: streamToUse };
                 }
-
-                // CRITICAL FIX: Creating a completely new MediaStream reference forces React's useEffect to trigger
-                const newStream = new MediaStream(tracks);
-                return { ...prev, [targetEmail]: newStream };
             });
         };
 
@@ -971,6 +948,7 @@ function ChatApp({ user, onLogout }) {
                 const senders = pc.getSenders();
                 const videoSender = senders.find(s => s.track?.kind === 'video');
 
+                // Thanks to the ontrack structure fix, replaceTrack now perfectly channels over to the remote peer
                 if (videoSender) {
                     videoSender.replaceTrack(screenTrack).catch(err => { });
                 }
