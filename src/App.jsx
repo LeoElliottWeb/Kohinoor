@@ -129,7 +129,6 @@ function ChatApp({ user, onLogout }) {
     const selectedContactRef = useRef(selectedContact);
     const channelRef = useRef(null);
 
-    // Call States
     const [inVoiceCall, setInVoiceCall] = useState(false);
     const [activeCallEmails, setActiveCallEmails] = useState([]);
     const [incomingCall, setIncomingCall] = useState(null);
@@ -137,7 +136,6 @@ function ChatApp({ user, onLogout }) {
     const [isCallingOut, setIsCallingOut] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
 
-    // Media States
     const [localStream, setLocalStream] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({});
     const peersRef = useRef({});
@@ -240,8 +238,6 @@ function ChatApp({ user, onLogout }) {
         if (peersRef.current[email]) {
             peersRef.current[email].close();
         }
-
-        console.log("[WebRTC] Creating PC for:", email);
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[email] = pc;
         setActiveCallEmails(prev => [...new Set([...prev, email])]);
@@ -273,7 +269,6 @@ function ChatApp({ user, onLogout }) {
         };
 
         pc.onconnectionstatechange = () => {
-            console.log("[WebRTC] Connection:", pc.connectionState, "for:", email);
             if (pc.connectionState === 'connected') {
                 setIsCallingOut(false);
                 broadcastMeshState();
@@ -286,12 +281,7 @@ function ChatApp({ user, onLogout }) {
             }
         };
 
-        pc.oniceconnectionstatechange = () => {
-            console.log("[WebRTC] ICE:", pc.iceConnectionState, "for:", email);
-        };
-
         pc.ontrack = (event) => {
-            console.log("[WebRTC] Track:", event.track.kind, "from:", email);
             if (event.streams && event.streams.length > 0) {
                 setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
             }
@@ -354,7 +344,6 @@ function ChatApp({ user, onLogout }) {
         }
         if (!channelRef.current) return;
 
-        console.log("[WebRTC] Calling:", email, isAuto ? "(Auto-Mesh)" : "");
         inCallRef.current = true;
         if (!isAuto) setIsCallingOut(true);
 
@@ -377,9 +366,7 @@ function ChatApp({ user, onLogout }) {
 
             setInVoiceCall(true);
         } catch (err) {
-            console.error("[WebRTC] Call error:", err);
             if (!isAuto) alert("Call failed: " + err.message);
-
             if (Object.keys(peersRef.current).length === 0) {
                 endCall(false);
             } else {
@@ -390,7 +377,6 @@ function ChatApp({ user, onLogout }) {
     };
 
     const autoAcceptCall = async (call) => {
-        console.log("[WebRTC] Auto-accepting mesh call from:", call.sender);
         try {
             if (!localStreamRef.current) {
                 const s = await getMedia();
@@ -415,7 +401,6 @@ function ChatApp({ user, onLogout }) {
             }
             pendingCandidatesRef.current[call.sender] = [];
         } catch (err) {
-            console.error("[WebRTC] Auto-Accept error:", err);
             cleanPeer(call.sender);
         }
     };
@@ -426,7 +411,6 @@ function ChatApp({ user, onLogout }) {
         if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
 
-        console.log("[WebRTC] Accepting:", call.sender);
         inCallRef.current = true;
         if (ringer.isActive()) ringer.stop();
         setIncomingCall(null);
@@ -458,7 +442,6 @@ function ChatApp({ user, onLogout }) {
             setInVoiceCall(true);
             setSelectedContact(call.sender);
         } catch (err) {
-            console.error("[WebRTC] Accept error:", err);
             alert("Accept failed: " + err.message);
             if (Object.keys(peersRef.current).length === 0) {
                 endCall(false);
@@ -610,7 +593,6 @@ function ChatApp({ user, onLogout }) {
             payload.peers.forEach(peer => {
                 if (peer !== userEmail && !peersRef.current[peer]) {
                     if (userEmail.toLowerCase() < peer.toLowerCase()) {
-                        console.log(`[WebRTC Mesh] Discovered ${peer}, initiating auto-call`);
                         initiateCall(peer, true);
                     }
                 }
@@ -845,10 +827,13 @@ export default function App() {
 
                 if (data?.user) {
 
-                    // RE-ADDED: Call the edge function manually
+                    // CALL EDGE FUNCTION TO TRIGGER RESEND EMAIL
                     try {
                         await supabase.functions.invoke('confirm-email', {
-                            body: { email: email }
+                            body: {
+                                email: email,
+                                name: email.split('@')[0] // Pass name for personalization if you want it
+                            }
                         });
                     } catch (edgeError) {
                         console.error("Failed to invoke edge function:", edgeError);
