@@ -802,6 +802,7 @@ export default function App() {
         return () => subscription.unsubscribe();
     }, []);
 
+
     const auth = async (e, type) => {
         e.preventDefault();
         setError('');
@@ -834,10 +835,27 @@ export default function App() {
                 }
 
                 if (data?.user) {
+                    // ✅ MOVED HERE: We now create the profile ONLY after a successful login
+                    // This ensures the user is authenticated and bypasses the 42501 RLS error.
+                    try {
+                        const { error: profileError } = await supabase
+                            .from('profiles')
+                            .upsert([{
+                                email: email.trim(),
+                                name: email.split('@')[0]
+                            }], { onConflict: 'email' });
+
+                        if (profileError) {
+                            console.error("Profile creation error:", profileError);
+                        }
+                    } catch (profileError) {
+                        console.error("Profile creation failed:", profileError);
+                    }
+
                     setUser(data.user);
                 }
             } else {
-                // Sign up - let Supabase handle the confirmation email
+                // Sign up block
                 const { data, error } = await supabase.auth.signUp({
                     email: email.trim(),
                     password,
@@ -860,9 +878,6 @@ export default function App() {
                 }
 
                 if (data?.user) {
-                    // FIX: If the user already exists but is unconfirmed, Supabase returns 
-                    // an empty identities array and SILENTLY drops the second email attempt.
-                    // We must explicitly command a resend to force the email to dispatch.
                     if (data.user.identities && data.user.identities.length === 0) {
                         const { error: resendError } = await supabase.auth.resend({
                             type: 'signup',
@@ -877,27 +892,9 @@ export default function App() {
                         }
                     }
 
-                    // Create profile for the user
-                    try {
-                        const { error: profileError } = await supabase
-                            .from('profiles')
-                            .upsert([{
-                                email: email.trim(),
-                                name: email.split('@')[0]
-                            }], { onConflict: 'email' });
-
-                        if (profileError) {
-                            console.error("Profile creation error:", profileError);
-                        }
-                    } catch (profileError) {
-                        console.error("Profile creation failed:", profileError);
-                    }
-
                     if (data.session) {
-                        // User is automatically signed in
                         setUser(data.user);
                     } else {
-                        // Email confirmation required
                         setShowConfirm(true);
                         setEmail('');
                         setPassword('');
