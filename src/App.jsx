@@ -128,6 +128,11 @@ function ChatApp({ user, onLogout }) {
     const [chatInput, setChatInput] = useState('');
     const [isImporting, setIsImporting] = useState(false);
 
+    // Voice message state
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+
     const selectedContactRef = useRef(selectedContact);
     const channelRef = useRef(null);
 
@@ -224,146 +229,33 @@ function ChatApp({ user, onLogout }) {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Invitation to TotalRecall</title>
                 <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                        background-color: #f4f6f8;
-                        margin: 0;
-                        padding: 0;
-                    }
-                    .container {
-                        max-width: 600px;
-                        margin: 40px auto;
-                        background-color: #ffffff;
-                        border-radius: 16px;
-                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                        overflow: hidden;
-                    }
-                    .header {
-                        background: linear-gradient(135deg, #00a884 0%, #008f72 100%);
-                        padding: 40px 30px;
-                        text-align: center;
-                    }
-                    .header h1 {
-                        color: #ffffff;
-                        font-size: 32px;
-                        font-weight: 700;
-                        margin: 0;
-                        letter-spacing: -0.5px;
-                    }
-                    .header p {
-                        color: rgba(255, 255, 255, 0.9);
-                        font-size: 16px;
-                        margin: 8px 0 0 0;
-                    }
-                    .content {
-                        padding: 40px 30px;
-                        color: #1e293b;
-                    }
-                    .greeting {
-                        font-size: 20px;
-                        font-weight: 600;
-                        margin: 0 0 12px 0;
-                        color: #0f172a;
-                    }
-                    .message {
-                        font-size: 16px;
-                        line-height: 1.7;
-                        color: #334155;
-                        margin: 0 0 24px 0;
-                    }
-                    .inviter-badge {
-                        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-                        border: 1px solid #bbf7d0;
-                        border-radius: 12px;
-                        padding: 20px;
-                        margin: 24px 0;
-                    }
-                    .inviter-badge strong {
-                        color: #00a884;
-                        font-size: 18px;
-                    }
-                    .inviter-badge .email {
-                        color: #64748b;
-                        font-size: 14px;
-                        margin-top: 4px;
-                    }
-                    .cta-button {
-                        display: inline-block;
-                        background: linear-gradient(135deg, #00a884 0%, #008f72 100%);
-                        color: #ffffff !important;
-                        text-decoration: none;
-                        padding: 16px 40px;
-                        border-radius: 50px;
-                        font-weight: 600;
-                        font-size: 18px;
-                        margin: 8px 0 0 0;
-                        box-shadow: 0 4px 12px rgba(0, 168, 132, 0.3);
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                    }
-                    .cta-button:hover {
-                        transform: translateY(-2px);
-                        box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4);
-                    }
-                    .features {
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        gap: 16px;
-                        margin: 24px 0;
-                    }
-                    .feature-item {
-                        background-color: #f8fafc;
-                        border-radius: 12px;
-                        padding: 16px;
-                        text-align: center;
-                        border: 1px solid #e2e8f0;
-                    }
-                    .feature-item .icon {
-                        font-size: 28px;
-                        display: block;
-                        margin-bottom: 8px;
-                    }
-                    .feature-item .label {
-                        font-size: 14px;
-                        font-weight: 500;
-                        color: #0f172a;
-                    }
-                    .divider {
-                        height: 1px;
-                        background: #e2e8f0;
-                        margin: 24px 0;
-                    }
-                    .footer {
-                        text-align: center;
-                        padding: 0 30px 30px 30px;
-                        color: #94a3b8;
-                        font-size: 14px;
-                    }
-                    .footer a {
-                        color: #00a884;
-                        text-decoration: none;
-                    }
-                    .footer a:hover {
-                        text-decoration: underline;
-                    }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; }
+                    .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); overflow: hidden; }
+                    .header { background: linear-gradient(135deg, #00a884 0%, #008f72 100%); padding: 40px 30px; text-align: center; }
+                    .header h1 { color: #ffffff; font-size: 32px; font-weight: 700; margin: 0; letter-spacing: -0.5px; }
+                    .header p { color: rgba(255, 255, 255, 0.9); font-size: 16px; margin: 8px 0 0 0; }
+                    .content { padding: 40px 30px; color: #1e293b; }
+                    .greeting { font-size: 20px; font-weight: 600; margin: 0 0 12px 0; color: #0f172a; }
+                    .message { font-size: 16px; line-height: 1.7; color: #334155; margin: 0 0 24px 0; }
+                    .inviter-badge { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin: 24px 0; }
+                    .inviter-badge strong { color: #00a884; font-size: 18px; }
+                    .inviter-badge .email { color: #64748b; font-size: 14px; margin-top: 4px; }
+                    .cta-button { display: inline-block; background: linear-gradient(135deg, #00a884 0%, #008f72 100%); color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 50px; font-weight: 600; font-size: 18px; margin: 8px 0 0 0; box-shadow: 0 4px 12px rgba(0, 168, 132, 0.3); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+                    .cta-button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4); }
+                    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+                    .feature-item { background-color: #f8fafc; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #e2e8f0; }
+                    .feature-item .icon { font-size: 28px; display: block; margin-bottom: 8px; }
+                    .feature-item .label { font-size: 14px; font-weight: 500; color: #0f172a; }
+                    .divider { height: 1px; background: #e2e8f0; margin: 24px 0; }
+                    .footer { text-align: center; padding: 0 30px 30px 30px; color: #94a3b8; font-size: 14px; }
+                    .footer a { color: #00a884; text-decoration: none; }
+                    .footer a:hover { text-decoration: underline; }
                     @media (max-width: 480px) {
-                        .container {
-                            margin: 16px;
-                            border-radius: 12px;
-                        }
-                        .content {
-                            padding: 24px 20px;
-                        }
-                        .header {
-                            padding: 30px 20px;
-                        }
-                        .features {
-                            grid-template-columns: 1fr;
-                        }
-                        .cta-button {
-                            width: 100%;
-                            text-align: center;
-                            padding: 16px 20px;
-                        }
+                        .container { margin: 16px; border-radius: 12px; }
+                        .content { padding: 24px 20px; }
+                        .header { padding: 30px 20px; }
+                        .features { grid-template-columns: 1fr; }
+                        .cta-button { width: 100%; text-align: center; padding: 16px 20px; box-sizing: border-box; }
                     }
                 </style>
             </head>
@@ -991,6 +883,63 @@ function ChatApp({ user, onLogout }) {
         };
     }, [userEmail]);
 
+    // ==========================================
+    // 🎤 VOICE MESSAGE LOGIC
+    // ==========================================
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            audioChunksRef.current = [];
+
+            mediaRecorderRef.current.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
+
+            mediaRecorderRef.current.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = async () => {
+                    const base64AudioMessage = reader.result;
+                    if (!selectedContact) return;
+
+                    const { data, error } = await supabase.from('messages').insert([
+                        { sender_email: userEmail, receiver_email: selectedContact, text: `[VOICE]${base64AudioMessage}` }
+                    ]).select();
+
+                    if (!error && data?.length) {
+                        setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
+                    }
+                };
+
+                // Stop the tracks to turn off the microphone indicator
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorderRef.current.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Error accessing microphone", err);
+            alert("Could not access microphone for recording.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
+
+    const toggleRecording = () => {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    };
+
     const sendMsg = async (e) => {
         e.preventDefault();
         if (!chatInput.trim() || !selectedContact) return;
@@ -1151,14 +1100,33 @@ function ChatApp({ user, onLogout }) {
                                 )}
 
                                 <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
-                                    {chatMessages.map((m, i) => (
-                                        <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word' }}>{m.text}</div>
-                                    ))}
+                                    {chatMessages.map((m, i) => {
+                                        const isVoiceMessage = m.text.startsWith('[VOICE]');
+                                        const content = isVoiceMessage ? m.text.replace('[VOICE]', '') : m.text;
+
+                                        return (
+                                            <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word' }}>
+                                                {isVoiceMessage ? (
+                                                    <audio controls src={content} style={{ height: '40px', maxWidth: '100%', outline: 'none' }} />
+                                                ) : (
+                                                    content
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
 
-                                <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10 }}>
-                                    <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} placeholder="Message" rows={1} style={{ flexGrow: 1, padding: 12, backgroundColor: '#2a3942', border: 'none', borderRadius: 8, color: 'white', outline: 'none', resize: 'none' }} />
-                                    <button type="submit" disabled={!chatInput.trim()} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0 }}>➤</button>
+                                <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'center' }}>
+                                    <button
+                                        type="button"
+                                        onClick={toggleRecording}
+                                        title={isRecording ? "Stop Recording" : "Record Voice Message"}
+                                        style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                                    >
+                                        {isRecording ? '⏹' : '🎤'}
+                                    </button>
+                                    <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} placeholder={isRecording ? "Recording audio..." : "Message"} disabled={isRecording} rows={1} style={{ flexGrow: 1, padding: 12, backgroundColor: '#2a3942', border: 'none', borderRadius: 8, color: 'white', outline: 'none', resize: 'none' }} />
+                                    <button type="submit" disabled={!chatInput.trim() && !isRecording} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>➤</button>
                                 </form>
                             </>
                         ) : (
