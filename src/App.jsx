@@ -893,25 +893,6 @@ export default function App() {
                         console.error("Profile creation failed:", profileError);
                     }
 
-                    // Try to send custom confirmation email via edge function (optional)
-                    try {
-                        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('confirm-email', {
-                            body: {
-                                email: email.trim(),
-                                name: email.split('@')[0],
-                                redirectTo: window.location.origin
-                            }
-                        });
-
-                        if (edgeError) {
-                            console.error("Edge function error (non-critical):", edgeError);
-                        } else {
-                            console.log("Custom confirmation email sent:", edgeData);
-                        }
-                    } catch (edgeInvokeError) {
-                        console.error("Edge function invocation failed (non-critical):", edgeInvokeError);
-                    }
-
                     if (data.session) {
                         // User is automatically signed in
                         setUser(data.user);
