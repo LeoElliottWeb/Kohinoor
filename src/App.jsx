@@ -192,11 +192,11 @@ function ChatApp({ user, onLogout }) {
     }, [incomingCall, isCallingOut]);
 
     useEffect(() => {
-        supabase.from('profiles').select('email, name').then(({ data }) => { if (data) setMembers(data); });
+        supabase.from('auth').select('email, name').then(({ data }) => { if (data) setMembers(data); });
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) try { setSavedContacts(JSON.parse(stored)); } catch (e) { }
-        const pc = supabase.channel('public:profiles')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, p => {
+        const pc = supabase.channel('public:auth')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auth' }, p => {
                 setMembers(prev => prev.find(m => m.email === p.new.email) ? prev : [...prev, { name: p.new.name || p.new.email.split('@')[0], email: p.new.email }]);
             }).subscribe();
         return () => { supabase.removeChannel(pc); };
@@ -802,7 +802,6 @@ export default function App() {
         return () => subscription.unsubscribe();
     }, []);
 
-
     const auth = async (e, type) => {
         e.preventDefault();
         setError('');
@@ -835,23 +834,7 @@ export default function App() {
                 }
 
                 if (data?.user) {
-                    // ✅ MOVED HERE: We now create the profile ONLY after a successful login
-                    // This ensures the user is authenticated and bypasses the 42501 RLS error.
-                    try {
-                        const { error: profileError } = await supabase
-                            .from('profiles')
-                            .upsert([{
-                                email: email.trim(),
-                                name: email.split('@')[0]
-                            }], { onConflict: 'email' });
-
-                        if (profileError) {
-                            console.error("Profile creation error:", profileError);
-                        }
-                    } catch (profileError) {
-                        console.error("Profile creation failed:", profileError);
-                    }
-
+                    // Profile creation logic is removed since the DB View syncs this natively
                     setUser(data.user);
                 }
             } else {
