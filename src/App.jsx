@@ -794,6 +794,7 @@ export default function App() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [error, setError] = useState('');
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
@@ -803,45 +804,119 @@ export default function App() {
 
     const auth = async (e, type) => {
         e.preventDefault();
-        if (!email || !password) return alert("Fill all fields");
+        setError('');
+        if (!email || !password) {
+            setError("Please fill in all fields");
+            return;
+        }
+
+        if (type === 'signup' && password.length < 6) {
+            setError("Password must be at least 6 characters long");
+            return;
+        }
+
         setLoading(true);
         try {
             if (type === 'login') {
-                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email.trim(),
+                    password
+                });
 
                 if (error) {
                     if (error.status === 429) {
-                        throw new Error("Rate limit exceeded. Please wait a moment before trying again.");
+                        throw new Error("Too many attempts. Please wait a moment.");
                     }
-                    throw error;
-                }
-            } else {
-                const { data, error } = await supabase.auth.signUp({ email, password });
-
-                if (error) {
-                    if (error.status === 429) {
-                        throw new Error("Supabase signup limit reached. Please use a new test email (e.g., name+1@email.com) or temporarily raise the rate limits in your Supabase Dashboard.");
+                    if (error.message.includes('Invalid login credentials')) {
+                        throw new Error("Invalid email or password. Please try again.");
                     }
                     throw error;
                 }
 
                 if (data?.user) {
+                    setUser(data.user);
+                }
+            } else {
+                // Sign up - let Supabase handle the confirmation email
+                const { data, error } = await supabase.auth.signUp({
+                    email: email.trim(),
+                    password,
+                    options: {
+                        emailRedirectTo: window.location.origin,
+                        data: {
+                            name: email.split('@')[0]
+                        }
+                    }
+                });
 
-                    // CALL EDGE FUNCTION TO TRIGGER RESEND EMAIL
-                    try {
-                        await supabase.functions.invoke('confirm-email', {
-                            body: {
-                                email: email,
-                                name: email.split('@')[0] // Pass name for personalization if you want it
+                if (error) {
+                    if (error.status === 429) {
+                        throw new Error("Too many signup attempts. Please wait a moment.");
+                    }
+                    if (error.message.includes('User already registered')) {
+                        throw new Error("This email is already registered. Please log in instead.");
+                    }
+                    throw error;
+                }
+
+                if (data?.user) {
+                    // FIX: If the user already exists but is unconfirmed, Supabase returns 
+                    // an empty identities array and SILENTLY drops the second email attempt.
+                    // We must explicitly command a resend to force the email to dispatch.
+                    if (data.user.identities && data.user.identities.length === 0) {
+                        const { error: resendError } = await supabase.auth.resend({
+                            type: 'signup',
+                            email: email.trim(),
+                            options: {
+                                emailRedirectTo: window.location.origin,
                             }
                         });
-                    } catch (edgeError) {
-                        console.error("Failed to invoke edge function:", edgeError);
+
+                        if (resendError && resendError.status !== 429) {
+                            console.error("Resend confirmation failed:", resendError);
+                        }
+                    }
+
+                    // Create profile for the user
+                    try {
+                        const { error: profileError } = await supabase
+                            .from('profiles')
+                            .upsert([{
+                                email: email.trim(),
+                                name: email.split('@')[0]
+                            }], { onConflict: 'email' });
+
+                        if (profileError) {
+                            console.error("Profile creation error:", profileError);
+                        }
+                    } catch (profileError) {
+                        console.error("Profile creation failed:", profileError);
+                    }
+
+                    // Try to send custom confirmation email via edge function (optional)
+                    try {
+                        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('confirm-email', {
+                            body: {
+                                email: email.trim(),
+                                name: email.split('@')[0],
+                                redirectTo: window.location.origin
+                            }
+                        });
+
+                        if (edgeError) {
+                            console.error("Edge function error (non-critical):", edgeError);
+                        } else {
+                            console.log("Custom confirmation email sent:", edgeData);
+                        }
+                    } catch (edgeInvokeError) {
+                        console.error("Edge function invocation failed (non-critical):", edgeInvokeError);
                     }
 
                     if (data.session) {
-                        await supabase.from('profiles').upsert([{ email, name: email.split('@')[0] }]);
+                        // User is automatically signed in
+                        setUser(data.user);
                     } else {
+                        // Email confirmation required
                         setShowConfirm(true);
                         setEmail('');
                         setPassword('');
@@ -849,7 +924,7 @@ export default function App() {
                 }
             }
         } catch (err) {
-            alert(err.message);
+            setError(err.message);
         } finally {
             setLoading(false);
         }
@@ -861,14 +936,64 @@ export default function App() {
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
             <div style={{ backgroundColor: '#202c33', padding: 40, borderRadius: 8, width: 350, maxWidth: '90%', textAlign: 'center' }}>
                 <h2 style={{ color: '#00a884', marginBottom: 30 }}>TotalRecall</h2>
+                {error && (
+                    <div style={{ backgroundColor: '#dc2626', color: 'white', padding: 10, borderRadius: 4, marginBottom: 15, wordWrap: 'break-word' }}>
+                        {error}
+                    </div>
+                )}
                 {showConfirm ? (
-                    <div><h3>Check your email</h3><p style={{ color: '#8696a0' }}>Confirmation sent!</p><button onClick={() => setShowConfirm(false)} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back</button></div>
+                    <div>
+                        <h3>✅ Check your email</h3>
+                        <p style={{ color: '#8696a0', marginBottom: 20 }}>
+                            We've sent you a confirmation link. Please check your inbox and click the link to verify your email address.
+                        </p>
+                        <p style={{ color: '#8696a0', fontSize: 12, marginBottom: 20 }}>
+                            After confirming, you can log in with your credentials.
+                        </p>
+                        <button
+                            onClick={() => {
+                                setShowConfirm(false);
+                                setEmail('');
+                                setPassword('');
+                                setError('');
+                            }}
+                            style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            Back to Login
+                        </button>
+                    </div>
                 ) : (
                     <form onSubmit={e => e.preventDefault()}>
-                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} />
-                        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} />
-                        <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', marginBottom: 10 }}>{loading ? '...' : 'Log In'}</button>
-                        <button onClick={e => auth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>{loading ? '...' : 'Sign Up'}</button>
+                        <input
+                            type="email"
+                            placeholder="Email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
+                            disabled={loading}
+                        />
+                        <input
+                            type="password"
+                            placeholder="Password (min 6 characters)"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
+                            disabled={loading}
+                        />
+                        <button
+                            onClick={e => auth(e, 'login')}
+                            disabled={loading}
+                            style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}
+                        >
+                            {loading ? 'Loading...' : 'Log In'}
+                        </button>
+                        <button
+                            onClick={e => auth(e, 'signup')}
+                            disabled={loading}
+                            style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}
+                        >
+                            {loading ? 'Loading...' : 'Sign Up'}
+                        </button>
                     </form>
                 )}
             </div>
