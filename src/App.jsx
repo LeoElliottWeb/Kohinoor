@@ -63,6 +63,32 @@ class RingerManager {
 const ringer = new RingerManager();
 
 // ==========================================
+// 🔗 LINK PARSER HELPER
+// ==========================================
+const renderTextWithLinks = (text) => {
+    // Regex to match URLs starting with http:// or https://
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+
+    return parts.map((part, i) => {
+        if (part.match(urlRegex)) {
+            return (
+                <a
+                    key={i}
+                    href={part}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#38bdf8', textDecoration: 'underline' }}
+                >
+                    {part}
+                </a>
+            );
+        }
+        return part;
+    });
+};
+
+// ==========================================
 // 📺 LOCAL VIDEO COMPONENT
 // ==========================================
 function LocalVideo({ stream }) {
@@ -1105,11 +1131,11 @@ function ChatApp({ user, onLogout }) {
                                         const content = isVoiceMessage ? m.text.replace('[VOICE]', '') : m.text;
 
                                         return (
-                                            <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word' }}>
+                                            <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
                                                 {isVoiceMessage ? (
                                                     <audio controls src={content} style={{ height: '40px', maxWidth: '100%', outline: 'none' }} />
                                                 ) : (
-                                                    content
+                                                    renderTextWithLinks(content)
                                                 )}
                                             </div>
                                         );
