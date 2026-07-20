@@ -223,7 +223,6 @@ function ChatApp({ user, onLogout }) {
         return s;
     };
 
-    // Broadcasts to all connected peers who else is in the call
     const broadcastMeshState = () => {
         if (!inCallRef.current || !channelRef.current) return;
         const connectedPeers = Object.keys(peersRef.current).filter(e => peersRef.current[e].connectionState === 'connected');
@@ -277,7 +276,7 @@ function ChatApp({ user, onLogout }) {
             console.log("[WebRTC] Connection:", pc.connectionState, "for:", email);
             if (pc.connectionState === 'connected') {
                 setIsCallingOut(false);
-                broadcastMeshState(); // Automatically sync mesh when peer connects
+                broadcastMeshState();
             } else if (pc.connectionState === 'failed') {
                 cleanPeer(email);
             } else if (pc.connectionState === 'disconnected') {
@@ -390,7 +389,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // Automatically accepts mesh network background calls if we are already in a call
     const autoAcceptCall = async (call) => {
         console.log("[WebRTC] Auto-accepting mesh call from:", call.sender);
         try {
@@ -563,7 +561,6 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            // If we are ALREADY in a call, auto-accept this background Mesh offer to link us to the new user
             if (inCallRef.current) {
                 autoAcceptCall(payload);
             } else {
@@ -606,16 +603,12 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // 🛡️ Mesh Gossip Protocol Handler
         ch.on('broadcast', { event: 'webrtc-mesh-sync' }, ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-            if (!inCallRef.current) return; // Ignore if we aren't actively in a call
+            if (!inCallRef.current) return;
 
             payload.peers.forEach(peer => {
-                // If we don't know this peer from the room list, we should connect.
                 if (peer !== userEmail && !peersRef.current[peer]) {
-                    // To avoid glare (both people calling each other simultaneously), 
-                    // only the person with the alphabetically smaller email initiates.
                     if (userEmail.toLowerCase() < peer.toLowerCase()) {
                         console.log(`[WebRTC Mesh] Discovered ${peer}, initiating auto-call`);
                         initiateCall(peer, true);
@@ -669,10 +662,8 @@ function ChatApp({ user, onLogout }) {
     const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
     const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
 
-    // Calculate member count excluding current user
     const memberCount = members.filter(m => m.email?.toLowerCase() !== safeEmail).length;
-    // Calculate total online count including current user
-    const totalOnlineCount = onlineUsers.length + 1; // +1 for current user
+    const totalOnlineCount = onlineUsers.length + 1;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
@@ -835,17 +826,40 @@ export default function App() {
         try {
             if (type === 'login') {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) throw error;
+
+                if (error) {
+                    if (error.status === 429) {
+                        throw new Error("Rate limit exceeded. Please wait a moment before trying again.");
+                    }
+                    throw error;
+                }
             } else {
                 const { data, error } = await supabase.auth.signUp({ email, password });
-                if (error) throw error;
+
+                if (error) {
+                    if (error.status === 429) {
+                        throw new Error("Supabase signup limit reached. Please use a new test email (e.g., name+1@email.com) or temporarily raise the rate limits in your Supabase Dashboard.");
+                    }
+                    throw error;
+                }
+
                 if (data?.user) {
-                    await supabase.from('profiles').upsert([{ email, name: email.split('@')[0] }]);
-                    if (!data.session) { setShowConfirm(true); setEmail(''); setPassword(''); }
+                    // ALL REDUNDANT EDGE FUNCTION LOGIC HAS BEEN REMOVED.
+                    // Resend will now be triggered directly by the Supabase backend.
+                    if (data.session) {
+                        await supabase.from('profiles').upsert([{ email, name: email.split('@')[0] }]);
+                    } else {
+                        setShowConfirm(true);
+                        setEmail('');
+                        setPassword('');
+                    }
                 }
             }
-        } catch (err) { alert(err.message); }
-        finally { setLoading(false); }
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
