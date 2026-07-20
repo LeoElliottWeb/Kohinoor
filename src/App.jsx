@@ -126,6 +126,8 @@ function ChatApp({ user, onLogout }) {
     const [selectedContact, setSelectedContact] = useState(null);
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
+    const [isImporting, setIsImporting] = useState(false);
+
     const selectedContactRef = useRef(selectedContact);
     const channelRef = useRef(null);
 
@@ -212,6 +214,373 @@ function ChatApp({ user, onLogout }) {
             supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
+
+    const generatePrettyEmailHTML = (contactName, inviterName, inviterEmail) => {
+        return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Invitation to TotalRecall</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                        background-color: #f4f6f8;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .container {
+                        max-width: 600px;
+                        margin: 40px auto;
+                        background-color: #ffffff;
+                        border-radius: 16px;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                        overflow: hidden;
+                    }
+                    .header {
+                        background: linear-gradient(135deg, #00a884 0%, #008f72 100%);
+                        padding: 40px 30px;
+                        text-align: center;
+                    }
+                    .header h1 {
+                        color: #ffffff;
+                        font-size: 32px;
+                        font-weight: 700;
+                        margin: 0;
+                        letter-spacing: -0.5px;
+                    }
+                    .header p {
+                        color: rgba(255, 255, 255, 0.9);
+                        font-size: 16px;
+                        margin: 8px 0 0 0;
+                    }
+                    .content {
+                        padding: 40px 30px;
+                        color: #1e293b;
+                    }
+                    .greeting {
+                        font-size: 20px;
+                        font-weight: 600;
+                        margin: 0 0 12px 0;
+                        color: #0f172a;
+                    }
+                    .message {
+                        font-size: 16px;
+                        line-height: 1.7;
+                        color: #334155;
+                        margin: 0 0 24px 0;
+                    }
+                    .inviter-badge {
+                        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+                        border: 1px solid #bbf7d0;
+                        border-radius: 12px;
+                        padding: 20px;
+                        margin: 24px 0;
+                    }
+                    .inviter-badge strong {
+                        color: #00a884;
+                        font-size: 18px;
+                    }
+                    .inviter-badge .email {
+                        color: #64748b;
+                        font-size: 14px;
+                        margin-top: 4px;
+                    }
+                    .cta-button {
+                        display: inline-block;
+                        background: linear-gradient(135deg, #00a884 0%, #008f72 100%);
+                        color: #ffffff !important;
+                        text-decoration: none;
+                        padding: 16px 40px;
+                        border-radius: 50px;
+                        font-weight: 600;
+                        font-size: 18px;
+                        margin: 8px 0 0 0;
+                        box-shadow: 0 4px 12px rgba(0, 168, 132, 0.3);
+                        transition: transform 0.2s ease, box-shadow 0.2s ease;
+                    }
+                    .cta-button:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4);
+                    }
+                    .features {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 16px;
+                        margin: 24px 0;
+                    }
+                    .feature-item {
+                        background-color: #f8fafc;
+                        border-radius: 12px;
+                        padding: 16px;
+                        text-align: center;
+                        border: 1px solid #e2e8f0;
+                    }
+                    .feature-item .icon {
+                        font-size: 28px;
+                        display: block;
+                        margin-bottom: 8px;
+                    }
+                    .feature-item .label {
+                        font-size: 14px;
+                        font-weight: 500;
+                        color: #0f172a;
+                    }
+                    .divider {
+                        height: 1px;
+                        background: #e2e8f0;
+                        margin: 24px 0;
+                    }
+                    .footer {
+                        text-align: center;
+                        padding: 0 30px 30px 30px;
+                        color: #94a3b8;
+                        font-size: 14px;
+                    }
+                    .footer a {
+                        color: #00a884;
+                        text-decoration: none;
+                    }
+                    .footer a:hover {
+                        text-decoration: underline;
+                    }
+                    @media (max-width: 480px) {
+                        .container {
+                            margin: 16px;
+                            border-radius: 12px;
+                        }
+                        .content {
+                            padding: 24px 20px;
+                        }
+                        .header {
+                            padding: 30px 20px;
+                        }
+                        .features {
+                            grid-template-columns: 1fr;
+                        }
+                        .cta-button {
+                            width: 100%;
+                            text-align: center;
+                            padding: 16px 20px;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>📱 TotalRecall</h1>
+                        <p>Connect, Chat &amp; Video Call</p>
+                    </div>
+                    <div class="content">
+                        <p class="greeting">Hello ${contactName || 'there'}! 👋</p>
+                        <p class="message">
+                            <strong style="color: #00a884;">${inviterName}</strong> has added you as a contact on 
+                            <strong>TotalRecall</strong> and would love to connect with you!
+                        </p>
+
+                        <div class="inviter-badge">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #00a884 0%, #008f72 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px; flex-shrink: 0;">
+                                    ${inviterName.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div><strong>${inviterName}</strong></div>
+                                    <div class="email">${inviterEmail}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="message" style="margin-top: 24px;">
+                            TotalRecall is a secure messaging and video calling platform where you can stay connected with friends, family, and colleagues.
+                        </p>
+
+                        <div class="features">
+                            <div class="feature-item">
+                                <span class="icon">💬</span>
+                                <span class="label">Instant Messaging</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="icon">📹</span>
+                                <span class="label">Video Calls</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="icon">👥</span>
+                                <span class="label">Group Chats</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="icon">🔒</span>
+                                <span class="label">Secure &amp; Private</span>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center;">
+                            <a href="${window.location.origin}" class="cta-button">🚀 Join Now</a>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <p style="text-align: center; color: #64748b; font-size: 15px; margin: 0;">
+                            Already have an account? 
+                            <a href="${window.location.origin}" style="color: #00a884; font-weight: 500; text-decoration: none;">Log in here</a>
+                        </p>
+                    </div>
+                    <div class="footer">
+                        <p style="margin: 0 0 8px 0;">
+                            © ${new Date().getFullYear()} TotalRecall. All rights reserved.
+                        </p>
+                        <p style="margin: 0; font-size: 13px;">
+                            This invitation was sent by ${inviterName}. 
+                            <br>If you didn't expect this email, you can safely ignore it.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+    };
+
+    const handleImportContacts = async () => {
+        if (isImporting) return;
+        setIsImporting(true);
+
+        try {
+            const supported = ('contacts' in navigator && 'ContactsManager' in window);
+            let contactsToProcess = [];
+
+            if (supported) {
+                try {
+                    const contacts = await navigator.contacts.select(['name', 'email'], { multiple: true });
+                    contactsToProcess = contacts
+                        .filter(c => c.email && c.email.length > 0)
+                        .map(c => ({
+                            name: c.name?.[0] || c.email[0].split('@')[0],
+                            email: c.email[0]
+                        }));
+                } catch (err) {
+                    console.error("Contact selection failed", err);
+                    alert("Contact selection was cancelled or failed.");
+                    setIsImporting(false);
+                    return;
+                }
+            } else {
+                const emailInput = prompt("Enter an email address to send an invite manually:");
+                if (emailInput && emailInput.trim()) {
+                    const targetEmail = emailInput.trim();
+                    if (!targetEmail.includes('@') || !targetEmail.includes('.')) {
+                        alert("Please enter a valid email address.");
+                        setIsImporting(false);
+                        return;
+                    }
+                    contactsToProcess = [{
+                        name: targetEmail.split('@')[0],
+                        email: targetEmail
+                    }];
+                } else {
+                    setIsImporting(false);
+                    return;
+                }
+            }
+
+            if (contactsToProcess.length === 0) {
+                alert("No valid contacts to add.");
+                setIsImporting(false);
+                return;
+            }
+
+            const existingEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
+            const memberEmails = new Set(members.map(m => m.email?.trim().toLowerCase()));
+
+            const contactsToAdd = [];
+            const contactsAlreadyExist = [];
+
+            contactsToProcess.forEach(contact => {
+                const emailLower = contact.email.trim().toLowerCase();
+                const contactObj = {
+                    name: contact.name || contact.email.split('@')[0],
+                    email: contact.email.trim()
+                };
+
+                if (existingEmails.has(emailLower) || memberEmails.has(emailLower)) {
+                    contactsAlreadyExist.push(contactObj);
+                } else {
+                    contactsToAdd.push(contactObj);
+                }
+            });
+
+            if (contactsToAdd.length > 0) {
+                setSavedContacts(prev => {
+                    const merged = [...prev, ...contactsToAdd];
+                    localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
+                    return merged;
+                });
+            }
+
+            const allContactsToEmail = [...contactsToAdd, ...contactsAlreadyExist];
+
+            if (allContactsToEmail.length > 0) {
+                let sentCount = 0;
+                let failedCount = 0;
+
+                for (const contact of allContactsToEmail) {
+                    try {
+                        const prettyHTML = generatePrettyEmailHTML(
+                            contact.name,
+                            displayName,
+                            userEmail
+                        );
+
+                        const { data, error } = await supabase.functions.invoke('send-email', {
+                            body: {
+                                to: contact.email,
+                                subject: `📱 ${displayName} wants to connect with you on TotalRecall!`,
+                                html: prettyHTML
+                            }
+                        });
+
+                        if (error) {
+                            console.error(`Failed to send invite to ${contact.email} via Edge Function:`, error);
+                            failedCount++;
+                        } else {
+                            sentCount++;
+                        }
+                    } catch (error) {
+                        console.error(`Error invoking edge function for ${contact.email}:`, error);
+                        failedCount++;
+                    }
+                }
+
+                let message = `✅ Added ${contactsToAdd.length} new contact(s)\n`;
+                message += `📧 Sent ${sentCount} beautiful invitation email(s)\n`;
+                if (failedCount > 0) {
+                    message += `❌ Failed to send ${failedCount} email(s)`;
+                }
+                alert(message);
+            } else {
+                alert("All contacts are already in your list.");
+            }
+        } catch (error) {
+            console.error("Error importing contacts:", error);
+            alert("An error occurred while importing contacts.");
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    const handleRemoveContact = (e, emailToRemove) => {
+        e.stopPropagation();
+        if (window.confirm('Are you sure you want to remove this contact from your view?')) {
+            setSavedContacts(prev => {
+                const updatedContacts = prev.filter(c => c.email !== emailToRemove);
+                localStorage.setItem('totalRecallContacts', JSON.stringify(updatedContacts));
+                return updatedContacts;
+            });
+            if (selectedContact === emailToRemove) {
+                setSelectedContact(null);
+            }
+        }
+    };
 
     const getMedia = async () => {
         const s = await navigator.mediaDevices.getUserMedia({
@@ -640,7 +1009,16 @@ function ChatApp({ user, onLogout }) {
     const safeEmail = userEmail?.toLowerCase() || '';
     const allKnown = [...members, ...savedContacts];
     const dispMembers = members.filter(m => m.email?.toLowerCase() !== safeEmail);
-    const dispContacts = savedContacts.filter(c => c.email?.toLowerCase() !== safeEmail);
+
+    // Filter out self and members from dispContacts
+    const dispContacts = savedContacts.filter(c => {
+        if (!c.email) return false;
+        const cEmailSafe = c.email.trim().toLowerCase();
+        if (cEmailSafe === safeEmail) return false;
+        if (members.some(m => m.email?.trim().toLowerCase() === cEmailSafe)) return false;
+        return true;
+    });
+
     const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
     const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
 
@@ -691,14 +1069,43 @@ function ChatApp({ user, onLogout }) {
                                     <span>{c.name?.trim() || c.email.split('@')[0]}</span>
                                 </div>
                             ))}
-                            <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
+
+                            <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
                                 <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({dispContacts.length})</span>
-                                <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleImportContacts();
+                                        }}
+                                        disabled={isImporting}
+                                        style={{
+                                            backgroundColor: isImporting ? '#1a2a33' : '#2a3942',
+                                            color: isImporting ? '#666' : '#00a884',
+                                            border: 'none',
+                                            padding: '4px 8px',
+                                            borderRadius: '4px',
+                                            cursor: isImporting ? 'not-allowed' : 'pointer',
+                                            fontSize: '11px',
+                                            opacity: isImporting ? 0.6 : 1
+                                        }}
+                                    >
+                                        {isImporting ? '⏳ Importing...' : '+ Add External'}
+                                    </button>
+                                    <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
+                                </div>
                             </div>
                             {isContactsExpanded && dispContacts.map(c => (
                                 <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                     <div style={{ flexGrow: 1 }}><div>{c.name || c.email.split('@')[0]}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
+                                    <button
+                                        onClick={(e) => handleRemoveContact(e, c.email)}
+                                        style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}
+                                        title="Remove contact"
+                                    >
+                                        ❌
+                                    </button>
                                 </div>
                             ))}
                         </div>
@@ -834,7 +1241,6 @@ export default function App() {
                 }
 
                 if (data?.user) {
-                    // Profile creation logic is removed since the DB View syncs this natively
                     setUser(data.user);
                 }
             } else {
