@@ -844,8 +844,16 @@ export default function App() {
                 }
 
                 if (data?.user) {
-                    // ALL REDUNDANT EDGE FUNCTION LOGIC HAS BEEN REMOVED.
-                    // Resend will now be triggered directly by the Supabase backend.
+
+                    // RE-ADDED: Call the edge function manually
+                    try {
+                        await supabase.functions.invoke('confirm-email', {
+                            body: { email: email }
+                        });
+                    } catch (edgeError) {
+                        console.error("Failed to invoke edge function:", edgeError);
+                    }
+
                     if (data.session) {
                         await supabase.from('profiles').upsert([{ email, name: email.split('@')[0] }]);
                     } else {
