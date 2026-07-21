@@ -153,6 +153,7 @@ function ChatApp({ user, onLogout }) {
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const [isImporting, setIsImporting] = useState(false);
+    const [isVonageCalling, setIsVonageCalling] = useState(false);
 
     // Voice message state
     const [isRecording, setIsRecording] = useState(false);
@@ -188,23 +189,14 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', h);
     }, []);
 
-    const METERED_USERNAME = "b7cf8da6379b050323098734";
-    const METERED_CREDENTIAL = "AMGwLNr1/IaRrZGQ";
-
+    // REPLACED METERED TURN WITH EXPANDED GOOGLE STUN LIST
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            {
-                urls: [
-                    'turn:standard.relay.metered.ca:80',
-                    'turn:standard.relay.metered.ca:443',
-                    'turn:standard.relay.metered.ca:80?transport=tcp',
-                    'turn:standard.relay.metered.ca:443?transport=tcp'
-                ],
-                username: METERED_USERNAME,
-                credential: METERED_CREDENTIAL
-            }
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
         ],
         iceCandidatePoolSize: 10
     };
@@ -662,6 +654,43 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    const handleVonageMobileCall = async () => {
+        const phoneNumber = prompt("Enter the mobile number to call (including country code, e.g., 447...):");
+        if (!phoneNumber || !phoneNumber.trim()) return;
+
+        // Sanitize the input to strictly numbers only.
+        const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
+
+        if (!cleanNumber) {
+            alert("Please enter a valid numeric phone number.");
+            return;
+        }
+
+        setIsVonageCalling(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('vonage-call', {
+                body: {
+                    to: cleanNumber,
+                    from: '447418372323', // Appending your explicit Vonage Subscription Number
+                    callerEmail: userEmail
+                }
+            });
+
+            if (error) {
+                console.error("Vonage edge function error:", error);
+                const errorMsg = error.context?.message || error.message || 'Unknown Edge Function Error';
+                throw new Error(errorMsg);
+            }
+
+            alert(`Initiating call to ${cleanNumber}... Check your device.`);
+        } catch (err) {
+            console.error("Mobile call initiation failed:", err);
+            alert(`Call failed (Check your Supabase Edge Function logs). Details: ${err.message}`);
+        } finally {
+            setIsVonageCalling(false);
+        }
+    };
+
     const autoAcceptCall = async (call) => {
         try {
             if (!localStreamRef.current) {
@@ -1114,6 +1143,14 @@ function ChatApp({ user, onLogout }) {
                                         <b>{activeName}</b>
                                     </div>
                                     <div style={{ display: 'flex', gap: 10 }}>
+                                        <button
+                                            onClick={handleVonageMobileCall}
+                                            disabled={isVonageCalling}
+                                            style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
+                                        >
+                                            {isVonageCalling ? '📞 Calling...' : '📞 Call Mobile'}
+                                        </button>
+
                                         {!inVoiceCall ? (
                                             <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>📹 Call</button>
                                         ) : (
