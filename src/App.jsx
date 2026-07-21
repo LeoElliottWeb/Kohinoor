@@ -408,7 +408,6 @@ function ChatApp({ user, onLogout }) {
             }
 
             const existingEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
-            const memberEmails = new Set(members.map(m => m.email?.trim().toLowerCase()));
 
             const contactsToAdd = [];
             const contactsAlreadyExist = [];
@@ -420,7 +419,8 @@ function ChatApp({ user, onLogout }) {
                     email: contact.email.trim()
                 };
 
-                if (existingEmails.has(emailLower) || memberEmails.has(emailLower)) {
+                // No longer excluding members here so they can be explicitly added to contacts
+                if (existingEmails.has(emailLower)) {
                     contactsAlreadyExist.push(contactObj);
                 } else {
                     contactsToAdd.push(contactObj);
@@ -985,12 +985,11 @@ function ChatApp({ user, onLogout }) {
     const allKnown = [...members, ...savedContacts];
     const dispMembers = members.filter(m => m.email?.toLowerCase() !== safeEmail);
 
-    // Filter out self and members from dispContacts
+    // Filter out self from dispContacts, but now members CAN be included if added as contacts
     const dispContacts = savedContacts.filter(c => {
         if (!c.email) return false;
         const cEmailSafe = c.email.trim().toLowerCase();
         if (cEmailSafe === safeEmail) return false;
-        if (members.some(m => m.email?.trim().toLowerCase() === cEmailSafe)) return false;
         return true;
     });
 
@@ -1038,12 +1037,32 @@ function ChatApp({ user, onLogout }) {
                                 <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({dispMembers.length})</span>
                                 <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
                             </div>
-                            {isMembersExpanded && dispMembers.map(c => (
-                                <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
-                                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
-                                    <span>{c.name?.trim() || c.email.split('@')[0]}</span>
-                                </div>
-                            ))}
+                            {isMembersExpanded && dispMembers.map(c => {
+                                const isContact = savedContacts.some(sc => sc.email?.trim().toLowerCase() === c.email?.trim().toLowerCase());
+                                return (
+                                    <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
+                                        <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
+                                        <div style={{ flexGrow: 1 }}>{c.name?.trim() || c.email.split('@')[0]}</div>
+                                        {!isContact && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSavedContacts(prev => {
+                                                        const newContact = { name: c.name?.trim() || c.email.split('@')[0], email: c.email };
+                                                        const updated = [...prev, newContact];
+                                                        localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
+                                                        return updated;
+                                                    });
+                                                }}
+                                                style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }}
+                                                title="Add to contacts"
+                                            >
+                                                ➕
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
 
                             <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
                                 <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({dispContacts.length})</span>
