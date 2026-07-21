@@ -189,14 +189,23 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', h);
     }, []);
 
-    // REPLACED METERED TURN WITH EXPANDED GOOGLE STUN LIST
+    const METERED_USERNAME = "b7cf8da6379b050323098734";
+    const METERED_CREDENTIAL = "AMGwLNr1/IaRrZGQ";
+
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
+            {
+                urls: [
+                    'turn:standard.relay.metered.ca:80',
+                    'turn:standard.relay.metered.ca:443',
+                    'turn:standard.relay.metered.ca:80?transport=tcp',
+                    'turn:standard.relay.metered.ca:443?transport=tcp'
+                ],
+                username: METERED_USERNAME,
+                credential: METERED_CREDENTIAL
+            }
         ],
         iceCandidatePoolSize: 10
     };
