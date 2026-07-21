@@ -65,19 +65,20 @@ const ringer = new RingerManager();
 // ==========================================
 // 🔗 LINK PARSER HELPER
 // ==========================================
-const renderTextWithLinks = (text) => {
-    if (!text) return null; // Safeguard against null/empty text
+const urlExtractRegex = /((?:https?:\/\/|www\.)[^\s<]+[^<.,:;"')\]\s])/i;
 
-    // Regex to match URLs starting with http:// or https://
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(urlRegex);
+const renderTextWithLinks = (text) => {
+    if (!text) return null;
+
+    const parts = text.split(new RegExp(urlExtractRegex.source, 'gi'));
 
     return parts.map((part, i) => {
-        if (part.match(urlRegex)) {
+        if (part.match(new RegExp(urlExtractRegex.source, 'i'))) {
+            const href = part.startsWith('http') ? part : `https://${part}`;
             return (
                 <a
                     key={i}
-                    href={part}
+                    href={href}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ color: '#38bdf8', textDecoration: 'underline' }}
@@ -89,6 +90,108 @@ const renderTextWithLinks = (text) => {
         return part;
     });
 };
+
+// ==========================================
+// 🖼️ URL PREVIEW COMPONENT
+// ==========================================
+function LinkPreview({ url }) {
+    const [preview, setPreview] = useState(null);
+
+    useEffect(() => {
+        if (!url) return;
+
+        let isMounted = true;
+        let cleanUrl = url.trim();
+        if (!cleanUrl.startsWith('http')) {
+            cleanUrl = 'https://' + cleanUrl;
+        }
+
+        let hostname = '';
+        try {
+            hostname = new URL(cleanUrl).hostname.replace('www.', '');
+        } catch (e) {
+            hostname = 'link';
+        }
+
+        // Set an immediate structural fallback so a preview card always displays instantly
+        if (isMounted) {
+            setPreview({
+                title: hostname.toUpperCase(),
+                description: cleanUrl,
+                image: null,
+                publisher: hostname
+            });
+        }
+
+        const fetchPreview = async () => {
+            try {
+                // If it's YouTube, build a clean fallback directly to avoid 400 errors completely
+                if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) {
+                    if (isMounted) {
+                        setPreview({
+                            title: 'YouTube Channel / Video',
+                            description: cleanUrl,
+                            image: null,
+                            publisher: 'youtube.com'
+                        });
+                    }
+                    return;
+                }
+
+                const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(cleanUrl)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 'success' && data.data) {
+                        if (isMounted) {
+                            setPreview({
+                                title: data.data.title || hostname.toUpperCase(),
+                                description: data.data.description || cleanUrl,
+                                image: data.data.image?.url || data.data.logo?.url,
+                                publisher: data.data.publisher || hostname
+                            });
+                        }
+                    }
+                }
+            } catch (err) {
+                // Keep the structural fallback if network requests fail
+            }
+        };
+
+        fetchPreview();
+
+        return () => { isMounted = false; };
+    }, [url]);
+
+    if (!preview) return null;
+
+    return (
+        <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block', marginTop: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', maxWidth: 300 }}>
+                {preview.image && (
+                    <img
+                        src={preview.image}
+                        alt={preview.title || 'Link preview'}
+                        style={{ width: '100%', maxHeight: 140, objectFit: 'cover', display: 'block', backgroundColor: '#111' }}
+                        onError={(e) => e.target.style.display = 'none'}
+                    />
+                )}
+                <div style={{ padding: '8px 10px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#e9edef' }}>
+                        {preview.title}
+                    </div>
+                    {preview.description && (
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.4', wordBreak: 'break-all' }}>
+                            {preview.description}
+                        </div>
+                    )}
+                    <div style={{ fontSize: 10, color: '#38bdf8', marginTop: 4, textTransform: 'uppercase', fontWeight: 'bold' }}>
+                        {preview.publisher}
+                    </div>
+                </div>
+            </div>
+        </a>
+    );
+}
 
 // ==========================================
 // 📺 LOCAL VIDEO COMPONENT
@@ -792,7 +895,6 @@ function ChatApp({ user, onLogout }) {
                 });
                 const newVideoTrack = newCameraStream.getVideoTracks()[0];
 
-                // Respect the camera off state if it was toggled before or during screen share
                 if (isVideoOff) {
                     newVideoTrack.enabled = false;
                 }
@@ -1299,6 +1401,9 @@ function ChatApp({ user, onLogout }) {
                                         if (isVoiceMessage) content = m.text.replace('[VOICE]', '');
                                         else if (isImageMessage) content = m.text.replace('[IMAGE]', '');
 
+                                        const match = !isVoiceMessage && !isImageMessage ? content.match(new RegExp(urlExtractRegex.source, 'i')) : null;
+                                        let firstUrl = match ? match[0] : null;
+
                                         return (
                                             <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
                                                 {isVoiceMessage ? (
@@ -1306,7 +1411,10 @@ function ChatApp({ user, onLogout }) {
                                                 ) : isImageMessage ? (
                                                     <img src={content} alt="Pasted attachment" style={{ maxWidth: '100%', borderRadius: 8 }} />
                                                 ) : (
-                                                    renderTextWithLinks(content)
+                                                    <>
+                                                        {renderTextWithLinks(content)}
+                                                        {firstUrl && <LinkPreview url={firstUrl} />}
+                                                    </>
                                                 )}
                                             </div>
                                         );
