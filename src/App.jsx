@@ -419,7 +419,6 @@ function ChatApp({ user, onLogout }) {
                     email: contact.email.trim()
                 };
 
-                // No longer excluding members here so they can be explicitly added to contacts
                 if (existingEmails.has(emailLower)) {
                     contactsAlreadyExist.push(contactObj);
                 } else {
@@ -939,7 +938,6 @@ function ChatApp({ user, onLogout }) {
                     }
                 };
 
-                // Stop the tracks to turn off the microphone indicator
                 stream.getTracks().forEach(track => track.stop());
             };
 
@@ -985,7 +983,6 @@ function ChatApp({ user, onLogout }) {
     const allKnown = [...members, ...savedContacts];
     const dispMembers = members.filter(m => m.email?.toLowerCase() !== safeEmail);
 
-    // Filter out self from dispContacts, but now members CAN be included if added as contacts
     const dispContacts = savedContacts.filter(c => {
         if (!c.email) return false;
         const cEmailSafe = c.email.trim().toLowerCase();
@@ -1215,6 +1212,7 @@ export default function App() {
     const [loading, setLoading] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [error, setError] = useState('');
+    const [isSignupMode, setIsSignupMode] = useState(false);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
@@ -1336,6 +1334,7 @@ export default function App() {
                                 setEmail('');
                                 setPassword('');
                                 setError('');
+                                setIsSignupMode(false);
                             }}
                             style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}
                         >
@@ -1344,6 +1343,11 @@ export default function App() {
                     </div>
                 ) : (
                     <form onSubmit={e => e.preventDefault()}>
+                        {isSignupMode && (
+                            <div style={{ backgroundColor: '#182229', padding: '15px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px', color: '#aebac1', textAlign: 'left', borderLeft: '4px solid #00a884' }}>
+                                Enter your email address and a new password. An email will be sent to you for you to confirm your email. The email might go to your spam folder.
+                            </div>
+                        )}
                         <input
                             type="email"
                             placeholder="Email"
@@ -1360,20 +1364,42 @@ export default function App() {
                             style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
                             disabled={loading}
                         />
-                        <button
-                            onClick={e => auth(e, 'login')}
-                            disabled={loading}
-                            style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}
-                        >
-                            {loading ? 'Loading...' : 'Log In'}
-                        </button>
-                        <button
-                            onClick={e => auth(e, 'signup')}
-                            disabled={loading}
-                            style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}
-                        >
-                            {loading ? 'Loading...' : 'Sign Up'}
-                        </button>
+
+                        {!isSignupMode ? (
+                            <>
+                                <button
+                                    onClick={e => auth(e, 'login')}
+                                    disabled={loading}
+                                    style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}
+                                >
+                                    {loading ? 'Loading...' : 'Log In'}
+                                </button>
+                                <button
+                                    onClick={() => { setIsSignupMode(true); setError(''); }}
+                                    disabled={loading}
+                                    style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}
+                                >
+                                    Sign Up
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={e => auth(e, 'signup')}
+                                    disabled={loading}
+                                    style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}
+                                >
+                                    {loading ? 'Loading...' : 'Create Account'}
+                                </button>
+                                <button
+                                    onClick={() => { setIsSignupMode(false); setError(''); }}
+                                    disabled={loading}
+                                    style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}
+                                >
+                                    Back to Login
+                                </button>
+                            </>
+                        )}
                     </form>
                 )}
             </div>
