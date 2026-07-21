@@ -189,8 +189,8 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', h);
     }, []);
 
-    const METERED_USERNAME = "b7cf8da6379b050323098734";
-    const METERED_CREDENTIAL = "AMGwLNr1/IaRrZGQ";
+    const METERED_USERNAME = "5e5e334296060e35c8d16fa0";
+    const METERED_CREDENTIAL = "QB1S/xQpZ7Bq3llP";
 
     const rtcConfig = {
         iceServers: [
