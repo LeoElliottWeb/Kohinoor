@@ -170,7 +170,11 @@ function ChatApp({ user, onLogout }) {
     const [incomingCall, setIncomingCall] = useState(null);
     const incomingCallRef = useRef(null);
     const [isCallingOut, setIsCallingOut] = useState(false);
+
+    // Media Controls State
     const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isVideoOff, setIsVideoOff] = useState(false);
 
     const [localStream, setLocalStream] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({});
@@ -600,6 +604,8 @@ function ChatApp({ user, onLogout }) {
         if (ringer.isActive()) ringer.stop();
         setIsCallingOut(false);
         setIsScreenSharing(false);
+        setIsMuted(false);
+        setIsVideoOff(false);
         setIncomingCall(null);
 
         if (broadcast) {
@@ -786,6 +792,11 @@ function ChatApp({ user, onLogout }) {
                 });
                 const newVideoTrack = newCameraStream.getVideoTracks()[0];
 
+                // Respect the camera off state if it was toggled before or during screen share
+                if (isVideoOff) {
+                    newVideoTrack.enabled = false;
+                }
+
                 Object.values(peersRef.current).forEach(pc => {
                     const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
                     if (sender) sender.replaceTrack(newVideoTrack);
@@ -824,6 +835,32 @@ function ChatApp({ user, onLogout }) {
             }
         } catch (err) {
             console.error("[WebRTC] Screen share error/cancelled:", err);
+        }
+    };
+
+    const toggleMute = () => {
+        if (!localStreamRef.current) return;
+        const audioTracks = localStreamRef.current.getAudioTracks();
+        if (audioTracks.length > 0) {
+            const isCurrentlyEnabled = audioTracks[0].enabled;
+            audioTracks.forEach(track => { track.enabled = !isCurrentlyEnabled; });
+            setIsMuted(isCurrentlyEnabled);
+        }
+    };
+
+    const toggleCamera = () => {
+        if (!localStreamRef.current) return;
+
+        if (isScreenSharing) {
+            alert("Please stop screen sharing before toggling the camera.");
+            return;
+        }
+
+        const videoTracks = localStreamRef.current.getVideoTracks();
+        if (videoTracks.length > 0) {
+            const isCurrentlyEnabled = videoTracks[0].enabled;
+            videoTracks.forEach(track => { track.enabled = !isCurrentlyEnabled; });
+            setIsVideoOff(isCurrentlyEnabled);
         }
     };
 
@@ -1024,7 +1061,6 @@ function ChatApp({ user, onLogout }) {
         let hasImage = false;
         let imageFile = null;
 
-        // Check if an image is in the clipboard
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf("image") !== -1) {
                 hasImage = true;
@@ -1033,12 +1069,9 @@ function ChatApp({ user, onLogout }) {
             }
         }
 
-        // If an image was found, intercept the paste
         if (hasImage && imageFile) {
-            e.preventDefault(); // Stop standard browser paste
+            e.preventDefault();
 
-            // 1. Recover any text that might be in the clipboard alongside the image
-            // OR any text already typed in the input box, and send it first.
             let currentText = chatInput.trim();
             const pastedText = e.clipboardData.getData('text/plain');
 
@@ -1054,10 +1087,9 @@ function ChatApp({ user, onLogout }) {
                 if (!textErr && textDataObj?.length) {
                     setChatMessages(prev => prev.find(m => m.id === textDataObj[0].id) ? prev : [...prev, textDataObj[0]]);
                 }
-                setChatInput(''); // Clear the input box since we just sent it
+                setChatInput('');
             }
 
-            // 2. Process and send the image file
             const reader = new FileReader();
             reader.onloadend = async () => {
                 const base64Image = reader.result;
@@ -1073,8 +1105,6 @@ function ChatApp({ user, onLogout }) {
             };
             reader.readAsDataURL(imageFile);
         }
-        // If NO image was found (it was purely a text paste), it skips the `if (hasImage)` 
-        // block entirely, and the browser pastes the text naturally into the input box.
     };
 
     const showSidebar = !isMobile || !selectedContact;
@@ -1230,9 +1260,18 @@ function ChatApp({ user, onLogout }) {
                                             <>
                                                 {!activeCallEmails.includes(selectedContact) && (
                                                     <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
-                                                        ➕ Add to Call
+                                                        ➕ Add
                                                     </button>
                                                 )}
+
+                                                {/* Media Control Buttons */}
+                                                <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
+                                                    {isMuted ? '🔇 Unmute' : '🎙️ Mute'}
+                                                </button>
+                                                <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
+                                                    {isVideoOff ? '📷 Camera On' : '📸 Camera Off'}
+                                                </button>
+
                                                 <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
                                                     {isScreenSharing ? '💻 Stop Share' : '💻 Share'}
                                                 </button>
