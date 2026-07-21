@@ -66,6 +66,8 @@ const ringer = new RingerManager();
 // 🔗 LINK PARSER HELPER
 // ==========================================
 const renderTextWithLinks = (text) => {
+    if (!text) return null; // Safeguard against null/empty text
+
     // Regex to match URLs starting with http:// or https://
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const parts = text.split(urlRegex);
@@ -667,7 +669,6 @@ function ChatApp({ user, onLogout }) {
         const phoneNumber = prompt("Enter the mobile number to call (including country code, e.g., 447...):");
         if (!phoneNumber || !phoneNumber.trim()) return;
 
-        // Sanitize the input to strictly numbers only.
         const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
 
         if (!cleanNumber) {
@@ -680,7 +681,7 @@ function ChatApp({ user, onLogout }) {
             const { data, error } = await supabase.functions.invoke('vonage-call', {
                 body: {
                     to: cleanNumber,
-                    from: '447418372323', // Appending your explicit Vonage Subscription Number
+                    from: '447418372323',
                     callerEmail: userEmail
                 }
             });
@@ -1002,6 +1003,9 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // ==========================================
+    // 📝 SEND MESSAGE & IMAGE PASTE LOGIC
+    // ==========================================
     const sendMsg = async (e) => {
         e.preventDefault();
         if (!chatInput.trim() || !selectedContact) return;
@@ -1011,6 +1015,66 @@ function ChatApp({ user, onLogout }) {
             { sender_email: userEmail, receiver_email: selectedContact, text: txt }
         ]).select();
         if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
+    };
+
+    const handlePaste = async (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        let hasImage = false;
+        let imageFile = null;
+
+        // Check if an image is in the clipboard
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf("image") !== -1) {
+                hasImage = true;
+                imageFile = items[i].getAsFile();
+                break;
+            }
+        }
+
+        // If an image was found, intercept the paste
+        if (hasImage && imageFile) {
+            e.preventDefault(); // Stop standard browser paste
+
+            // 1. Recover any text that might be in the clipboard alongside the image
+            // OR any text already typed in the input box, and send it first.
+            let currentText = chatInput.trim();
+            const pastedText = e.clipboardData.getData('text/plain');
+
+            if (pastedText) {
+                currentText = currentText ? (currentText + '\n' + pastedText) : pastedText;
+            }
+
+            if (currentText && selectedContact) {
+                const { data: textDataObj, error: textErr } = await supabase.from('messages').insert([
+                    { sender_email: userEmail, receiver_email: selectedContact, text: currentText }
+                ]).select();
+
+                if (!textErr && textDataObj?.length) {
+                    setChatMessages(prev => prev.find(m => m.id === textDataObj[0].id) ? prev : [...prev, textDataObj[0]]);
+                }
+                setChatInput(''); // Clear the input box since we just sent it
+            }
+
+            // 2. Process and send the image file
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64Image = reader.result;
+                if (!selectedContact) return;
+
+                const { data, error } = await supabase.from('messages').insert([
+                    { sender_email: userEmail, receiver_email: selectedContact, text: `[IMAGE]${base64Image}` }
+                ]).select();
+
+                if (!error && data?.length) {
+                    setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
+                }
+            };
+            reader.readAsDataURL(imageFile);
+        }
+        // If NO image was found (it was purely a text paste), it skips the `if (hasImage)` 
+        // block entirely, and the browser pastes the text naturally into the input box.
     };
 
     const showSidebar = !isMobile || !selectedContact;
@@ -1189,13 +1253,19 @@ function ChatApp({ user, onLogout }) {
 
                                 <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
                                     {chatMessages.map((m, i) => {
-                                        const isVoiceMessage = m.text.startsWith('[VOICE]');
-                                        const content = isVoiceMessage ? m.text.replace('[VOICE]', '') : m.text;
+                                        const isVoiceMessage = m.text && m.text.startsWith('[VOICE]');
+                                        const isImageMessage = m.text && m.text.startsWith('[IMAGE]');
+
+                                        let content = m.text || '';
+                                        if (isVoiceMessage) content = m.text.replace('[VOICE]', '');
+                                        else if (isImageMessage) content = m.text.replace('[IMAGE]', '');
 
                                         return (
                                             <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
                                                 {isVoiceMessage ? (
                                                     <audio controls src={content} style={{ height: '40px', maxWidth: '100%', outline: 'none' }} />
+                                                ) : isImageMessage ? (
+                                                    <img src={content} alt="Pasted attachment" style={{ maxWidth: '100%', borderRadius: 8 }} />
                                                 ) : (
                                                     renderTextWithLinks(content)
                                                 )}
@@ -1213,7 +1283,16 @@ function ChatApp({ user, onLogout }) {
                                     >
                                         {isRecording ? '⏹' : '🎤'}
                                     </button>
-                                    <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} placeholder={isRecording ? "Recording audio..." : "Message"} disabled={isRecording} rows={1} style={{ flexGrow: 1, padding: 12, backgroundColor: '#2a3942', border: 'none', borderRadius: 8, color: 'white', outline: 'none', resize: 'none' }} />
+                                    <textarea
+                                        value={chatInput}
+                                        onChange={e => setChatInput(e.target.value)}
+                                        onKeyDown={handleKey}
+                                        onPaste={handlePaste}
+                                        placeholder={isRecording ? "Recording audio..." : "Message or paste image..."}
+                                        disabled={isRecording}
+                                        rows={1}
+                                        style={{ flexGrow: 1, padding: 12, backgroundColor: '#2a3942', border: 'none', borderRadius: 8, color: 'white', outline: 'none', resize: 'none' }}
+                                    />
                                     <button type="submit" disabled={!chatInput.trim() && !isRecording} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>➤</button>
                                 </form>
                             </>
