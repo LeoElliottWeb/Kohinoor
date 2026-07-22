@@ -65,42 +65,61 @@ const ringer = new RingerManager();
 // ==========================================
 // 🔗 LINK PARSER HELPER
 // ==========================================
-const urlExtractRegex = /((?:https?:\/\/|www\.)[^\s<]+[^<.,:;"')\]\s])/i;
+const urlExtractRegex = /((?:https?:\/\/|www\.)[^\s<]+[^<.,:;"')\]\s])/gi;
 
 const renderTextWithLinks = (text) => {
     if (!text) return null;
 
-    const parts = text.split(new RegExp(urlExtractRegex.source, 'gi'));
+    const parts = text.split(urlExtractRegex);
+    let result = [];
 
-    return parts.map((part, i) => {
-        if (part.match(new RegExp(urlExtractRegex.source, 'i'))) {
+    parts.forEach((part, i) => {
+        if (part && part.match(urlExtractRegex)) {
             const href = part.startsWith('http') ? part : `https://${part}`;
-            return (
+            result.push(
                 <a
                     key={i}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: '#38bdf8', textDecoration: 'underline' }}
+                    style={{
+                        color: '#38bdf8',
+                        textDecoration: 'underline',
+                        wordBreak: 'break-all'
+                    }}
                 >
                     {part}
                 </a>
             );
+        } else if (part) {
+            const lines = part.split('\n');
+            lines.forEach((line, lineIndex) => {
+                if (line) {
+                    result.push(<span key={`${i}-${lineIndex}`}>{line}</span>);
+                }
+                if (lineIndex < lines.length - 1) {
+                    result.push(<br key={`${i}-br-${lineIndex}`} />);
+                }
+            });
         }
-        return part;
     });
+
+    return result;
 };
 
 // ==========================================
-// 🖼️ URL PREVIEW COMPONENT
+// 🖼️ URL PREVIEW COMPONENT - WhatsApp Style
 // ==========================================
 function LinkPreview({ url, style = {} }) {
     const [preview, setPreview] = useState(null);
     const [imgError, setImgError] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         if (!url) return;
+
         setImgError(false);
+        setIsLoading(true);
 
         let isMounted = true;
         let cleanUrl = url.trim();
@@ -117,20 +136,19 @@ function LinkPreview({ url, style = {} }) {
 
         const cleanHostname = hostname.replace('www.', '');
 
-        // Immediate structural fallback utilizing unavatar for a guaranteed clean icon
+        // Show loading state
         if (isMounted) {
             setPreview({
-                title: cleanHostname.toUpperCase(),
+                title: 'Loading preview...',
                 description: cleanUrl,
-                image: `https://unavatar.io/${cleanHostname}`,
+                image: null,
                 publisher: cleanHostname,
-                isFallback: true
+                isLoading: true
             });
         }
 
         const fetchPreview = async () => {
             let ytImage = null;
-            // Only try to parse video IDs for actual YouTube watch links, ignore channel links
             if (cleanUrl.includes('youtube.com/watch') || cleanUrl.includes('youtu.be/')) {
                 const ytIdMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
                 if (ytIdMatch && ytIdMatch[1]) {
@@ -139,40 +157,59 @@ function LinkPreview({ url, style = {} }) {
             }
 
             try {
-                const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(cleanUrl)}`);
+                // Using microlink.io with screenshot enabled
+                const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(cleanUrl)}&screenshot=true&meta=true`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data.status === 'success' && data.data) {
                         if (isMounted) {
-                            const extractedImage = data.data.image?.url;
-                            const extractedLogo = data.data.logo?.url;
+                            const screenshotUrl = data.data.screenshot?.url;
+                            const ogImage = data.data.image?.url;
+                            const logoUrl = data.data.logo?.url;
 
-                            // Hierarchy: 1. YT Video Thumb -> 2. Site OG Image -> 3. Microlink Logo -> 4. unavatar generic logo
-                            const finalImage = ytImage || extractedImage || extractedLogo || `https://unavatar.io/${cleanHostname}`;
+                            // Prefer screenshot for visual preview, then OG image, then logo
+                            const finalImage = ytImage || screenshotUrl || ogImage || logoUrl || null;
 
                             setPreview({
                                 title: data.data.title || cleanHostname.toUpperCase(),
-                                description: data.data.description || cleanUrl,
+                                description: data.data.description || data.data.og?.description || '',
                                 image: finalImage,
-                                publisher: data.data.publisher || cleanHostname,
-                                isFallback: !ytImage && !extractedImage // If we fell back to a logo, adjust the styling flag
+                                publisher: data.data.publisher || data.data.og?.site_name || cleanHostname,
+                                isLoading: false
                             });
+                            setIsLoading(false);
                         }
                         return;
                     }
                 }
             } catch (err) {
-                // Silently fall through to the manual YT fallback if network fails
+                console.log('Preview fetch error:', err);
             }
 
-            // Ultimate Fallback for YT videos if API completely fails
+            // Fallback for YouTube
             if (ytImage && isMounted) {
-                setPreview(prev => ({
-                    ...prev,
+                setPreview({
                     title: 'YouTube Video',
+                    description: 'Click to watch on YouTube',
                     image: ytImage,
-                    isFallback: false
-                }));
+                    publisher: 'YouTube',
+                    isLoading: false
+                });
+                setIsLoading(false);
+                return;
+            }
+
+            // Final fallback - show just the domain
+            if (isMounted) {
+                setPreview({
+                    title: cleanHostname.toUpperCase(),
+                    description: cleanUrl,
+                    image: `https://www.google.com/s2/favicons?domain=${cleanHostname}&sz=128`,
+                    publisher: cleanHostname,
+                    isLoading: false,
+                    isFallback: true
+                });
+                setIsLoading(false);
             }
         };
 
@@ -183,15 +220,83 @@ function LinkPreview({ url, style = {} }) {
 
     if (!preview) return null;
 
+    // Loading state
+    if (preview.isLoading) {
+        return (
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                borderRadius: 12,
+                padding: '12px 16px',
+                marginTop: 8,
+                gap: 12,
+                border: '1px solid rgba(255,255,255,0.05)',
+                ...style
+            }}>
+                <div style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 8,
+                    backgroundColor: 'rgba(255,255,255,0.05)',
+                    flexShrink: 0,
+                    animation: 'pulse 1.5s ease-in-out infinite'
+                }} />
+                <div style={{ flex: 1 }}>
+                    <div style={{
+                        height: 12,
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        borderRadius: 4,
+                        marginBottom: 8,
+                        width: '70%',
+                        animation: 'pulse 1.5s ease-in-out infinite'
+                    }} />
+                    <div style={{
+                        height: 10,
+                        backgroundColor: 'rgba(255,255,255,0.03)',
+                        borderRadius: 4,
+                        width: '40%',
+                        animation: 'pulse 1.5s ease-in-out infinite'
+                    }} />
+                </div>
+            </div>
+        );
+    }
+
+    const hasImage = preview.image && !imgError && !preview.isFallback;
+
     return (
-        <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block', marginTop: 10, ...style }}>
-            <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', maxWidth: 300 }}>
-                {preview.image && !imgError && (
+        <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                display: 'block',
+                marginTop: 8,
+                ...style
+            }}
+        >
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: 'rgba(255,255,255,0.04)',
+                borderRadius: 12,
+                overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.06)',
+                transition: 'background-color 0.2s ease',
+                cursor: 'pointer',
+                maxWidth: '100%'
+            }}>
+                {/* Image section - WhatsApp style */}
+                {hasImage && (
                     <div style={{
                         width: '100%',
-                        height: 140,
-                        backgroundColor: '#000',
+                        height: 160,
+                        backgroundColor: '#1a1a1a',
                         overflow: 'hidden',
+                        position: 'relative',
                         display: 'flex',
                         justifyContent: 'center',
                         alignItems: 'center'
@@ -201,27 +306,91 @@ function LinkPreview({ url, style = {} }) {
                             alt={preview.title || 'Link preview'}
                             referrerPolicy="no-referrer"
                             style={{
-                                width: preview.isFallback ? 'auto' : '100%',
-                                height: preview.isFallback ? '60%' : '100%',
-                                maxWidth: '100%',
-                                objectFit: preview.isFallback ? 'contain' : 'cover',
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
                                 display: 'block'
                             }}
                             onError={() => setImgError(true)}
+                            onLoad={() => setIsLoading(false)}
                         />
+                        {/* Gradient overlay for text readability */}
+                        <div style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: 60,
+                            background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)'
+                        }} />
                     </div>
                 )}
-                <div style={{ padding: '8px 10px' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#e9edef' }}>
+
+                {/* Content section - WhatsApp style */}
+                <div style={{
+                    padding: hasImage ? '12px 14px 14px 14px' : '14px 16px',
+                    backgroundColor: 'rgba(255,255,255,0.03)'
+                }}>
+                    {/* Favicon for no image */}
+                    {!hasImage && preview.image && (
+                        <div style={{ marginBottom: 6 }}>
+                            <img
+                                src={preview.image}
+                                alt=""
+                                style={{ width: 20, height: 20, borderRadius: 4 }}
+                                onError={(e) => e.target.style.display = 'none'}
+                            />
+                        </div>
+                    )}
+
+                    {/* Title */}
+                    <div style={{
+                        fontWeight: 600,
+                        fontSize: 14,
+                        marginBottom: 4,
+                        color: '#e9edef',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        lineHeight: 1.4
+                    }}>
                         {preview.title}
                     </div>
-                    {preview.description && (
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.4', wordBreak: 'break-all' }}>
+
+                    {/* Description */}
+                    {preview.description && preview.description !== preview.title && (
+                        <div style={{
+                            fontSize: 13,
+                            color: 'rgba(255,255,255,0.6)',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            lineHeight: 1.5,
+                            marginTop: 2,
+                            marginBottom: 6
+                        }}>
                             {preview.description}
                         </div>
                     )}
-                    <div style={{ fontSize: 10, color: '#38bdf8', marginTop: 4, textTransform: 'uppercase', fontWeight: 'bold' }}>
-                        {preview.publisher}
+
+                    {/* Publisher/domain - WhatsApp style */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginTop: 4
+                    }}>
+                        <span style={{
+                            fontSize: 11,
+                            color: 'rgba(255,255,255,0.4)',
+                            textTransform: 'uppercase',
+                            fontWeight: 500,
+                            letterSpacing: '0.3px'
+                        }}>
+                            {preview.publisher}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -393,7 +562,6 @@ function ChatApp({ user, onLogout }) {
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
 
-    // Track input to show preview before sending
     useEffect(() => {
         if (chatInput) {
             const match = chatInput.match(urlExtractRegex);
@@ -1452,7 +1620,8 @@ function ChatApp({ user, onLogout }) {
                                         if (isVoiceMessage) content = m.text.replace('[VOICE]', '');
                                         else if (isImageMessage) content = m.text.replace('[IMAGE]', '');
 
-                                        const match = !isVoiceMessage && !isImageMessage ? content.match(new RegExp(urlExtractRegex.source, 'i')) : null;
+                                        // Extract URL for preview
+                                        const match = !isVoiceMessage && !isImageMessage ? content.match(urlExtractRegex) : null;
                                         let firstUrl = match ? match[0] : null;
 
                                         return (
@@ -1534,6 +1703,17 @@ function ChatApp({ user, onLogout }) {
         </div>
     );
 }
+
+// Add CSS animations
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.3; }
+        100% { opacity: 1; }
+    }
+`;
+document.head.appendChild(styleSheet);
 
 // ==========================================
 // 🛡️ AUTHENTICATION WRAPPER
