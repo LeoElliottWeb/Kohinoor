@@ -94,11 +94,13 @@ const renderTextWithLinks = (text) => {
 // ==========================================
 // 🖼️ URL PREVIEW COMPONENT
 // ==========================================
-function LinkPreview({ url }) {
+function LinkPreview({ url, style = {} }) {
     const [preview, setPreview] = useState(null);
+    const [imgError, setImgError] = useState(false);
 
     useEffect(() => {
         if (!url) return;
+        setImgError(false);
 
         let isMounted = true;
         let cleanUrl = url.trim();
@@ -108,52 +110,69 @@ function LinkPreview({ url }) {
 
         let hostname = '';
         try {
-            hostname = new URL(cleanUrl).hostname.replace('www.', '');
+            hostname = new URL(cleanUrl).hostname;
         } catch (e) {
             hostname = 'link';
         }
 
-        // Set an immediate structural fallback so a preview card always displays instantly
+        const cleanHostname = hostname.replace('www.', '');
+
+        // Immediate structural fallback utilizing unavatar for a guaranteed clean icon
         if (isMounted) {
             setPreview({
-                title: hostname.toUpperCase(),
+                title: cleanHostname.toUpperCase(),
                 description: cleanUrl,
-                image: null,
-                publisher: hostname
+                image: `https://unavatar.io/${cleanHostname}`,
+                publisher: cleanHostname,
+                isFallback: true
             });
         }
 
         const fetchPreview = async () => {
-            try {
-                // If it's YouTube, build a clean fallback directly to avoid 400 errors completely
-                if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) {
-                    if (isMounted) {
-                        setPreview({
-                            title: 'YouTube Channel / Video',
-                            description: cleanUrl,
-                            image: null,
-                            publisher: 'youtube.com'
-                        });
-                    }
-                    return;
+            let ytImage = null;
+            // Only try to parse video IDs for actual YouTube watch links, ignore channel links
+            if (cleanUrl.includes('youtube.com/watch') || cleanUrl.includes('youtu.be/')) {
+                const ytIdMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+                if (ytIdMatch && ytIdMatch[1]) {
+                    ytImage = `https://img.youtube.com/vi/${ytIdMatch[1]}/hqdefault.jpg`;
                 }
+            }
 
+            try {
                 const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(cleanUrl)}`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data.status === 'success' && data.data) {
                         if (isMounted) {
+                            const extractedImage = data.data.image?.url;
+                            const extractedLogo = data.data.logo?.url;
+
+                            // Hierarchy: 1. YT Video Thumb -> 2. Site OG Image -> 3. Microlink Logo -> 4. unavatar generic logo
+                            const finalImage = ytImage || extractedImage || extractedLogo || `https://unavatar.io/${cleanHostname}`;
+
                             setPreview({
-                                title: data.data.title || hostname.toUpperCase(),
+                                title: data.data.title || cleanHostname.toUpperCase(),
                                 description: data.data.description || cleanUrl,
-                                image: data.data.image?.url || data.data.logo?.url,
-                                publisher: data.data.publisher || hostname
+                                image: finalImage,
+                                publisher: data.data.publisher || cleanHostname,
+                                isFallback: !ytImage && !extractedImage // If we fell back to a logo, adjust the styling flag
                             });
                         }
+                        return;
                     }
                 }
             } catch (err) {
-                // Keep the structural fallback if network requests fail
+                // Silently fall through to the manual YT fallback if network fails
+            }
+
+            // Ultimate Fallback for YT videos if API completely fails
+            if (ytImage && isMounted) {
+                setPreview(prev => ({
+                    ...prev,
+                    title: 'YouTube Video',
+                    image: ytImage,
+                    isFallback: false
+                }));
             }
         };
 
@@ -165,15 +184,32 @@ function LinkPreview({ url }) {
     if (!preview) return null;
 
     return (
-        <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block', marginTop: 10 }}>
+        <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block', marginTop: 10, ...style }}>
             <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', maxWidth: 300 }}>
-                {preview.image && (
-                    <img
-                        src={preview.image}
-                        alt={preview.title || 'Link preview'}
-                        style={{ width: '100%', maxHeight: 140, objectFit: 'cover', display: 'block', backgroundColor: '#111' }}
-                        onError={(e) => e.target.style.display = 'none'}
-                    />
+                {preview.image && !imgError && (
+                    <div style={{
+                        width: '100%',
+                        height: 140,
+                        backgroundColor: '#000',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                    }}>
+                        <img
+                            src={preview.image}
+                            alt={preview.title || 'Link preview'}
+                            referrerPolicy="no-referrer"
+                            style={{
+                                width: preview.isFallback ? 'auto' : '100%',
+                                height: preview.isFallback ? '60%' : '100%',
+                                maxWidth: '100%',
+                                objectFit: preview.isFallback ? 'contain' : 'cover',
+                                display: 'block'
+                            }}
+                            onError={() => setImgError(true)}
+                        />
+                    </div>
                 )}
                 <div style={{ padding: '8px 10px' }}>
                     <div style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#e9edef' }}>
@@ -257,6 +293,7 @@ function ChatApp({ user, onLogout }) {
     const [selectedContact, setSelectedContact] = useState(null);
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
+    const [previewUrl, setPreviewUrl] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
     const [isVonageCalling, setIsVonageCalling] = useState(false);
 
@@ -355,6 +392,20 @@ function ChatApp({ user, onLogout }) {
             supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
+
+    // Track input to show preview before sending
+    useEffect(() => {
+        if (chatInput) {
+            const match = chatInput.match(urlExtractRegex);
+            if (match && match[0]) {
+                setPreviewUrl(match[0]);
+            } else {
+                setPreviewUrl(null);
+            }
+        } else {
+            setPreviewUrl(null);
+        }
+    }, [chatInput]);
 
     const generatePrettyEmailHTML = (contactName, inviterName, inviterEmail) => {
         return `
@@ -1421,26 +1472,36 @@ function ChatApp({ user, onLogout }) {
                                     })}
                                 </div>
 
-                                <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                                     <button
                                         type="button"
                                         onClick={toggleRecording}
                                         title={isRecording ? "Stop Recording" : "Record Voice Message"}
-                                        style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                                        style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}
                                     >
                                         {isRecording ? '⏹' : '🎤'}
                                     </button>
-                                    <textarea
-                                        value={chatInput}
-                                        onChange={e => setChatInput(e.target.value)}
-                                        onKeyDown={handleKey}
-                                        onPaste={handlePaste}
-                                        placeholder={isRecording ? "Recording audio..." : "Message or paste image..."}
-                                        disabled={isRecording}
-                                        rows={1}
-                                        style={{ flexGrow: 1, padding: 12, backgroundColor: '#2a3942', border: 'none', borderRadius: 8, color: 'white', outline: 'none', resize: 'none' }}
-                                    />
-                                    <button type="submit" disabled={!chatInput.trim() && !isRecording} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>➤</button>
+
+                                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#2a3942', borderRadius: 8, overflow: 'hidden' }}>
+                                        {previewUrl && !isRecording && (
+                                            <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.2)', backgroundColor: '#1e293b' }}>
+                                                <div style={{ fontSize: 12, color: '#8696a0', marginBottom: 6, fontWeight: 'bold', textTransform: 'uppercase' }}>Link Preview</div>
+                                                <LinkPreview url={previewUrl} style={{ marginTop: 0 }} />
+                                            </div>
+                                        )}
+                                        <textarea
+                                            value={chatInput}
+                                            onChange={e => setChatInput(e.target.value)}
+                                            onKeyDown={handleKey}
+                                            onPaste={handlePaste}
+                                            placeholder={isRecording ? "Recording audio..." : "Message or paste image/link..."}
+                                            disabled={isRecording}
+                                            rows={1}
+                                            style={{ width: '100%', padding: 12, backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', boxSizing: 'border-box' }}
+                                        />
+                                    </div>
+
+                                    <button type="submit" disabled={!chatInput.trim() && !isRecording} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>➤</button>
                                 </form>
                             </>
                         ) : (
