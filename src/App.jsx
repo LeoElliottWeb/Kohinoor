@@ -108,6 +108,112 @@ const renderTextWithLinks = (text) => {
 };
 
 // ==========================================
+// 😊 EMOJI PICKER COMPONENT
+// ==========================================
+function EmojiPicker({ onSelectEmoji, onClose }) {
+    const emojiCategories = {
+        '😊': ['😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '🥰', '😘', '😗', '😙', '😚', '🙂', '🤗', '🤩', '🤔', '🤨', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯', '😪', '😫', '😴', '😌', '😛', '😜', '😝', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞', '😟', '😤', '😢', '😭', '😦', '😧', '😨', '😩', '🤯', '😬', '😰', '😱', '🥵', '🥶', '😳', '🤪', '😵', '😡', '😠', '🤬'],
+        '❤️': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️'],
+        '👍': ['👍', '👎', '👊', '✊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✌️', '🤟', '🤘', '👌', '🤌', '🤏', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤙', '💪', '🦾', '🖕', '✍️', '🙇', '💁', '🙋', '🧏', '🙆', '🙅', '🤷', '🤦', '🙎', '🙍', '💇', '💆', '🧖', '💅', '🤳', '💃', '🕺', '👯', '🕴️', '👨‍🦽', '👩‍🦽', '🧑‍🦽', '👨‍🦼', '👩‍🦼', '🧑‍🦼'],
+        '👋': ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦵', '🦿', '🦶', '👣', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '🫦'],
+        '🐱': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊'],
+        '🍕': ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🫒', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫘', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪'],
+        '🚗': ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🏍️', '🛵', '🚲', '🛴', '🛹', '🛼', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢'],
+        '💡': ['💡', '🔦', '🕯️', '🧯', '🪔', '🧨', '💣', '🧲', '🧰', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🔩', '⚙️', '🧱', '⛓️', '🧪', '🧫', '🧬', '🔬', '🔭', '📡', '💉', '🩸', '💊', '🩹', '🩺', '🧹', '🧺', '🧻', '🪣', '🧼', '🫧', '🪥', '🧽', '🧴', '🪞', '🪟', '🚰', '🪠', '🪤', '🪣', '🧯'],
+        '📱': ['📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '💽', '💾', '💿', '📀', '🧮', '🎥', '📽️', '📺', '📷', '📸', '📹', '📼', '🔍', '🔎', '🕯️', '💡', '🔦', '🏮', '🪔', '📔', '📕', '📖', '📗', '📘', '📙', '📚', '📓', '📒', '📃', '📜', '📄', '📰', '🗞️', '📑', '🔖', '📌', '📍', '✂️', '📐', '📏', '🧷', '📎', '🖇️', '📏', '📐', '✒️', '🖊️', '🖋️', '✏️', '🖍️', '🖌️', '🔏', '🔐', '🔒', '🔓']
+    };
+
+    const [selectedCategory, setSelectedCategory] = useState('😊');
+
+    const categories = Object.keys(emojiCategories);
+    const emojis = emojiCategories[selectedCategory] || [];
+
+    const handleEmojiClick = (emoji) => {
+        onSelectEmoji(emoji);
+        onClose();
+    };
+
+    return (
+        <div style={{
+            position: 'absolute',
+            bottom: '70px',
+            left: '10px',
+            backgroundColor: '#202c33',
+            borderRadius: '12px',
+            padding: '12px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            zIndex: 1000,
+            width: '320px',
+            maxHeight: '350px',
+            display: 'flex',
+            flexDirection: 'column'
+        }}>
+            {/* Category tabs */}
+            <div style={{
+                display: 'flex',
+                gap: '4px',
+                overflowX: 'auto',
+                paddingBottom: '10px',
+                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                marginBottom: '10px'
+            }}>
+                {categories.map(category => (
+                    <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        style={{
+                            background: selectedCategory === category ? '#2a3942' : 'transparent',
+                            border: 'none',
+                            color: '#e9edef',
+                            fontSize: '20px',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'background 0.2s',
+                            flexShrink: 0
+                        }}
+                    >
+                        {category}
+                    </button>
+                ))}
+            </div>
+
+            {/* Emojis grid */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(8, 1fr)',
+                gap: '2px',
+                overflowY: 'auto',
+                padding: '4px',
+                maxHeight: '220px'
+            }}>
+                {emojis.map((emoji, index) => (
+                    <button
+                        key={index}
+                        onClick={() => handleEmojiClick(emoji)}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            fontSize: '24px',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            transition: 'background 0.2s',
+                            color: '#e9edef'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#2a3942'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        {emoji}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ==========================================
 // 🖼️ URL PREVIEW COMPONENT - WhatsApp Style
 // ==========================================
 function LinkPreview({ url, style = {} }) {
@@ -465,6 +571,7 @@ function ChatApp({ user, onLogout }) {
     const [previewUrl, setPreviewUrl] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
     const [isVonageCalling, setIsVonageCalling] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
     // Voice message state
     const [isRecording, setIsRecording] = useState(false);
@@ -1362,6 +1469,19 @@ function ChatApp({ user, onLogout }) {
     };
 
     // ==========================================
+    // 😊 EMOJI HANDLER
+    // ==========================================
+    const handleEmojiSelect = (emoji) => {
+        setChatInput(prev => prev + emoji);
+        setShowEmojiPicker(false);
+        // Focus the textarea after adding emoji
+        const textarea = document.querySelector('textarea');
+        if (textarea) {
+            textarea.focus();
+        }
+    };
+
+    // ==========================================
     // 📝 SEND MESSAGE & IMAGE PASTE LOGIC
     // ==========================================
     const sendMsg = async (e) => {
@@ -1369,6 +1489,7 @@ function ChatApp({ user, onLogout }) {
         if (!chatInput.trim() || !selectedContact) return;
         const txt = chatInput;
         setChatInput('');
+        setShowEmojiPicker(false);
         const { data, error } = await supabase.from('messages').insert([
             { sender_email: userEmail, receiver_email: selectedContact, text: txt }
         ]).select();
@@ -1430,7 +1551,12 @@ function ChatApp({ user, onLogout }) {
 
     const showSidebar = !isMobile || !selectedContact;
     const showChat = !isMobile || !!selectedContact;
-    const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
+    const handleKey = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMsg(e);
+        }
+    };
 
     const safeEmail = userEmail?.toLowerCase() || '';
     const allKnown = [...members, ...savedContacts];
@@ -1641,7 +1767,32 @@ function ChatApp({ user, onLogout }) {
                                     })}
                                 </div>
 
-                                <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                                <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'flex-end', position: 'relative' }}>
+                                    {/* Emoji Picker Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                        title="Add Emoji"
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            border: '1px solid #8696a0',
+                                            borderRadius: '50%',
+                                            width: 40,
+                                            height: 40,
+                                            cursor: 'pointer',
+                                            color: '#8696a0',
+                                            fontSize: 18,
+                                            flexShrink: 0,
+                                            display: 'flex',
+                                            justifyContent: 'center',
+                                            alignItems: 'center',
+                                            marginBottom: 4
+                                        }}
+                                    >
+                                        😊
+                                    </button>
+
+                                    {/* Voice Recording Button */}
                                     <button
                                         type="button"
                                         onClick={toggleRecording}
@@ -1651,7 +1802,15 @@ function ChatApp({ user, onLogout }) {
                                         {isRecording ? '⏹' : '🎤'}
                                     </button>
 
-                                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#2a3942', borderRadius: 8, overflow: 'hidden' }}>
+                                    {/* Emoji Picker */}
+                                    {showEmojiPicker && (
+                                        <EmojiPicker
+                                            onSelectEmoji={handleEmojiSelect}
+                                            onClose={() => setShowEmojiPicker(false)}
+                                        />
+                                    )}
+
+                                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#2a3942', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
                                         {previewUrl && !isRecording && (
                                             <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.2)', backgroundColor: '#1e293b' }}>
                                                 <div style={{ fontSize: 12, color: '#8696a0', marginBottom: 6, fontWeight: 'bold', textTransform: 'uppercase' }}>Link Preview</div>
@@ -1666,7 +1825,7 @@ function ChatApp({ user, onLogout }) {
                                             placeholder={isRecording ? "Recording audio..." : "Message or paste image/link..."}
                                             disabled={isRecording}
                                             rows={1}
-                                            style={{ width: '100%', padding: 12, backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', boxSizing: 'border-box' }}
+                                            style={{ width: '100%', padding: 12, backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'Segoe UI, sans-serif' }}
                                         />
                                     </div>
 
