@@ -303,6 +303,14 @@ function ChatApp({ user, onLogout }) {
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [members, setMembers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
+
+    // Add refs to guarantee fresh data inside nested callbacks/timeouts
+    const onlineUsersRef = useRef([]);
+    useEffect(() => { onlineUsersRef.current = onlineUsers; }, [onlineUsers]);
+
+    const membersRef = useRef([]);
+    useEffect(() => { membersRef.current = members; }, [members]);
+
     const [isOnlineExpanded, setIsOnlineExpanded] = useState(true);
     const [isMembersExpanded, setIsMembersExpanded] = useState(true);
     const [isContactsExpanded, setIsContactsExpanded] = useState(true);
@@ -319,7 +327,7 @@ function ChatApp({ user, onLogout }) {
     const audioChunksRef = useRef([]);
     const selectedContactRef = useRef(selectedContact);
     const channelRef = useRef(null);
-    const autoJoinCallerRef = useRef(null); // Reference to track if we came from an SMS link
+    const autoJoinCallerRef = useRef(null);
 
     const [inVoiceCall, setInVoiceCall] = useState(false);
     const [activeCallEmails, setActiveCallEmails] = useState([]);
@@ -350,14 +358,13 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', h);
     }, []);
 
-    // ✨ URL INTERCEPTOR: Automatically open chat and trigger handshake ping if returning from an SMS link
+    // ✨ URL INTERCEPTOR
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const caller = params.get('call_from');
         if (caller && userEmail) {
             setSelectedContact(caller);
             autoJoinCallerRef.current = caller;
-            // Clean up the URL so it doesn't persist on refresh
             window.history.replaceState({}, document.title, "/");
         }
     }, [userEmail]);
@@ -390,12 +397,16 @@ function ChatApp({ user, onLogout }) {
     }, [incomingCall, isCallingOut]);
 
     useEffect(() => {
+        // FIXED: Reverted to only selecting email and name from auth so the query doesn't crash
         supabase.from('auth').select('email, name').then(({ data }) => { if (data) setMembers(data); });
+
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) try { setSavedContacts(JSON.parse(stored)); } catch (e) { }
+
         const pc = supabase.channel('public:auth').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auth' }, p => {
             setMembers(prev => prev.find(m => m.email === p.new.email) ? prev : [...prev, { name: p.new.name || p.new.email.split('@')[0], email: p.new.email }]);
         }).subscribe();
+
         return () => { supabase.removeChannel(pc); };
     }, []);
 
@@ -581,11 +592,10 @@ function ChatApp({ user, onLogout }) {
         setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
 
-    const initiateCall = async (email, isAuto = false) => {
-        if (!isAuto) {
-            if (Date.now() - lastActionRef.current < 2000) return;
-            lastActionRef.current = Date.now();
-        }
+    // ✨ DECOUPLED CORE FUNCTIONS ✨
+
+    // 1. Standalone function to handle the native WebRTC setup
+    const startWebRTCCall = async (email, isAuto = false) => {
         if (!channelRef.current) return;
         inCallRef.current = true;
         if (!isAuto) setIsCallingOut(true);
@@ -604,36 +614,57 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    const handleVonageMobileCall = async () => {
-        const phoneNumber = prompt("Enter the mobile number to call (including country code, e.g., 447...):");
-        if (!phoneNumber || !phoneNumber.trim()) return;
+    // 2. Standalone function to trigger the Vonage Edge function 
+    const triggerVonageCall = async (emailToCall) => {
+        let targetMobile = null;
 
-        const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
+        // Use the ref to ensure we don't have stale closures
+        const member = membersRef.current.find(m => m.email?.toLowerCase() === emailToCall.toLowerCase());
+        if (member && member.mobile) {
+            targetMobile = member.mobile;
+        }
+
+        if (!targetMobile) {
+            try {
+                const { data: profileData } = await supabase.from('profiles').select('mobile').eq('email', emailToCall).maybeSingle();
+                if (profileData?.mobile) targetMobile = profileData.mobile;
+            } catch (e) { }
+        }
+
+        if (!targetMobile) {
+            try {
+                const { data: authData } = await supabase.from('auth').select('mobile').eq('email', emailToCall).maybeSingle();
+                if (authData?.mobile) targetMobile = authData.mobile;
+            } catch (e) { }
+        }
+
+        if (!targetMobile) {
+            targetMobile = prompt(`Could not automatically find a mobile number for ${emailToCall}.\n\nEnter their mobile number to call (including country code, e.g., 447...):`);
+            if (!targetMobile || !targetMobile.trim()) {
+                return;
+            }
+        }
+
+        const cleanNumber = targetMobile.replace(/[^0-9]/g, '');
         if (!cleanNumber || cleanNumber.length < 5) {
-            alert("Please enter a valid phone number.");
+            alert("Please provide a valid phone number.");
             return;
         }
 
         setIsVonageCalling(true);
         try {
             const joinLink = `${window.location.origin}/?call_from=${encodeURIComponent(userEmail)}`;
-
             const { data, error } = await supabase.functions.invoke('vonage-call', {
-                body: {
-                    to: cleanNumber,
-                    callerEmail: userEmail,
-                    joinLink: joinLink
-                }
+                body: { to: cleanNumber, callerEmail: userEmail, joinLink: joinLink }
             });
 
-            if (error) {
-                console.error("Vonage edge function error:", error);
-                throw new Error(error.message);
-            }
+            if (error) throw new Error(error.message);
 
             alert(`Call alerting and SMS invite sent to ${cleanNumber}. They will join this chat window shortly.`);
-            if (!inVoiceCall) {
-                initiateCall(selectedContact);
+
+            // Start the room so we are waiting for them
+            if (!inCallRef.current) {
+                startWebRTCCall(emailToCall, true);
             }
         } catch (err) {
             console.error("Mobile call initiation failed:", err);
@@ -642,6 +673,32 @@ function ChatApp({ user, onLogout }) {
             setIsVonageCalling(false);
         }
     };
+
+    // 3. The main entry point for the standard "📹 Call" button
+    const initiateCall = async (email, isAuto = false) => {
+        if (!isAuto) {
+            if (Date.now() - lastActionRef.current < 2000) return;
+            lastActionRef.current = Date.now();
+
+            // Check fresh ref state to see if they are online
+            const isOnline = onlineUsersRef.current.some(u => u.email?.toLowerCase() === email.toLowerCase());
+
+            if (!isOnline) {
+                // User is offline: automatically fallback to Vonage
+                await triggerVonageCall(email);
+                return; // Stop here, WebRTC setup is handled inside triggerVonageCall
+            }
+        }
+
+        // User is online (or isAuto passed): trigger standard WebRTC
+        startWebRTCCall(email, isAuto);
+    };
+
+    // UI Handler for the explicit "Call Mobile" button
+    const handleVonageMobileCallUI = () => {
+        if (selectedContact) triggerVonageCall(selectedContact);
+    };
+
 
     const autoAcceptCall = async (call) => {
         try {
@@ -807,7 +864,7 @@ function ChatApp({ user, onLogout }) {
             if (payload.targetEmail !== userEmail || !inCallRef.current) return;
             payload.peers.forEach(peer => {
                 if (peer !== userEmail && !peersRef.current[peer]) {
-                    if (userEmail.toLowerCase() < peer.toLowerCase()) initiateCall(peer, true);
+                    if (userEmail.toLowerCase() < peer.toLowerCase()) startWebRTCCall(peer, true);
                 }
             });
         });
@@ -824,7 +881,7 @@ function ChatApp({ user, onLogout }) {
         ch.on('broadcast', { event: 'webrtc-request-offer' }, ({ payload }) => {
             if (payload.targetEmail === userEmail && inCallRef.current) {
                 // The mobile user arrived and missed the initial offer. Re-send it!
-                initiateCall(payload.sender, true);
+                startWebRTCCall(payload.sender, true);
             }
         });
 
@@ -1016,7 +1073,7 @@ function ChatApp({ user, onLogout }) {
                                         <b>{activeName}</b>
                                     </div>
                                     <div style={{ display: 'flex', gap: 10 }}>
-                                        <button onClick={handleVonageMobileCall} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                                        <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                                             {isVonageCalling ? '📞 Calling...' : '📞 Call Mobile'}
                                         </button>
 
@@ -1109,6 +1166,7 @@ export default function App() {
     const [user, setUser] = useState(null);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [mobile, setMobile] = useState(''); // Added mobile state
     const [loading, setLoading] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [error, setError] = useState('');
@@ -1123,8 +1181,22 @@ export default function App() {
     const auth = async (e, type) => {
         e.preventDefault();
         setError('');
-        if (!email || !password) { setError("Please fill in all fields"); return; }
-        if (type === 'signup' && password.length < 6) { setError("Password must be at least 6 characters long"); return; }
+
+        // Validation Checks
+        if (type === 'login' && (!email || !password)) {
+            setError("Please fill in all fields");
+            return;
+        }
+
+        if (type === 'signup' && (!email || !password || !mobile.trim())) {
+            setError("Please fill in all fields, including your mobile number");
+            return;
+        }
+
+        if (type === 'signup' && password.length < 6) {
+            setError("Password must be at least 6 characters long");
+            return;
+        }
 
         setLoading(true);
         try {
@@ -1133,11 +1205,21 @@ export default function App() {
                 if (error) throw new Error(error.message.includes('Invalid login credentials') ? "Invalid email or password. Please try again." : error.message);
                 if (data?.user) setUser(data.user);
             } else {
-                const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin, data: { name: email.split('@')[0] } } });
+                const { data, error } = await supabase.auth.signUp({
+                    email: email.trim(),
+                    password,
+                    options: {
+                        emailRedirectTo: window.location.origin,
+                        data: {
+                            name: email.split('@')[0],
+                            mobile: mobile.trim() // Save mobile in metadata
+                        }
+                    }
+                });
                 if (error) throw new Error(error.message.includes('User already registered') ? "This email is already registered. Please log in instead." : error.message);
                 if (data?.user) {
                     if (data.session) setUser(data.user);
-                    else { setShowConfirm(true); setEmail(''); setPassword(''); }
+                    else { setShowConfirm(true); setEmail(''); setPassword(''); setMobile(''); }
                 }
             }
         } catch (err) { setError(err.message); } finally { setLoading(false); }
@@ -1154,11 +1236,14 @@ export default function App() {
                     <div>
                         <h3>✅ Check your email</h3>
                         <p style={{ color: '#8696a0', marginBottom: 20 }}>We've sent you a confirmation link.</p>
-                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
+                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
                     </div>
                 ) : (
                     <form onSubmit={e => e.preventDefault()}>
                         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        {isSignupMode && (
+                            <input type="tel" placeholder="Mobile Number (Mandatory)" value={mobile} onChange={e => setMobile(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} required />
+                        )}
                         <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
                         {!isSignupMode ? (
                             <>
