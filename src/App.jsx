@@ -604,10 +604,11 @@ function ChatApp({ user, onLogout }) {
 
     // ✨ OPTION 2 INTEGRATION: Mobile to Browser Bridge Trigger
     const handleVonageMobileCall = async () => {
-        const phoneNumber = prompt("Enter the mobile number to call (including country code, e.g., 447... or +447...):");
+        const phoneNumber = prompt("Enter the mobile number to call (including country code, e.g., 447...):");
         if (!phoneNumber || !phoneNumber.trim()) return;
 
-        const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '');
+        // FIX: Remove all non-numeric characters. Vonage SMS API requires pure numbers without '+'
+        const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
         if (!cleanNumber || cleanNumber.length < 5) {
             alert("Please enter a valid phone number.");
             return;
@@ -615,10 +616,14 @@ function ChatApp({ user, onLogout }) {
 
         setIsVonageCalling(true);
         try {
+            // FIX: Generate the dynamic link so the edge function can include it in the SMS payload
+            const joinLink = `${window.location.origin}/?call_from=${encodeURIComponent(userEmail)}`;
+
             const { data, error } = await supabase.functions.invoke('vonage-call', {
                 body: {
                     to: cleanNumber,
-                    callerEmail: userEmail
+                    callerEmail: userEmail,
+                    joinLink: joinLink
                 }
             });
 
