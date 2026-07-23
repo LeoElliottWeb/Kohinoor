@@ -82,11 +82,7 @@ const renderTextWithLinks = (text) => {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                        color: '#38bdf8',
-                        textDecoration: 'underline',
-                        wordBreak: 'break-all'
-                    }}
+                    style={{ color: '#38bdf8', textDecoration: 'underline', wordBreak: 'break-all' }}
                 >
                     {part}
                 </a>
@@ -94,12 +90,8 @@ const renderTextWithLinks = (text) => {
         } else if (part) {
             const lines = part.split('\n');
             lines.forEach((line, lineIndex) => {
-                if (line) {
-                    result.push(<span key={`${i}-${lineIndex}`}>{line}</span>);
-                }
-                if (lineIndex < lines.length - 1) {
-                    result.push(<br key={`${i}-br-${lineIndex}`} />);
-                }
+                if (line) result.push(<span key={`${i}-${lineIndex}`}>{line}</span>);
+                if (lineIndex < lines.length - 1) result.push(<br key={`${i}-br-${lineIndex}`} />);
             });
         }
     });
@@ -124,7 +116,6 @@ function EmojiPicker({ onSelectEmoji, onClose }) {
     };
 
     const [selectedCategory, setSelectedCategory] = useState('😊');
-
     const categories = Object.keys(emojiCategories);
     const emojis = emojiCategories[selectedCategory] || [];
 
@@ -134,77 +125,17 @@ function EmojiPicker({ onSelectEmoji, onClose }) {
     };
 
     return (
-        <div style={{
-            position: 'absolute',
-            bottom: '70px',
-            left: '10px',
-            backgroundColor: '#202c33',
-            borderRadius: '12px',
-            padding: '12px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            zIndex: 1000,
-            width: '320px',
-            maxHeight: '350px',
-            display: 'flex',
-            flexDirection: 'column'
-        }}>
-            {/* Category tabs */}
-            <div style={{
-                display: 'flex',
-                gap: '4px',
-                overflowX: 'auto',
-                paddingBottom: '10px',
-                borderBottom: '1px solid rgba(255,255,255,0.1)',
-                marginBottom: '10px'
-            }}>
+        <div style={{ position: 'absolute', bottom: '70px', left: '10px', backgroundColor: '#202c33', borderRadius: '12px', padding: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.1)', zIndex: 1000, width: '320px', maxHeight: '350px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '10px' }}>
                 {categories.map(category => (
-                    <button
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
-                        style={{
-                            background: selectedCategory === category ? '#2a3942' : 'transparent',
-                            border: 'none',
-                            color: '#e9edef',
-                            fontSize: '20px',
-                            padding: '4px 8px',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            transition: 'background 0.2s',
-                            flexShrink: 0
-                        }}
-                    >
+                    <button key={category} onClick={() => setSelectedCategory(category)} style={{ background: selectedCategory === category ? '#2a3942' : 'transparent', border: 'none', color: '#e9edef', fontSize: '20px', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}>
                         {category}
                     </button>
                 ))}
             </div>
-
-            {/* Emojis grid */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(8, 1fr)',
-                gap: '2px',
-                overflowY: 'auto',
-                padding: '4px',
-                maxHeight: '220px'
-            }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '2px', overflowY: 'auto', padding: '4px', maxHeight: '220px' }}>
                 {emojis.map((emoji, index) => (
-                    <button
-                        key={index}
-                        onClick={() => handleEmojiClick(emoji)}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            fontSize: '24px',
-                            cursor: 'pointer',
-                            padding: '4px',
-                            borderRadius: '4px',
-                            transition: 'background 0.2s',
-                            color: '#e9edef'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#2a3942'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
+                    <button key={index} onClick={() => handleEmojiClick(emoji)} style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '4px', borderRadius: '4px', transition: 'background 0.2s', color: '#e9edef' }} onMouseEnter={(e) => e.currentTarget.style.background = '#2a3942'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                         {emoji}
                     </button>
                 ))}
@@ -214,7 +145,7 @@ function EmojiPicker({ onSelectEmoji, onClose }) {
 }
 
 // ==========================================
-// 🖼️ URL PREVIEW COMPONENT - WhatsApp Style
+// 🖼️ URL PREVIEW COMPONENT 
 // ==========================================
 function LinkPreview({ url, style = {} }) {
     const [preview, setPreview] = useState(null);
@@ -223,47 +154,28 @@ function LinkPreview({ url, style = {} }) {
 
     useEffect(() => {
         if (!url) return;
-
         setImgError(false);
         setIsLoading(true);
-
         let isMounted = true;
         let cleanUrl = url.trim();
-        if (!cleanUrl.startsWith('http')) {
-            cleanUrl = 'https://' + cleanUrl;
-        }
+        if (!cleanUrl.startsWith('http')) cleanUrl = 'https://' + cleanUrl;
 
         let hostname = '';
-        try {
-            hostname = new URL(cleanUrl).hostname;
-        } catch (e) {
-            hostname = 'link';
-        }
-
+        try { hostname = new URL(cleanUrl).hostname; } catch (e) { hostname = 'link'; }
         const cleanHostname = hostname.replace('www.', '');
 
-        // Show loading state
         if (isMounted) {
-            setPreview({
-                title: 'Loading preview...',
-                description: cleanUrl,
-                image: null,
-                publisher: cleanHostname,
-                isLoading: true
-            });
+            setPreview({ title: 'Loading preview...', description: cleanUrl, image: null, publisher: cleanHostname, isLoading: true });
         }
 
         const fetchPreview = async () => {
             let ytImage = null;
             if (cleanUrl.includes('youtube.com/watch') || cleanUrl.includes('youtu.be/')) {
                 const ytIdMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
-                if (ytIdMatch && ytIdMatch[1]) {
-                    ytImage = `https://img.youtube.com/vi/${ytIdMatch[1]}/hqdefault.jpg`;
-                }
+                if (ytIdMatch && ytIdMatch[1]) ytImage = `https://img.youtube.com/vi/${ytIdMatch[1]}/hqdefault.jpg`;
             }
 
             try {
-                // Using microlink.io with screenshot enabled
                 const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(cleanUrl)}&screenshot=true&meta=true`);
                 if (res.ok) {
                     const data = await res.json();
@@ -272,98 +184,39 @@ function LinkPreview({ url, style = {} }) {
                             const screenshotUrl = data.data.screenshot?.url;
                             const ogImage = data.data.image?.url;
                             const logoUrl = data.data.logo?.url;
-
-                            // Prefer screenshot for visual preview, then OG image, then logo
                             const finalImage = ytImage || screenshotUrl || ogImage || logoUrl || null;
-
-                            setPreview({
-                                title: data.data.title || cleanHostname.toUpperCase(),
-                                description: data.data.description || data.data.og?.description || '',
-                                image: finalImage,
-                                publisher: data.data.publisher || data.data.og?.site_name || cleanHostname,
-                                isLoading: false
-                            });
+                            setPreview({ title: data.data.title || cleanHostname.toUpperCase(), description: data.data.description || data.data.og?.description || '', image: finalImage, publisher: data.data.publisher || data.data.og?.site_name || cleanHostname, isLoading: false });
                             setIsLoading(false);
                         }
                         return;
                     }
                 }
-            } catch (err) {
-                console.log('Preview fetch error:', err);
-            }
+            } catch (err) { console.log('Preview fetch error:', err); }
 
-            // Fallback for YouTube
             if (ytImage && isMounted) {
-                setPreview({
-                    title: 'YouTube Video',
-                    description: 'Click to watch on YouTube',
-                    image: ytImage,
-                    publisher: 'YouTube',
-                    isLoading: false
-                });
+                setPreview({ title: 'YouTube Video', description: 'Click to watch on YouTube', image: ytImage, publisher: 'YouTube', isLoading: false });
                 setIsLoading(false);
                 return;
             }
 
-            // Final fallback - show just the domain
             if (isMounted) {
-                setPreview({
-                    title: cleanHostname.toUpperCase(),
-                    description: cleanUrl,
-                    image: `https://www.google.com/s2/favicons?domain=${cleanHostname}&sz=128`,
-                    publisher: cleanHostname,
-                    isLoading: false,
-                    isFallback: true
-                });
+                setPreview({ title: cleanHostname.toUpperCase(), description: cleanUrl, image: `https://www.google.com/s2/favicons?domain=${cleanHostname}&sz=128`, publisher: cleanHostname, isLoading: false, isFallback: true });
                 setIsLoading(false);
             }
         };
 
         fetchPreview();
-
         return () => { isMounted = false; };
     }, [url]);
 
     if (!preview) return null;
-
-    // Loading state
     if (preview.isLoading) {
         return (
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'rgba(0,0,0,0.2)',
-                borderRadius: 12,
-                padding: '12px 16px',
-                marginTop: 8,
-                gap: 12,
-                border: '1px solid rgba(255,255,255,0.05)',
-                ...style
-            }}>
-                <div style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 8,
-                    backgroundColor: 'rgba(255,255,255,0.05)',
-                    flexShrink: 0,
-                    animation: 'pulse 1.5s ease-in-out infinite'
-                }} />
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '12px 16px', marginTop: 8, gap: 12, border: '1px solid rgba(255,255,255,0.05)', ...style }}>
+                <div style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)', flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }} />
                 <div style={{ flex: 1 }}>
-                    <div style={{
-                        height: 12,
-                        backgroundColor: 'rgba(255,255,255,0.05)',
-                        borderRadius: 4,
-                        marginBottom: 8,
-                        width: '70%',
-                        animation: 'pulse 1.5s ease-in-out infinite'
-                    }} />
-                    <div style={{
-                        height: 10,
-                        backgroundColor: 'rgba(255,255,255,0.03)',
-                        borderRadius: 4,
-                        width: '40%',
-                        animation: 'pulse 1.5s ease-in-out infinite'
-                    }} />
+                    <div style={{ height: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 8, width: '70%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                    <div style={{ height: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 4, width: '40%', animation: 'pulse 1.5s ease-in-out infinite' }} />
                 </div>
             </div>
         );
@@ -372,131 +225,22 @@ function LinkPreview({ url, style = {} }) {
     const hasImage = preview.image && !imgError && !preview.isFallback;
 
     return (
-        <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-                textDecoration: 'none',
-                color: 'inherit',
-                display: 'block',
-                marginTop: 8,
-                ...style
-            }}
-        >
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                backgroundColor: 'rgba(255,255,255,0.04)',
-                borderRadius: 12,
-                overflow: 'hidden',
-                border: '1px solid rgba(255,255,255,0.06)',
-                transition: 'background-color 0.2s ease',
-                cursor: 'pointer',
-                maxWidth: '100%'
-            }}>
-                {/* Image section - WhatsApp style */}
+        <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block', marginTop: 8, ...style }}>
+            <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)', transition: 'background-color 0.2s ease', cursor: 'pointer', maxWidth: '100%' }}>
                 {hasImage && (
-                    <div style={{
-                        width: '100%',
-                        height: 160,
-                        backgroundColor: '#1a1a1a',
-                        overflow: 'hidden',
-                        position: 'relative',
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center'
-                    }}>
-                        <img
-                            src={preview.image}
-                            alt={preview.title || 'Link preview'}
-                            referrerPolicy="no-referrer"
-                            style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                                display: 'block'
-                            }}
-                            onError={() => setImgError(true)}
-                            onLoad={() => setIsLoading(false)}
-                        />
-                        {/* Gradient overlay for text readability */}
-                        <div style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            height: 60,
-                            background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)'
-                        }} />
+                    <div style={{ width: '100%', height: 160, backgroundColor: '#1a1a1a', overflow: 'hidden', position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <img src={preview.image} alt={preview.title || 'Link preview'} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={() => setImgError(true)} onLoad={() => setIsLoading(false)} />
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }} />
                     </div>
                 )}
-
-                {/* Content section - WhatsApp style */}
-                <div style={{
-                    padding: hasImage ? '12px 14px 14px 14px' : '14px 16px',
-                    backgroundColor: 'rgba(255,255,255,0.03)'
-                }}>
-                    {/* Favicon for no image */}
-                    {!hasImage && preview.image && (
-                        <div style={{ marginBottom: 6 }}>
-                            <img
-                                src={preview.image}
-                                alt=""
-                                style={{ width: 20, height: 20, borderRadius: 4 }}
-                                onError={(e) => e.target.style.display = 'none'}
-                            />
-                        </div>
-                    )}
-
-                    {/* Title */}
-                    <div style={{
-                        fontWeight: 600,
-                        fontSize: 14,
-                        marginBottom: 4,
-                        color: '#e9edef',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        lineHeight: 1.4
-                    }}>
-                        {preview.title}
-                    </div>
-
-                    {/* Description */}
+                <div style={{ padding: hasImage ? '12px 14px 14px 14px' : '14px 16px', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                    {!hasImage && preview.image && <div style={{ marginBottom: 6 }}><img src={preview.image} alt="" style={{ width: 20, height: 20, borderRadius: 4 }} onError={(e) => e.target.style.display = 'none'} /></div>}
+                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: '#e9edef', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }}>{preview.title}</div>
                     {preview.description && preview.description !== preview.title && (
-                        <div style={{
-                            fontSize: 13,
-                            color: 'rgba(255,255,255,0.6)',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            lineHeight: 1.5,
-                            marginTop: 2,
-                            marginBottom: 6
-                        }}>
-                            {preview.description}
-                        </div>
+                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.5, marginTop: 2, marginBottom: 6 }}>{preview.description}</div>
                     )}
-
-                    {/* Publisher/domain - WhatsApp style */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        marginTop: 4
-                    }}>
-                        <span style={{
-                            fontSize: 11,
-                            color: 'rgba(255,255,255,0.4)',
-                            textTransform: 'uppercase',
-                            fontWeight: 500,
-                            letterSpacing: '0.3px'
-                        }}>
-                            {preview.publisher}
-                        </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.3px' }}>{preview.publisher}</span>
                     </div>
                 </div>
             </div>
@@ -509,7 +253,6 @@ function LinkPreview({ url, style = {} }) {
 // ==========================================
 function LocalVideo({ stream }) {
     const videoRef = useRef(null);
-
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
@@ -518,7 +261,6 @@ function LocalVideo({ stream }) {
         videoEl.play().catch(() => { });
         return () => { if (videoEl) videoEl.srcObject = null; };
     }, [stream]);
-
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
             <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
@@ -532,7 +274,6 @@ function LocalVideo({ stream }) {
 // ==========================================
 function RemoteVideo({ stream, email, allKnownUsers }) {
     const videoRef = useRef(null);
-
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
@@ -573,11 +314,9 @@ function ChatApp({ user, onLogout }) {
     const [isVonageCalling, setIsVonageCalling] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-    // Voice message state
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
-
     const selectedContactRef = useRef(selectedContact);
     const channelRef = useRef(null);
 
@@ -587,7 +326,6 @@ function ChatApp({ user, onLogout }) {
     const incomingCallRef = useRef(null);
     const [isCallingOut, setIsCallingOut] = useState(false);
 
-    // Media Controls State
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
@@ -611,6 +349,17 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', h);
     }, []);
 
+    // ✨ URL INTERCEPTOR: Automatically open chat if returning from an SMS link
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const caller = params.get('call_from');
+        if (caller && userEmail) {
+            setSelectedContact(caller);
+            // Clean up the URL so it doesn't persist on refresh
+            window.history.replaceState({}, document.title, "/");
+        }
+    }, [userEmail]);
+
     const METERED_USERNAME = "5e5e334296060e35c8d16fa0";
     const METERED_CREDENTIAL = "QB1S/xQpZ7Bq3llP";
 
@@ -618,16 +367,7 @@ function ChatApp({ user, onLogout }) {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            {
-                urls: [
-                    'turn:standard.relay.metered.ca:80',
-                    'turn:standard.relay.metered.ca:443',
-                    'turn:standard.relay.metered.ca:80?transport=tcp',
-                    'turn:standard.relay.metered.ca:443?transport=tcp'
-                ],
-                username: METERED_USERNAME,
-                credential: METERED_CREDENTIAL
-            }
+            { urls: ['turn:standard.relay.metered.ca:80', 'turn:standard.relay.metered.ca:443', 'turn:standard.relay.metered.ca:80?transport=tcp', 'turn:standard.relay.metered.ca:443?transport=tcp'], username: METERED_USERNAME, credential: METERED_CREDENTIAL }
         ],
         iceCandidatePoolSize: 10
     };
@@ -651,10 +391,9 @@ function ChatApp({ user, onLogout }) {
         supabase.from('auth').select('email, name').then(({ data }) => { if (data) setMembers(data); });
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) try { setSavedContacts(JSON.parse(stored)); } catch (e) { }
-        const pc = supabase.channel('public:auth')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auth' }, p => {
-                setMembers(prev => prev.find(m => m.email === p.new.email) ? prev : [...prev, { name: p.new.name || p.new.email.split('@')[0], email: p.new.email }]);
-            }).subscribe();
+        const pc = supabase.channel('public:auth').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auth' }, p => {
+            setMembers(prev => prev.find(m => m.email === p.new.email) ? prev : [...prev, { name: p.new.name || p.new.email.split('@')[0], email: p.new.email }]);
+        }).subscribe();
         return () => { supabase.removeChannel(pc); };
     }, []);
 
@@ -672,122 +411,27 @@ function ChatApp({ user, onLogout }) {
     useEffect(() => {
         if (chatInput) {
             const match = chatInput.match(urlExtractRegex);
-            if (match && match[0]) {
-                setPreviewUrl(match[0]);
-            } else {
-                setPreviewUrl(null);
-            }
-        } else {
-            setPreviewUrl(null);
-        }
+            setPreviewUrl((match && match[0]) ? match[0] : null);
+        } else setPreviewUrl(null);
     }, [chatInput]);
 
     const generatePrettyEmailHTML = (contactName, inviterName, inviterEmail) => {
         return `
             <!DOCTYPE html>
             <html>
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Invitation to TotalRecall</title>
-                <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; }
-                    .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); overflow: hidden; }
-                    .header { background: linear-gradient(135deg, #00a884 0%, #008f72 100%); padding: 40px 30px; text-align: center; }
-                    .header h1 { color: #ffffff; font-size: 32px; font-weight: 700; margin: 0; letter-spacing: -0.5px; }
-                    .header p { color: rgba(255, 255, 255, 0.9); font-size: 16px; margin: 8px 0 0 0; }
-                    .content { padding: 40px 30px; color: #1e293b; }
-                    .greeting { font-size: 20px; font-weight: 600; margin: 0 0 12px 0; color: #0f172a; }
-                    .message { font-size: 16px; line-height: 1.7; color: #334155; margin: 0 0 24px 0; }
-                    .inviter-badge { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin: 24px 0; }
-                    .inviter-badge strong { color: #00a884; font-size: 18px; }
-                    .inviter-badge .email { color: #64748b; font-size: 14px; margin-top: 4px; }
-                    .cta-button { display: inline-block; background: linear-gradient(135deg, #00a884 0%, #008f72 100%); color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 50px; font-weight: 600; font-size: 18px; margin: 8px 0 0 0; box-shadow: 0 4px 12px rgba(0, 168, 132, 0.3); transition: transform 0.2s ease, box-shadow 0.2s ease; }
-                    .cta-button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4); }
-                    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
-                    .feature-item { background-color: #f8fafc; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #e2e8f0; }
-                    .feature-item .icon { font-size: 28px; display: block; margin-bottom: 8px; }
-                    .feature-item .label { font-size: 14px; font-weight: 500; color: #0f172a; }
-                    .divider { height: 1px; background: #e2e8f0; margin: 24px 0; }
-                    .footer { text-align: center; padding: 0 30px 30px 30px; color: #94a3b8; font-size: 14px; }
-                    .footer a { color: #00a884; text-decoration: none; }
-                    .footer a:hover { text-decoration: underline; }
-                    @media (max-width: 480px) {
-                        .container { margin: 16px; border-radius: 12px; }
-                        .content { padding: 24px 20px; }
-                        .header { padding: 30px 20px; }
-                        .features { grid-template-columns: 1fr; }
-                        .cta-button { width: 100%; text-align: center; padding: 16px 20px; box-sizing: border-box; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>📱 TotalRecall</h1>
-                        <p>Connect, Chat &amp; Video Call</p>
+            <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+            <body style="font-family: sans-serif; background-color: #f4f6f8; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                    <div style="background: #00a884; padding: 30px; text-align: center; color: white;">
+                        <h1 style="margin:0;">📱 TotalRecall</h1>
+                        <p>Connect, Chat & Video Call</p>
                     </div>
-                    <div class="content">
-                        <p class="greeting">Hello ${contactName || 'there'}! 👋</p>
-                        <p class="message">
-                            <strong style="color: #00a884;">${inviterName}</strong> has added you as a contact on 
-                            <strong>TotalRecall</strong> and would love to connect with you!
-                        </p>
-
-                        <div class="inviter-badge">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #00a884 0%, #008f72 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px; flex-shrink: 0;">
-                                    ${inviterName.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                    <div><strong>${inviterName}</strong></div>
-                                    <div class="email">${inviterEmail}</div>
-                                </div>
-                            </div>
+                    <div style="padding: 30px;">
+                        <h3>Hello ${contactName || 'there'}! 👋</h3>
+                        <p><strong>${inviterName}</strong> (${inviterEmail}) has invited you to connect on TotalRecall.</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="https://totalrecall.network/" style="background: #00a884; color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">Join Now</a>
                         </div>
-
-                        <p class="message" style="margin-top: 24px;">
-                            TotalRecall is a secure messaging and video calling platform where you can stay connected with friends, family, and colleagues.
-                        </p>
-
-                        <div class="features">
-                            <div class="feature-item">
-                                <span class="icon">💬</span>
-                                <span class="label">Instant Messaging</span>
-                            </div>
-                            <div class="feature-item">
-                                <span class="icon">📹</span>
-                                <span class="label">Video Calls</span>
-                            </div>
-                            <div class="feature-item">
-                                <span class="icon">👥</span>
-                                <span class="label">Group Chats</span>
-                            </div>
-                            <div class="feature-item">
-                                <span class="icon">🔒</span>
-                                <span class="label">Secure &amp; Private</span>
-                            </div>
-                        </div>
-
-                        <div style="text-align: center;">
-                            <a href="${window.location.origin}" class="cta-button">🚀 Join Now</a>
-                        </div>
-
-                        <div class="divider"></div>
-
-                        <p style="text-align: center; color: #64748b; font-size: 15px; margin: 0;">
-                            Already have an account? 
-                            <a href="${window.location.origin}" style="color: #00a884; font-weight: 500; text-decoration: none;">Log in here</a>
-                        </p>
-                    </div>
-                    <div class="footer">
-                        <p style="margin: 0 0 8px 0;">
-                            © ${new Date().getFullYear()} TotalRecall. All rights reserved.
-                        </p>
-                        <p style="margin: 0; font-size: 13px;">
-                            This invitation was sent by ${inviterName}. 
-                            <br>If you didn't expect this email, you can safely ignore it.
-                        </p>
                     </div>
                 </div>
             </body>
@@ -798,7 +442,6 @@ function ChatApp({ user, onLogout }) {
     const handleImportContacts = async () => {
         if (isImporting) return;
         setIsImporting(true);
-
         try {
             const supported = ('contacts' in navigator && 'ContactsManager' in window);
             let contactsToProcess = [];
@@ -806,60 +449,22 @@ function ChatApp({ user, onLogout }) {
             if (supported) {
                 try {
                     const contacts = await navigator.contacts.select(['name', 'email'], { multiple: true });
-                    contactsToProcess = contacts
-                        .filter(c => c.email && c.email.length > 0)
-                        .map(c => ({
-                            name: c.name?.[0] || c.email[0].split('@')[0],
-                            email: c.email[0]
-                        }));
-                } catch (err) {
-                    console.error("Contact selection failed", err);
-                    alert("Contact selection was cancelled or failed.");
-                    setIsImporting(false);
-                    return;
-                }
+                    contactsToProcess = contacts.filter(c => c.email && c.email.length > 0).map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
+                } catch (err) { alert("Contact selection was cancelled."); setIsImporting(false); return; }
             } else {
                 const emailInput = prompt("Enter an email address to send an invite manually:");
-                if (emailInput && emailInput.trim()) {
-                    const targetEmail = emailInput.trim();
-                    if (!targetEmail.includes('@') || !targetEmail.includes('.')) {
-                        alert("Please enter a valid email address.");
-                        setIsImporting(false);
-                        return;
-                    }
-                    contactsToProcess = [{
-                        name: targetEmail.split('@')[0],
-                        email: targetEmail
-                    }];
-                } else {
-                    setIsImporting(false);
-                    return;
-                }
+                if (emailInput && emailInput.trim().includes('@')) {
+                    contactsToProcess = [{ name: emailInput.split('@')[0], email: emailInput.trim() }];
+                } else { setIsImporting(false); return; }
             }
 
-            if (contactsToProcess.length === 0) {
-                alert("No valid contacts to add.");
-                setIsImporting(false);
-                return;
-            }
-
+            if (contactsToProcess.length === 0) { setIsImporting(false); return; }
             const existingEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
-
-            const contactsToAdd = [];
-            const contactsAlreadyExist = [];
+            const contactsToAdd = [], contactsAlreadyExist = [];
 
             contactsToProcess.forEach(contact => {
-                const emailLower = contact.email.trim().toLowerCase();
-                const contactObj = {
-                    name: contact.name || contact.email.split('@')[0],
-                    email: contact.email.trim()
-                };
-
-                if (existingEmails.has(emailLower)) {
-                    contactsAlreadyExist.push(contactObj);
-                } else {
-                    contactsToAdd.push(contactObj);
-                }
+                if (existingEmails.has(contact.email.trim().toLowerCase())) contactsAlreadyExist.push(contact);
+                else contactsToAdd.push(contact);
             });
 
             if (contactsToAdd.length > 0) {
@@ -871,144 +476,67 @@ function ChatApp({ user, onLogout }) {
             }
 
             const allContactsToEmail = [...contactsToAdd, ...contactsAlreadyExist];
-
             if (allContactsToEmail.length > 0) {
                 let sentCount = 0;
-                let failedCount = 0;
-
                 for (const contact of allContactsToEmail) {
                     try {
-                        const prettyHTML = generatePrettyEmailHTML(
-                            contact.name,
-                            displayName,
-                            userEmail
-                        );
-
-                        const { data, error } = await supabase.functions.invoke('send-email', {
-                            body: {
-                                to: contact.email,
-                                subject: `📱 ${displayName} wants to connect with you on TotalRecall!`,
-                                html: prettyHTML
-                            }
+                        const { error } = await supabase.functions.invoke('send-email', {
+                            body: { to: contact.email, subject: `📱 ${displayName} wants to connect on TotalRecall!`, html: generatePrettyEmailHTML(contact.name, displayName, userEmail) }
                         });
-
-                        if (error) {
-                            console.error(`Failed to send invite to ${contact.email} via Edge Function:`, error);
-                            failedCount++;
-                        } else {
-                            sentCount++;
-                        }
-                    } catch (error) {
-                        console.error(`Error invoking edge function for ${contact.email}:`, error);
-                        failedCount++;
-                    }
+                        if (!error) sentCount++;
+                    } catch (error) { console.error(error); }
                 }
-
-                let message = `✅ Added ${contactsToAdd.length} new contact(s)\n`;
-                message += `📧 Sent ${sentCount} beautiful invitation email(s)\n`;
-                if (failedCount > 0) {
-                    message += `❌ Failed to send ${failedCount} email(s)`;
-                }
-                alert(message);
-            } else {
-                alert("All contacts are already in your list.");
-            }
-        } catch (error) {
-            console.error("Error importing contacts:", error);
-            alert("An error occurred while importing contacts.");
-        } finally {
-            setIsImporting(false);
-        }
+                alert(`Added ${contactsToAdd.length} contact(s). Sent ${sentCount} invite(s).`);
+            } else alert("All contacts already in list.");
+        } finally { setIsImporting(false); }
     };
 
     const handleRemoveContact = (e, emailToRemove) => {
         e.stopPropagation();
-        if (window.confirm('Are you sure you want to remove this contact from your view?')) {
+        if (window.confirm('Remove this contact?')) {
             setSavedContacts(prev => {
-                const updatedContacts = prev.filter(c => c.email !== emailToRemove);
-                localStorage.setItem('totalRecallContacts', JSON.stringify(updatedContacts));
-                return updatedContacts;
+                const updated = prev.filter(c => c.email !== emailToRemove);
+                localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
+                return updated;
             });
-            if (selectedContact === emailToRemove) {
-                setSelectedContact(null);
-            }
+            if (selectedContact === emailToRemove) setSelectedContact(null);
         }
     };
 
-    const getMedia = async () => {
-        const s = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-            audio: { echoCancellation: true, noiseSuppression: true }
-        });
-        return s;
-    };
+    const getMedia = async () => navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: { echoCancellation: true, noiseSuppression: true } });
 
     const broadcastMeshState = () => {
         if (!inCallRef.current || !channelRef.current) return;
         const connectedPeers = Object.keys(peersRef.current).filter(e => peersRef.current[e].connectionState === 'connected');
-
         connectedPeers.forEach(target => {
-            channelRef.current.send({
-                type: 'broadcast',
-                event: 'webrtc-mesh-sync',
-                payload: { targetEmail: target, peers: connectedPeers, sender: userEmail }
-            });
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-mesh-sync', payload: { targetEmail: target, peers: connectedPeers, sender: userEmail } });
         });
     };
 
     const createPC = (email) => {
-        if (peersRef.current[email]) {
-            peersRef.current[email].close();
-        }
+        if (peersRef.current[email]) peersRef.current[email].close();
         const pc = new RTCPeerConnection(rtcConfig);
         peersRef.current[email] = pc;
         setActiveCallEmails(prev => [...new Set([...prev, email])]);
-
-        if (!pendingCandidatesRef.current[email]) {
-            pendingCandidatesRef.current[email] = [];
-        }
+        if (!pendingCandidatesRef.current[email]) pendingCandidatesRef.current[email] = [];
 
         if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(t => {
-                pc.addTrack(t, localStreamRef.current);
-            });
+            localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
         }
 
         pc.onicecandidate = (e) => {
-            if (e.candidate) {
-                const serialized = {
-                    candidate: e.candidate.candidate,
-                    sdpMid: e.candidate.sdpMid,
-                    sdpMLineIndex: e.candidate.sdpMLineIndex,
-                    usernameFragment: e.candidate.usernameFragment
-                };
-                channelRef.current?.send({
-                    type: 'broadcast',
-                    event: 'webrtc-ice',
-                    payload: { targetEmail: email, candidate: serialized, sender: userEmail }
-                });
-            }
+            if (e.candidate) channelRef.current?.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: email, candidate: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex, usernameFragment: e.candidate.usernameFragment }, sender: userEmail } });
         };
 
         pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'connected') {
-                setIsCallingOut(false);
-                broadcastMeshState();
-            } else if (pc.connectionState === 'failed') {
-                cleanPeer(email);
-            } else if (pc.connectionState === 'disconnected') {
-                setTimeout(() => {
-                    if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email);
-                }, 5000);
-            }
+            if (pc.connectionState === 'connected') { setIsCallingOut(false); broadcastMeshState(); }
+            else if (pc.connectionState === 'failed') cleanPeer(email);
+            else if (pc.connectionState === 'disconnected') setTimeout(() => { if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email); }, 5000);
         };
 
         pc.ontrack = (event) => {
-            if (event.streams && event.streams.length > 0) {
-                setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
-            }
+            if (event.streams && event.streams.length > 0) setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
         };
-
         return pc;
     };
 
@@ -1018,12 +546,8 @@ function ChatApp({ user, onLogout }) {
         setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
         setActiveCallEmails(prev => prev.filter(e => e !== email));
         delete pendingCandidatesRef.current[email];
-
-        if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
-            endCall(false);
-        } else if (inCallRef.current) {
-            broadcastMeshState();
-        }
+        if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) endCall(false);
+        else if (inCallRef.current) broadcastMeshState();
     };
 
     const endCall = (broadcast = true) => {
@@ -1037,12 +561,7 @@ function ChatApp({ user, onLogout }) {
         setIsVideoOff(false);
         setIncomingCall(null);
 
-        if (broadcast) {
-            Object.keys(peersRef.current).forEach(email => {
-                channelRef.current?.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } });
-            });
-        }
-
+        if (broadcast) Object.keys(peersRef.current).forEach(email => channelRef.current?.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } }));
         Object.values(peersRef.current).forEach(pc => { try { pc.close(); } catch (e) { } });
         peersRef.current = {};
         pendingCandidatesRef.current = {};
@@ -1056,7 +575,6 @@ function ChatApp({ user, onLogout }) {
                 setLocalStream(null);
             }
         }, 2000);
-
         setInVoiceCall(false);
         setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
@@ -1067,47 +585,31 @@ function ChatApp({ user, onLogout }) {
             lastActionRef.current = Date.now();
         }
         if (!channelRef.current) return;
-
         inCallRef.current = true;
         if (!isAuto) setIsCallingOut(true);
 
         try {
-            if (!localStreamRef.current) {
-                const s = await getMedia();
-                localStreamRef.current = s;
-                setLocalStream(s);
-            }
-
+            if (!localStreamRef.current) { const s = await getMedia(); localStreamRef.current = s; setLocalStream(s); }
             const pc = createPC(email);
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
-
-            channelRef.current.send({
-                type: 'broadcast',
-                event: 'webrtc-offer',
-                payload: { targetEmail: email, offer: pc.localDescription, sender: userEmail, isAuto }
-            });
-
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: email, offer: pc.localDescription, sender: userEmail, isAuto } });
             setInVoiceCall(true);
         } catch (err) {
             if (!isAuto) alert("Call failed: " + err.message);
-            if (Object.keys(peersRef.current).length === 0) {
-                endCall(false);
-            } else {
-                if (!isAuto) setIsCallingOut(false);
-                cleanPeer(email);
-            }
+            if (Object.keys(peersRef.current).length === 0) endCall(false);
+            else { if (!isAuto) setIsCallingOut(false); cleanPeer(email); }
         }
     };
 
+    // ✨ OPTION 2 INTEGRATION: Mobile to Browser Bridge Trigger
     const handleVonageMobileCall = async () => {
-        const phoneNumber = prompt("Enter the mobile number to call (including country code, e.g., 447...):");
+        const phoneNumber = prompt("Enter the mobile number to call (including country code, e.g., 447... or +447...):");
         if (!phoneNumber || !phoneNumber.trim()) return;
 
-        const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
-
-        if (!cleanNumber) {
-            alert("Please enter a valid numeric phone number.");
+        const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '');
+        if (!cleanNumber || cleanNumber.length < 5) {
+            alert("Please enter a valid phone number.");
             return;
         }
 
@@ -1116,21 +618,23 @@ function ChatApp({ user, onLogout }) {
             const { data, error } = await supabase.functions.invoke('vonage-call', {
                 body: {
                     to: cleanNumber,
-                    from: '447418372323',
                     callerEmail: userEmail
                 }
             });
 
             if (error) {
                 console.error("Vonage edge function error:", error);
-                const errorMsg = error.context?.message || error.message || 'Unknown Edge Function Error';
-                throw new Error(errorMsg);
+                throw new Error(error.message);
             }
 
-            alert(`Initiating call to ${cleanNumber}... Check your device.`);
+            alert(`Call alerting and SMS invite sent to ${cleanNumber}. They will join this chat window shortly.`);
+            // Automatically launch the internal WebRTC system so we're ready to receive them
+            if (!inVoiceCall) {
+                initiateCall(selectedContact);
+            }
         } catch (err) {
             console.error("Mobile call initiation failed:", err);
-            alert(`Call failed (Check your Supabase Edge Function logs). Details: ${err.message}`);
+            alert(`Call failed. Details: ${err.message}`);
         } finally {
             setIsVonageCalling(false);
         }
@@ -1138,31 +642,16 @@ function ChatApp({ user, onLogout }) {
 
     const autoAcceptCall = async (call) => {
         try {
-            if (!localStreamRef.current) {
-                const s = await getMedia();
-                localStreamRef.current = s;
-                setLocalStream(s);
-            }
-
+            if (!localStreamRef.current) { const s = await getMedia(); localStreamRef.current = s; setLocalStream(s); }
             const pc = createPC(call.sender);
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
             const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
-
-            channelRef.current?.send({
-                type: 'broadcast',
-                event: 'webrtc-answer',
-                payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
-            });
-
+            channelRef.current?.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail } });
             const pending = pendingCandidatesRef.current[call.sender] || [];
-            for (const c of pending) {
-                try { await pc.addIceCandidate(c); } catch (e) { }
-            }
+            for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
             pendingCandidatesRef.current[call.sender] = [];
-        } catch (err) {
-            cleanPeer(call.sender);
-        }
+        } catch (err) { cleanPeer(call.sender); }
     };
 
     const acceptIncoming = async () => {
@@ -1170,100 +659,54 @@ function ChatApp({ user, onLogout }) {
         if (!call) return;
         if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
-
         inCallRef.current = true;
         if (ringer.isActive()) ringer.stop();
         setIncomingCall(null);
 
         try {
-            if (!localStreamRef.current) {
-                const s = await getMedia();
-                localStreamRef.current = s;
-                setLocalStream(s);
-            }
-
+            if (!localStreamRef.current) { const s = await getMedia(); localStreamRef.current = s; setLocalStream(s); }
             const pc = createPC(call.sender);
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
             const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
-
-            channelRef.current.send({
-                type: 'broadcast',
-                event: 'webrtc-answer',
-                payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
-            });
-
+            channelRef.current.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail } });
             const pending = pendingCandidatesRef.current[call.sender] || [];
-            for (const c of pending) {
-                try { await pc.addIceCandidate(c); } catch (e) { }
-            }
+            for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
             pendingCandidatesRef.current[call.sender] = [];
-
             setInVoiceCall(true);
             setSelectedContact(call.sender);
-        } catch (err) {
-            alert("Accept failed: " + err.message);
-            if (Object.keys(peersRef.current).length === 0) {
-                endCall(false);
-            } else {
-                cleanPeer(call.sender);
-            }
-        }
+        } catch (err) { alert("Accept failed: " + err.message); if (Object.keys(peersRef.current).length === 0) endCall(false); else cleanPeer(call.sender); }
     };
 
     const toggleScreenShare = async () => {
         if (!localStreamRef.current || !inCallRef.current) return;
-
         try {
             if (isScreenSharing) {
-                const newCameraStream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
-                });
+                const newCameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } });
                 const newVideoTrack = newCameraStream.getVideoTracks()[0];
-
-                if (isVideoOff) {
-                    newVideoTrack.enabled = false;
-                }
-
-                Object.values(peersRef.current).forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-                    if (sender) sender.replaceTrack(newVideoTrack);
-                });
-
+                if (isVideoOff) newVideoTrack.enabled = false;
+                Object.values(peersRef.current).forEach(pc => { const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(newVideoTrack); });
                 const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
                 const newStream = new MediaStream([newVideoTrack]);
                 if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
-
                 localStreamRef.current.getVideoTracks().forEach(t => t.stop());
                 localStreamRef.current = newStream;
                 setLocalStream(newStream);
                 setIsScreenSharing(false);
-
             } else {
                 const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 const screenVideoTrack = screenStream.getVideoTracks()[0];
-
-                screenVideoTrack.onended = () => {
-                    if (inCallRef.current) toggleScreenShare();
-                };
-
-                Object.values(peersRef.current).forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-                    if (sender) sender.replaceTrack(screenVideoTrack);
-                });
-
+                screenVideoTrack.onended = () => { if (inCallRef.current) toggleScreenShare(); };
+                Object.values(peersRef.current).forEach(pc => { const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(screenVideoTrack); });
                 const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
                 const newStream = new MediaStream([screenVideoTrack]);
                 if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
-
                 localStreamRef.current.getVideoTracks().forEach(t => t.stop());
                 localStreamRef.current = newStream;
                 setLocalStream(newStream);
                 setIsScreenSharing(true);
             }
-        } catch (err) {
-            console.error("[WebRTC] Screen share error/cancelled:", err);
-        }
+        } catch (err) { console.error("Screen share error:", err); }
     };
 
     const toggleMute = () => {
@@ -1278,12 +721,7 @@ function ChatApp({ user, onLogout }) {
 
     const toggleCamera = () => {
         if (!localStreamRef.current) return;
-
-        if (isScreenSharing) {
-            alert("Please stop screen sharing before toggling the camera.");
-            return;
-        }
-
+        if (isScreenSharing) { alert("Stop screen sharing first."); return; }
         const videoTracks = localStreamRef.current.getVideoTracks();
         if (videoTracks.length > 0) {
             const isCurrentlyEnabled = videoTracks[0].enabled;
@@ -1323,7 +761,6 @@ function ChatApp({ user, onLogout }) {
 
         ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
-
             if (peersRef.current[payload.sender]) {
                 try {
                     await peersRef.current[payload.sender].setRemoteDescription(new RTCSessionDescription(payload.offer));
@@ -1333,12 +770,8 @@ function ChatApp({ user, onLogout }) {
                 } catch (e) { }
                 return;
             }
-
-            if (inCallRef.current) {
-                autoAcceptCall(payload);
-            } else {
-                setIncomingCall(payload);
-            }
+            if (inCallRef.current) autoAcceptCall(payload);
+            else setIncomingCall(payload);
         });
 
         ch.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
@@ -1349,9 +782,7 @@ function ChatApp({ user, onLogout }) {
                 try {
                     await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
                     const pending = pendingCandidatesRef.current[payload.sender] || [];
-                    for (const c of pending) {
-                        try { await pc.addIceCandidate(c); } catch (e) { }
-                    }
+                    for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
                     pendingCandidatesRef.current[payload.sender] = [];
                 } catch (e) { }
             }
@@ -1361,38 +792,24 @@ function ChatApp({ user, onLogout }) {
             if (payload.targetEmail !== userEmail) return;
             const candidateData = payload.candidate;
             const pc = peersRef.current[payload.sender];
-            const candidate = new RTCIceCandidate({
-                candidate: candidateData.candidate,
-                sdpMid: candidateData.sdpMid,
-                sdpMLineIndex: candidateData.sdpMLineIndex,
-                usernameFragment: candidateData.usernameFragment
-            });
-
-            if (pc?.remoteDescription) {
-                try { await pc.addIceCandidate(candidate); } catch (e) { }
-            } else {
+            const candidate = new RTCIceCandidate({ candidate: candidateData.candidate, sdpMid: candidateData.sdpMid, sdpMLineIndex: candidateData.sdpMLineIndex, usernameFragment: candidateData.usernameFragment });
+            if (pc?.remoteDescription) { try { await pc.addIceCandidate(candidate); } catch (e) { } }
+            else {
                 if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
                 pendingCandidatesRef.current[payload.sender].push(candidate);
             }
         });
 
         ch.on('broadcast', { event: 'webrtc-mesh-sync' }, ({ payload }) => {
-            if (payload.targetEmail !== userEmail) return;
-            if (!inCallRef.current) return;
-
+            if (payload.targetEmail !== userEmail || !inCallRef.current) return;
             payload.peers.forEach(peer => {
                 if (peer !== userEmail && !peersRef.current[peer]) {
-                    if (userEmail.toLowerCase() < peer.toLowerCase()) {
-                        initiateCall(peer, true);
-                    }
+                    if (userEmail.toLowerCase() < peer.toLowerCase()) initiateCall(peer, true);
                 }
             });
         });
 
-        ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) { setIsCallingOut(false); cleanPeer(payload.sender); }
-        });
-
+        ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => { if (payload.targetEmail === userEmail) { setIsCallingOut(false); cleanPeer(payload.sender); } });
         ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
                 if (incomingCallRef.current?.sender === payload.sender) setIncomingCall(null);
@@ -1400,31 +817,17 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        ch.subscribe(async (status) => {
-            if (status === 'SUBSCRIBED') {
-                try { await ch.track({ email: userEmail, online: true }); } catch (e) { }
-            }
-        });
+        ch.subscribe(async (status) => { if (status === 'SUBSCRIBED') { try { await ch.track({ email: userEmail, online: true }); } catch (e) { } } });
 
-        return () => {
-            try { ch.untrack(); supabase.removeChannel(ch); } catch (e) { }
-            channelRef.current = null;
-        };
+        return () => { try { ch.untrack(); supabase.removeChannel(ch); } catch (e) { } channelRef.current = null; };
     }, [userEmail]);
 
-    // ==========================================
-    // 🎤 VOICE MESSAGE LOGIC
-    // ==========================================
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorderRef.current = new MediaRecorder(stream);
             audioChunksRef.current = [];
-
-            mediaRecorderRef.current.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunksRef.current.push(e.data);
-            };
-
+            mediaRecorderRef.current.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
             mediaRecorderRef.current.onstop = async () => {
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 const reader = new FileReader();
@@ -1432,76 +835,40 @@ function ChatApp({ user, onLogout }) {
                 reader.onloadend = async () => {
                     const base64AudioMessage = reader.result;
                     if (!selectedContact) return;
-
-                    const { data, error } = await supabase.from('messages').insert([
-                        { sender_email: userEmail, receiver_email: selectedContact, text: `[VOICE]${base64AudioMessage}` }
-                    ]).select();
-
-                    if (!error && data?.length) {
-                        setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
-                    }
+                    const { data, error } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: `[VOICE]${base64AudioMessage}` }]).select();
+                    if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
                 };
-
                 stream.getTracks().forEach(track => track.stop());
             };
-
             mediaRecorderRef.current.start();
             setIsRecording(true);
-        } catch (err) {
-            console.error("Error accessing microphone", err);
-            alert("Could not access microphone for recording.");
-        }
+        } catch (err) { alert("Could not access microphone."); }
     };
 
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
-        }
-    };
+    const stopRecording = () => { if (mediaRecorderRef.current && isRecording) { mediaRecorderRef.current.stop(); setIsRecording(false); } };
+    const toggleRecording = () => isRecording ? stopRecording() : startRecording();
 
-    const toggleRecording = () => {
-        if (isRecording) {
-            stopRecording();
-        } else {
-            startRecording();
-        }
-    };
-
-    // ==========================================
-    // 😊 EMOJI HANDLER
-    // ==========================================
     const handleEmojiSelect = (emoji) => {
         setChatInput(prev => prev + emoji);
         setShowEmojiPicker(false);
-        // Focus the textarea after adding emoji
         const textarea = document.querySelector('textarea');
-        if (textarea) {
-            textarea.focus();
-        }
+        if (textarea) textarea.focus();
     };
 
-    // ==========================================
-    // 📝 SEND MESSAGE & IMAGE PASTE LOGIC
-    // ==========================================
     const sendMsg = async (e) => {
         e.preventDefault();
         if (!chatInput.trim() || !selectedContact) return;
         const txt = chatInput;
         setChatInput('');
         setShowEmojiPicker(false);
-        const { data, error } = await supabase.from('messages').insert([
-            { sender_email: userEmail, receiver_email: selectedContact, text: txt }
-        ]).select();
+        const { data, error } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: txt }]).select();
         if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
     };
 
     const handlePaste = async (e) => {
         const items = e.clipboardData?.items;
         if (!items) return;
-
-        let hasImage = false;
-        let imageFile = null;
+        let hasImage = false, imageFile = null;
 
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf("image") !== -1) {
@@ -1513,22 +880,13 @@ function ChatApp({ user, onLogout }) {
 
         if (hasImage && imageFile) {
             e.preventDefault();
-
             let currentText = chatInput.trim();
             const pastedText = e.clipboardData.getData('text/plain');
-
-            if (pastedText) {
-                currentText = currentText ? (currentText + '\n' + pastedText) : pastedText;
-            }
+            if (pastedText) currentText = currentText ? (currentText + '\n' + pastedText) : pastedText;
 
             if (currentText && selectedContact) {
-                const { data: textDataObj, error: textErr } = await supabase.from('messages').insert([
-                    { sender_email: userEmail, receiver_email: selectedContact, text: currentText }
-                ]).select();
-
-                if (!textErr && textDataObj?.length) {
-                    setChatMessages(prev => prev.find(m => m.id === textDataObj[0].id) ? prev : [...prev, textDataObj[0]]);
-                }
+                const { data: textDataObj, error: textErr } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: currentText }]).select();
+                if (!textErr && textDataObj?.length) setChatMessages(prev => prev.find(m => m.id === textDataObj[0].id) ? prev : [...prev, textDataObj[0]]);
                 setChatInput('');
             }
 
@@ -1536,14 +894,8 @@ function ChatApp({ user, onLogout }) {
             reader.onloadend = async () => {
                 const base64Image = reader.result;
                 if (!selectedContact) return;
-
-                const { data, error } = await supabase.from('messages').insert([
-                    { sender_email: userEmail, receiver_email: selectedContact, text: `[IMAGE]${base64Image}` }
-                ]).select();
-
-                if (!error && data?.length) {
-                    setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
-                }
+                const { data, error } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: `[IMAGE]${base64Image}` }]).select();
+                if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
             };
             reader.readAsDataURL(imageFile);
         }
@@ -1551,27 +903,15 @@ function ChatApp({ user, onLogout }) {
 
     const showSidebar = !isMobile || !selectedContact;
     const showChat = !isMobile || !!selectedContact;
-    const handleKey = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMsg(e);
-        }
-    };
+    const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
 
     const safeEmail = userEmail?.toLowerCase() || '';
     const allKnown = [...members, ...savedContacts];
     const dispMembers = members.filter(m => m.email?.toLowerCase() !== safeEmail);
-
-    const dispContacts = savedContacts.filter(c => {
-        if (!c.email) return false;
-        const cEmailSafe = c.email.trim().toLowerCase();
-        if (cEmailSafe === safeEmail) return false;
-        return true;
-    });
+    const dispContacts = savedContacts.filter(c => c.email && c.email.trim().toLowerCase() !== safeEmail);
 
     const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
     const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
-
     const memberCount = members.filter(m => m.email?.toLowerCase() !== safeEmail).length;
     const totalOnlineCount = onlineUsers.length + 1;
 
@@ -1619,49 +959,14 @@ function ChatApp({ user, onLogout }) {
                                     <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
                                         <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                         <div style={{ flexGrow: 1 }}>{c.name?.trim() || c.email.split('@')[0]}</div>
-                                        {!isContact && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setSavedContacts(prev => {
-                                                        const newContact = { name: c.name?.trim() || c.email.split('@')[0], email: c.email };
-                                                        const updated = [...prev, newContact];
-                                                        localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
-                                                        return updated;
-                                                    });
-                                                }}
-                                                style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }}
-                                                title="Add to contacts"
-                                            >
-                                                ➕
-                                            </button>
-                                        )}
+                                        {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title="Add to contacts">➕</button>}
                                     </div>
                                 );
                             })}
-
                             <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
                                 <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({dispContacts.length})</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleImportContacts();
-                                        }}
-                                        disabled={isImporting}
-                                        style={{
-                                            backgroundColor: isImporting ? '#1a2a33' : '#2a3942',
-                                            color: isImporting ? '#666' : '#00a884',
-                                            border: 'none',
-                                            padding: '4px 8px',
-                                            borderRadius: '4px',
-                                            cursor: isImporting ? 'not-allowed' : 'pointer',
-                                            fontSize: '11px',
-                                            opacity: isImporting ? 0.6 : 1
-                                        }}
-                                    >
-                                        {isImporting ? '⏳ Importing...' : '+ Add External'}
-                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleImportContacts(); }} disabled={isImporting} style={{ backgroundColor: isImporting ? '#1a2a33' : '#2a3942', color: isImporting ? '#666' : '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: isImporting ? 'not-allowed' : 'pointer', fontSize: '11px' }}>{isImporting ? '⏳ Importing...' : '+ Add External'}</button>
                                     <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
                                 </div>
                             </div>
@@ -1669,13 +974,7 @@ function ChatApp({ user, onLogout }) {
                                 <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                     <div style={{ flexGrow: 1 }}><div>{c.name || c.email.split('@')[0]}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
-                                    <button
-                                        onClick={(e) => handleRemoveContact(e, c.email)}
-                                        style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}
-                                        title="Remove contact"
-                                    >
-                                        ❌
-                                    </button>
+                                    <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}>❌</button>
                                 </div>
                             ))}
                         </div>
@@ -1693,11 +992,7 @@ function ChatApp({ user, onLogout }) {
                                         <b>{activeName}</b>
                                     </div>
                                     <div style={{ display: 'flex', gap: 10 }}>
-                                        <button
-                                            onClick={handleVonageMobileCall}
-                                            disabled={isVonageCalling}
-                                            style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
-                                        >
+                                        <button onClick={handleVonageMobileCall} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                                             {isVonageCalling ? '📞 Calling...' : '📞 Call Mobile'}
                                         </button>
 
@@ -1705,23 +1000,10 @@ function ChatApp({ user, onLogout }) {
                                             <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>📹 Call</button>
                                         ) : (
                                             <>
-                                                {!activeCallEmails.includes(selectedContact) && (
-                                                    <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
-                                                        ➕ Add
-                                                    </button>
-                                                )}
-
-                                                {/* Media Control Buttons */}
-                                                <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
-                                                    {isMuted ? '🔇 Unmute' : '🎙️ Mute'}
-                                                </button>
-                                                <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
-                                                    {isVideoOff ? '📷 Camera On' : '📸 Camera Off'}
-                                                </button>
-
-                                                <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>
-                                                    {isScreenSharing ? '💻 Stop Share' : '💻 Share'}
-                                                </button>
+                                                {!activeCallEmails.includes(selectedContact) && <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>➕ Add</button>}
+                                                <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isMuted ? '🔇 Unmute' : '🎙️ Mute'}</button>
+                                                <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isVideoOff ? '📷 Camera On' : '📸 Camera Off'}</button>
+                                                <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isScreenSharing ? '💻 Stop Share' : '💻 Share'}</button>
                                                 <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>🔴 End</button>
                                             </>
                                         )}
@@ -1731,9 +1013,7 @@ function ChatApp({ user, onLogout }) {
                                 {inVoiceCall && (
                                     <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Math.max(Object.keys(remoteStreams).length + 1, 2)}, 1fr)`, gap: 10, padding: 10 }}>
                                         <LocalVideo stream={localStream} />
-                                        {Object.entries(remoteStreams).map(([email, stream]) => (
-                                            <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} />
-                                        ))}
+                                        {Object.entries(remoteStreams).map(([email, stream]) => <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} />)}
                                     </div>
                                 )}
 
@@ -1741,12 +1021,9 @@ function ChatApp({ user, onLogout }) {
                                     {chatMessages.map((m, i) => {
                                         const isVoiceMessage = m.text && m.text.startsWith('[VOICE]');
                                         const isImageMessage = m.text && m.text.startsWith('[IMAGE]');
-
                                         let content = m.text || '';
                                         if (isVoiceMessage) content = m.text.replace('[VOICE]', '');
                                         else if (isImageMessage) content = m.text.replace('[IMAGE]', '');
-
-                                        // Extract URL for preview
                                         const match = !isVoiceMessage && !isImageMessage ? content.match(urlExtractRegex) : null;
                                         let firstUrl = match ? match[0] : null;
 
@@ -1757,10 +1034,7 @@ function ChatApp({ user, onLogout }) {
                                                 ) : isImageMessage ? (
                                                     <img src={content} alt="Pasted attachment" style={{ maxWidth: '100%', borderRadius: 8 }} />
                                                 ) : (
-                                                    <>
-                                                        {renderTextWithLinks(content)}
-                                                        {firstUrl && <LinkPreview url={firstUrl} />}
-                                                    </>
+                                                    <>{renderTextWithLinks(content)}{firstUrl && <LinkPreview url={firstUrl} />}</>
                                                 )}
                                             </div>
                                         );
@@ -1768,48 +1042,9 @@ function ChatApp({ user, onLogout }) {
                                 </div>
 
                                 <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'flex-end', position: 'relative' }}>
-                                    {/* Emoji Picker Button */}
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                        title="Add Emoji"
-                                        style={{
-                                            backgroundColor: 'transparent',
-                                            border: '1px solid #8696a0',
-                                            borderRadius: '50%',
-                                            width: 40,
-                                            height: 40,
-                                            cursor: 'pointer',
-                                            color: '#8696a0',
-                                            fontSize: 18,
-                                            flexShrink: 0,
-                                            display: 'flex',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                            marginBottom: 4
-                                        }}
-                                    >
-                                        😊
-                                    </button>
-
-                                    {/* Voice Recording Button */}
-                                    <button
-                                        type="button"
-                                        onClick={toggleRecording}
-                                        title={isRecording ? "Stop Recording" : "Record Voice Message"}
-                                        style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}
-                                    >
-                                        {isRecording ? '⏹' : '🎤'}
-                                    </button>
-
-                                    {/* Emoji Picker */}
-                                    {showEmojiPicker && (
-                                        <EmojiPicker
-                                            onSelectEmoji={handleEmojiSelect}
-                                            onClose={() => setShowEmojiPicker(false)}
-                                        />
-                                    )}
-
+                                    <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} title="Add Emoji" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>😊</button>
+                                    <button type="button" onClick={toggleRecording} title={isRecording ? "Stop Recording" : "Record Voice Message"} style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>{isRecording ? '⏹' : '🎤'}</button>
+                                    {showEmojiPicker && <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />}
                                     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#2a3942', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
                                         {previewUrl && !isRecording && (
                                             <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.2)', backgroundColor: '#1e293b' }}>
@@ -1817,18 +1052,8 @@ function ChatApp({ user, onLogout }) {
                                                 <LinkPreview url={previewUrl} style={{ marginTop: 0 }} />
                                             </div>
                                         )}
-                                        <textarea
-                                            value={chatInput}
-                                            onChange={e => setChatInput(e.target.value)}
-                                            onKeyDown={handleKey}
-                                            onPaste={handlePaste}
-                                            placeholder={isRecording ? "Recording audio..." : "Message or paste image/link..."}
-                                            disabled={isRecording}
-                                            rows={1}
-                                            style={{ width: '100%', padding: 12, backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'Segoe UI, sans-serif' }}
-                                        />
+                                        <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} onPaste={handlePaste} placeholder={isRecording ? "Recording audio..." : "Message or paste image/link..."} disabled={isRecording} rows={1} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'Segoe UI, sans-serif' }} />
                                     </div>
-
                                     <button type="submit" disabled={!chatInput.trim() && !isRecording} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>➤</button>
                                 </form>
                             </>
@@ -1841,37 +1066,16 @@ function ChatApp({ user, onLogout }) {
                 )}
             </div>
             {/* FOOTER */}
-            <div style={{
-                backgroundColor: '#202c33',
-                padding: '10px 20px',
-                borderTop: '1px solid #222d34',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '10px',
-                fontSize: '13px',
-                color: '#8696a0'
-            }}>
+            <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
                 <span>© NoirSoft Creation 2026</span>
-                <div style={{ display: 'flex', gap: '20px' }}>
-                    <span>👥 Members: {memberCount}</span>
-                    <span>🟢 Online: {totalOnlineCount}</span>
-                </div>
+                <div style={{ display: 'flex', gap: '20px' }}><span>👥 Members: {memberCount}</span><span>🟢 Online: {totalOnlineCount}</span></div>
             </div>
         </div>
     );
 }
 
-// Add CSS animations
 const styleSheet = document.createElement("style");
-styleSheet.textContent = `
-    @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.3; }
-        100% { opacity: 1; }
-    }
-`;
+styleSheet.textContent = `@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }`;
 document.head.appendChild(styleSheet);
 
 // ==========================================
@@ -1895,89 +1099,24 @@ export default function App() {
     const auth = async (e, type) => {
         e.preventDefault();
         setError('');
-        if (!email || !password) {
-            setError("Please fill in all fields");
-            return;
-        }
-
-        if (type === 'signup' && password.length < 6) {
-            setError("Password must be at least 6 characters long");
-            return;
-        }
+        if (!email || !password) { setError("Please fill in all fields"); return; }
+        if (type === 'signup' && password.length < 6) { setError("Password must be at least 6 characters long"); return; }
 
         setLoading(true);
         try {
             if (type === 'login') {
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email: email.trim(),
-                    password
-                });
-
-                if (error) {
-                    if (error.status === 429) {
-                        throw new Error("Too many attempts. Please wait a moment.");
-                    }
-                    if (error.message.includes('Invalid login credentials')) {
-                        throw new Error("Invalid email or password. Please try again.");
-                    }
-                    throw error;
-                }
-
-                if (data?.user) {
-                    setUser(data.user);
-                }
+                const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+                if (error) throw new Error(error.message.includes('Invalid login credentials') ? "Invalid email or password. Please try again." : error.message);
+                if (data?.user) setUser(data.user);
             } else {
-                // Sign up block
-                const { data, error } = await supabase.auth.signUp({
-                    email: email.trim(),
-                    password,
-                    options: {
-                        emailRedirectTo: window.location.origin,
-                        data: {
-                            name: email.split('@')[0]
-                        }
-                    }
-                });
-
-                if (error) {
-                    if (error.status === 429) {
-                        throw new Error("Too many signup attempts. Please wait a moment.");
-                    }
-                    if (error.message.includes('User already registered')) {
-                        throw new Error("This email is already registered. Please log in instead.");
-                    }
-                    throw error;
-                }
-
+                const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin, data: { name: email.split('@')[0] } } });
+                if (error) throw new Error(error.message.includes('User already registered') ? "This email is already registered. Please log in instead." : error.message);
                 if (data?.user) {
-                    if (data.user.identities && data.user.identities.length === 0) {
-                        const { error: resendError } = await supabase.auth.resend({
-                            type: 'signup',
-                            email: email.trim(),
-                            options: {
-                                emailRedirectTo: window.location.origin,
-                            }
-                        });
-
-                        if (resendError && resendError.status !== 429) {
-                            console.error("Resend confirmation failed:", resendError);
-                        }
-                    }
-
-                    if (data.session) {
-                        setUser(data.user);
-                    } else {
-                        setShowConfirm(true);
-                        setEmail('');
-                        setPassword('');
-                    }
+                    if (data.session) setUser(data.user);
+                    else { setShowConfirm(true); setEmail(''); setPassword(''); }
                 }
             }
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { setError(err.message); } finally { setLoading(false); }
     };
 
     if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
@@ -1986,90 +1125,26 @@ export default function App() {
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
             <div style={{ backgroundColor: '#202c33', padding: 40, borderRadius: 8, width: 350, maxWidth: '90%', textAlign: 'center' }}>
                 <h2 style={{ color: '#00a884', marginBottom: 30 }}>TotalRecall</h2>
-                {error && (
-                    <div style={{ backgroundColor: '#dc2626', color: 'white', padding: 10, borderRadius: 4, marginBottom: 15, wordWrap: 'break-word' }}>
-                        {error}
-                    </div>
-                )}
+                {error && <div style={{ backgroundColor: '#dc2626', color: 'white', padding: 10, borderRadius: 4, marginBottom: 15, wordWrap: 'break-word' }}>{error}</div>}
                 {showConfirm ? (
                     <div>
                         <h3>✅ Check your email</h3>
-                        <p style={{ color: '#8696a0', marginBottom: 20 }}>
-                            We've sent you a confirmation link. Please check your inbox and click the link to verify your email address.
-                        </p>
-                        <p style={{ color: '#8696a0', fontSize: 12, marginBottom: 20 }}>
-                            After confirming, you can log in with your credentials.
-                        </p>
-                        <button
-                            onClick={() => {
-                                setShowConfirm(false);
-                                setEmail('');
-                                setPassword('');
-                                setError('');
-                                setIsSignupMode(false);
-                            }}
-                            style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}
-                        >
-                            Back to Login
-                        </button>
+                        <p style={{ color: '#8696a0', marginBottom: 20 }}>We've sent you a confirmation link.</p>
+                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
                     </div>
                 ) : (
                     <form onSubmit={e => e.preventDefault()}>
-                        {isSignupMode && (
-                            <div style={{ backgroundColor: '#182229', padding: '15px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px', color: '#aebac1', textAlign: 'left', borderLeft: '4px solid #00a884' }}>
-                                Enter your email address and a new password. An email will be sent to you for you to confirm your email. The email might go to your spam folder.
-                            </div>
-                        )}
-                        <input
-                            type="email"
-                            placeholder="Email"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                            style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
-                            disabled={loading}
-                        />
-                        <input
-                            type="password"
-                            placeholder="Password (min 6 characters)"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }}
-                            disabled={loading}
-                        />
-
+                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
                         {!isSignupMode ? (
                             <>
-                                <button
-                                    onClick={e => auth(e, 'login')}
-                                    disabled={loading}
-                                    style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}
-                                >
-                                    {loading ? 'Loading...' : 'Log In'}
-                                </button>
-                                <button
-                                    onClick={() => { setIsSignupMode(true); setError(''); }}
-                                    disabled={loading}
-                                    style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}
-                                >
-                                    Sign Up
-                                </button>
+                                <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Log In'}</button>
+                                <button onClick={() => { setIsSignupMode(true); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Sign Up</button>
                             </>
                         ) : (
                             <>
-                                <button
-                                    onClick={e => auth(e, 'signup')}
-                                    disabled={loading}
-                                    style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}
-                                >
-                                    {loading ? 'Loading...' : 'Create Account'}
-                                </button>
-                                <button
-                                    onClick={() => { setIsSignupMode(false); setError(''); }}
-                                    disabled={loading}
-                                    style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}
-                                >
-                                    Back to Login
-                                </button>
+                                <button onClick={e => auth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Create Account'}</button>
+                                <button onClick={() => { setIsSignupMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Back to Login</button>
                             </>
                         )}
                     </form>
