@@ -319,6 +319,7 @@ function ChatApp({ user, onLogout }) {
     const audioChunksRef = useRef([]);
     const selectedContactRef = useRef(selectedContact);
     const channelRef = useRef(null);
+    const autoJoinCallerRef = useRef(null); // Reference to track if we came from an SMS link
 
     const [inVoiceCall, setInVoiceCall] = useState(false);
     const [activeCallEmails, setActiveCallEmails] = useState([]);
@@ -349,12 +350,13 @@ function ChatApp({ user, onLogout }) {
         return () => window.removeEventListener('resize', h);
     }, []);
 
-    // ✨ URL INTERCEPTOR: Automatically open chat if returning from an SMS link
+    // ✨ URL INTERCEPTOR: Automatically open chat and trigger handshake ping if returning from an SMS link
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const caller = params.get('call_from');
         if (caller && userEmail) {
             setSelectedContact(caller);
+            autoJoinCallerRef.current = caller;
             // Clean up the URL so it doesn't persist on refresh
             window.history.replaceState({}, document.title, "/");
         }
@@ -602,12 +604,10 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ OPTION 2 INTEGRATION: Mobile to Browser Bridge Trigger
     const handleVonageMobileCall = async () => {
         const phoneNumber = prompt("Enter the mobile number to call (including country code, e.g., 447...):");
         if (!phoneNumber || !phoneNumber.trim()) return;
 
-        // FIX: Remove all non-numeric characters. Vonage SMS API requires pure numbers without '+'
         const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
         if (!cleanNumber || cleanNumber.length < 5) {
             alert("Please enter a valid phone number.");
@@ -616,7 +616,6 @@ function ChatApp({ user, onLogout }) {
 
         setIsVonageCalling(true);
         try {
-            // FIX: Generate the dynamic link so the edge function can include it in the SMS payload
             const joinLink = `${window.location.origin}/?call_from=${encodeURIComponent(userEmail)}`;
 
             const { data, error } = await supabase.functions.invoke('vonage-call', {
@@ -633,7 +632,6 @@ function ChatApp({ user, onLogout }) {
             }
 
             alert(`Call alerting and SMS invite sent to ${cleanNumber}. They will join this chat window shortly.`);
-            // Automatically launch the internal WebRTC system so we're ready to receive them
             if (!inVoiceCall) {
                 initiateCall(selectedContact);
             }
@@ -822,7 +820,28 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        ch.subscribe(async (status) => { if (status === 'SUBSCRIBED') { try { await ch.track({ email: userEmail, online: true }); } catch (e) { } } });
+        // ✨ LISTENER: Mobile user pinging the desktop for a fresh offer
+        ch.on('broadcast', { event: 'webrtc-request-offer' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail && inCallRef.current) {
+                // The mobile user arrived and missed the initial offer. Re-send it!
+                initiateCall(payload.sender, true);
+            }
+        });
+
+        ch.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                try { await ch.track({ email: userEmail, online: true }); } catch (e) { }
+
+                // ✨ HANDSHAKE: If we arrived via SMS link, ping the desktop to trigger the "Incoming Call" popup
+                if (autoJoinCallerRef.current) {
+                    const callerToJoin = autoJoinCallerRef.current;
+                    autoJoinCallerRef.current = null;
+                    setTimeout(() => {
+                        ch.send({ type: 'broadcast', event: 'webrtc-request-offer', payload: { targetEmail: callerToJoin, sender: userEmail } });
+                    }, 1500); // Small delay to ensure both sides have finalized presence state
+                }
+            }
+        });
 
         return () => { try { ch.untrack(); supabase.removeChannel(ch); } catch (e) { } channelRef.current = null; };
     }, [userEmail]);
