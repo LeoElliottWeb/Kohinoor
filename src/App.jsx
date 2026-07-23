@@ -249,9 +249,38 @@ function LinkPreview({ url, style = {} }) {
 }
 
 // ==========================================
+// 📝 SUBTITLE OVERLAY COMPONENT
+// ==========================================
+function SubtitleOverlay({ subtitle }) {
+    if (!subtitle || !subtitle.original) return null;
+
+    const hasTranslation = subtitle.translated && subtitle.translated !== subtitle.original && subtitle.translated !== '...';
+
+    return (
+        <div style={{ position: 'absolute', bottom: '20px', left: '0', right: '0', display: 'flex', justifyContent: 'center', zIndex: 20, pointerEvents: 'none', padding: '0 5%' }}>
+            <div style={{ display: 'inline-block', backgroundColor: 'rgba(0,0,0,0.75)', padding: '8px 16px', borderRadius: '8px', maxWidth: '100%', wordWrap: 'break-word', textShadow: '1px 1px 2px black', textAlign: 'center' }}>
+                {hasTranslation && (
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#38bdf8', marginBottom: '4px' }}>
+                        {subtitle.translated}
+                    </div>
+                )}
+                <div style={{
+                    fontSize: hasTranslation ? '13px' : '18px',
+                    fontWeight: hasTranslation ? 'normal' : 'bold',
+                    color: hasTranslation ? '#aebac1' : 'white',
+                    fontStyle: hasTranslation ? 'italic' : 'normal'
+                }}>
+                    {subtitle.original}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ==========================================
 // 📺 LOCAL VIDEO COMPONENT
 // ==========================================
-function LocalVideo({ stream }) {
+function LocalVideo({ stream, subtitle }) {
     const videoRef = useRef(null);
     useEffect(() => {
         const videoEl = videoRef.current;
@@ -265,6 +294,7 @@ function LocalVideo({ stream }) {
         <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
             <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
             <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff', zIndex: 10 }}>You</span>
+            <SubtitleOverlay subtitle={subtitle} />
         </div>
     );
 }
@@ -289,13 +319,7 @@ function RemoteVideo({ stream, email, allKnownUsers, subtitle }) {
         <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
             <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
             <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff', zIndex: 10 }}>{contactName}</span>
-            {subtitle && (
-                <div style={{ position: 'absolute', bottom: '20px', left: '5%', right: '5%', textAlign: 'center', zIndex: 20 }}>
-                    <span style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: 'white', padding: '6px 12px', borderRadius: '8px', fontSize: '18px', fontWeight: 'bold', display: 'inline-block', textShadow: '1px 1px 2px black', maxWidth: '100%', wordWrap: 'break-word' }}>
-                        {subtitle}
-                    </span>
-                </div>
-            )}
+            <SubtitleOverlay subtitle={subtitle} />
         </div>
     );
 }
@@ -311,7 +335,6 @@ function ChatApp({ user, onLogout }) {
     const [members, setMembers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
 
-    // Add refs to guarantee fresh data inside nested callbacks/timeouts
     const onlineUsersRef = useRef([]);
     useEffect(() => { onlineUsersRef.current = onlineUsers; }, [onlineUsers]);
 
@@ -363,6 +386,8 @@ function ChatApp({ user, onLogout }) {
     const isTranscribingRef = useRef(false);
     const spokenLangRef = useRef('en-US');
     const targetLangRef = useRef('es-ES');
+    const processSubtitleRef = useRef(null);
+    const debounceTimers = useRef({});
 
     useEffect(() => { isTranscribingRef.current = isTranscribing; }, [isTranscribing]);
     useEffect(() => { spokenLangRef.current = spokenLang; }, [spokenLang]);
@@ -420,7 +445,6 @@ function ChatApp({ user, onLogout }) {
     }, [incomingCall, isCallingOut]);
 
     useEffect(() => {
-        // FIXED: Reverted to only selecting email and name from auth so the query doesn't crash
         supabase.from('auth').select('email, name').then(({ data }) => { if (data) setMembers(data); });
 
         const stored = localStorage.getItem('totalRecallContacts');
@@ -450,30 +474,6 @@ function ChatApp({ user, onLogout }) {
             setPreviewUrl((match && match[0]) ? match[0] : null);
         } else setPreviewUrl(null);
     }, [chatInput]);
-
-    const generatePrettyEmailHTML = (contactName, inviterName, inviterEmail) => {
-        return `
-            <!DOCTYPE html>
-            <html>
-            <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-            <body style="font-family: sans-serif; background-color: #f4f6f8; padding: 20px;">
-                <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                    <div style="background: #00a884; padding: 30px; text-align: center; color: white;">
-                        <h1 style="margin:0;">📱 TotalRecall</h1>
-                        <p>Connect, Chat & Video Call</p>
-                    </div>
-                    <div style="padding: 30px;">
-                        <h3>Hello ${contactName || 'there'}! 👋</h3>
-                        <p><strong>${inviterName}</strong> (${inviterEmail}) has invited you to connect on TotalRecall.</p>
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="https://totalrecall.network/" style="background: #00a884; color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">Join Now</a>
-                        </div>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `;
-    };
 
     const handleImportContacts = async () => {
         if (isImporting) return;
@@ -517,7 +517,7 @@ function ChatApp({ user, onLogout }) {
                 for (const contact of allContactsToEmail) {
                     try {
                         const { error } = await supabase.functions.invoke('send-email', {
-                            body: { to: contact.email, subject: `📱 ${displayName} wants to connect on TotalRecall!`, html: generatePrettyEmailHTML(contact.name, displayName, userEmail) }
+                            body: { to: contact.email, subject: `📱 ${displayName} wants to connect on TotalRecall!` }
                         });
                         if (!error) sentCount++;
                     } catch (error) { console.error(error); }
@@ -597,9 +597,7 @@ function ChatApp({ user, onLogout }) {
         setIsVideoOff(false);
         setIncomingCall(null);
 
-        if (recognitionRef.current) recognitionRef.current.stop();
-        setIsTranscribing(false);
-        setSubtitles({});
+        stopCC();
 
         if (broadcast) Object.keys(peersRef.current).forEach(email => channelRef.current?.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } }));
         Object.values(peersRef.current).forEach(pc => { try { pc.close(); } catch (e) { } });
@@ -618,8 +616,6 @@ function ChatApp({ user, onLogout }) {
         setInVoiceCall(false);
         setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
-
-    // ✨ DECOUPLED CORE FUNCTIONS ✨
 
     const startWebRTCCall = async (email, isAuto = false) => {
         if (!channelRef.current) return;
@@ -812,26 +808,43 @@ function ChatApp({ user, onLogout }) {
         setIncomingCall(null);
     };
 
-    // ✨ TRANSCRIPTION & TRANSLATION CONTROLS ✨
-    const toggleTranscription = () => {
-        if (isTranscribing) {
-            setIsTranscribing(false);
-            if (recognitionRef.current) recognitionRef.current.stop();
-            channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload: { sender: userEmail, text: '', lang: spokenLang, isFinal: true, clear: true } });
-        } else {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("Live transcription is not supported in this browser (try Google Chrome or Edge).");
-                return;
+    // ✨ TRANSLATION UTILITY ✨
+    const translateText = async (text, sourceLang, targetLang) => {
+        if (!text || !text.trim()) return text;
+        const sourceBase = sourceLang.startsWith('zh') ? sourceLang : sourceLang.split('-')[0];
+        const targetBase = targetLang.startsWith('zh') ? targetLang : targetLang.split('-')[0];
+        if (sourceBase === targetBase) return text;
+
+        try {
+            const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceBase}&tl=${targetBase}&dt=t&q=${encodeURIComponent(text)}`);
+            if (!res.ok) throw new Error('Google Translation API failed');
+            const data = await res.json();
+            return data[0].map(item => item[0]).join('');
+        } catch (e) {
+            console.error("Google Translation API error, attempting fallback:", e);
+            // Fallback API (MyMemory)
+            try {
+                const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceBase}|${targetBase}`);
+                const data2 = await res2.json();
+                if (data2.responseData?.translatedText) {
+                    return data2.responseData.translatedText;
+                }
+            } catch (fallbackErr) {
+                console.error("Fallback Translation API failed:", fallbackErr);
             }
-            setIsTranscribing(true);
-            startSpeechRecognition();
+            return text;
         }
     };
 
-    const startSpeechRecognition = () => {
+    // ✨ TRANSCRIPTION & SUBTITLE CONTROLS ✨
+    const startCC = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) return;
+        if (isTranscribingRef.current) return;
+
+        setIsTranscribing(true);
+        isTranscribingRef.current = true;
+
         const rec = new SpeechRecognition();
         rec.continuous = true;
         rec.interimResults = true;
@@ -845,15 +858,27 @@ function ChatApp({ user, onLogout }) {
                 else interim += event.results[i][0].transcript;
             }
 
-            if (final) {
-                channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload: { sender: userEmail, text: final, lang: spokenLangRef.current, isFinal: true } });
-            } else if (interim) {
-                channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload: { sender: userEmail, text: interim, lang: spokenLangRef.current, isFinal: false } });
+            const currentText = final || interim;
+            const isFinalSent = !!final;
+
+            if (currentText) {
+                const payload = { sender: userEmail, text: currentText, lang: spokenLangRef.current, isFinal: isFinalSent };
+                // Send it to ourselves so local transcription shows up
+                if (processSubtitleRef.current) processSubtitleRef.current(payload);
+                // Broadcast to others
+                channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload });
+            }
+        };
+
+        rec.onerror = (e) => {
+            if (e.error !== 'aborted' && isTranscribingRef.current) {
+                setTimeout(() => { try { rec.start(); } catch (err) { } }, 1000);
             }
         };
 
         rec.onend = () => {
             if (isTranscribingRef.current) {
+                rec.lang = spokenLangRef.current;
                 try { rec.start(); } catch (e) { }
             }
         };
@@ -862,6 +887,81 @@ function ChatApp({ user, onLogout }) {
         rec.start();
     };
 
+    const stopCC = () => {
+        setIsTranscribing(false);
+        isTranscribingRef.current = false;
+        if (recognitionRef.current) {
+            recognitionRef.current.stop();
+        }
+        setSubtitles({});
+        channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload: { sender: userEmail, text: '', lang: spokenLangRef.current, isFinal: true, clear: true } });
+    };
+
+    const toggleTranscription = () => {
+        if (isTranscribingRef.current) {
+            stopCC();
+        } else {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Live transcription is not supported in this browser (try Google Chrome or Edge).");
+                return;
+            }
+            startCC();
+        }
+    };
+
+    useEffect(() => {
+        processSubtitleRef.current = async (payload) => {
+            const { sender, text, lang, isFinal, clear } = payload;
+            if (!inCallRef.current) return;
+
+            if (clear) {
+                setSubtitles(prev => { const n = { ...prev }; delete n[sender]; return n; });
+                return;
+            }
+
+            const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
+            const targetBase = targetLangRef.current.startsWith('zh') ? targetLangRef.current : targetLangRef.current.split('-')[0];
+            const needsTranslation = (sourceBase !== targetBase);
+
+            setSubtitles(prev => ({
+                ...prev,
+                [sender]: {
+                    original: text,
+                    translated: needsTranslation ? (prev[sender]?.translated || '...') : text,
+                    isFinal
+                }
+            }));
+
+            // DEBOUNCE LOGIC (FIXED): Update translated string immediately on final, blindly merging with state.
+            if (needsTranslation && text.trim().length > 0) {
+                const doTranslate = () => {
+                    translateText(text, lang, targetLangRef.current).then(translated => {
+                        setSubtitles(prev => {
+                            if (prev[sender]) {
+                                return { ...prev, [sender]: { ...prev[sender], translated, isFinal } };
+                            }
+                            return prev;
+                        });
+                    });
+                };
+
+                if (isFinal) {
+                    clearTimeout(debounceTimers.current[sender]);
+                    doTranslate();
+                } else {
+                    clearTimeout(debounceTimers.current[sender]);
+                    debounceTimers.current[sender] = setTimeout(doTranslate, 800);
+                }
+            }
+
+            if (isFinal) {
+                setTimeout(() => {
+                    setSubtitles(curr => curr[sender]?.original === text ? { ...curr, [sender]: null } : curr);
+                }, 6000);
+            }
+        };
+    }, [userEmail]);
 
     useEffect(() => {
         if (!userEmail) return;
@@ -885,37 +985,9 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // Broadcast listener for Translations/Subtitles
-        ch.on('broadcast', { event: 'webrtc-subtitle' }, async ({ payload }) => {
-            const { sender, text, lang, isFinal, clear } = payload;
-            if (sender === userEmail || !inCallRef.current) return;
-
-            if (clear) {
-                setSubtitles(prev => ({ ...prev, [sender]: '' }));
-                return;
-            }
-
-            let displayText = text;
-            const sourceBase = lang.split('-')[0];
-            const targetBase = targetLangRef.current.split('-')[0];
-
-            // Only call translation API when sentence is final and languages differ
-            if (isFinal && sourceBase !== targetBase && text.trim().length > 0) {
-                try {
-                    const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceBase}|${targetBase}`);
-                    const data = await res.json();
-                    if (data.responseData?.translatedText) {
-                        displayText = data.responseData.translatedText;
-                    }
-                } catch (e) { console.error("Translation api error", e); }
-            }
-
-            setSubtitles(prev => ({ ...prev, [sender]: displayText }));
-
-            if (isFinal) {
-                setTimeout(() => {
-                    setSubtitles(prev => prev[sender] === displayText ? { ...prev, [sender]: '' } : prev);
-                }, 6000);
+        ch.on('broadcast', { event: 'webrtc-subtitle' }, ({ payload }) => {
+            if (payload.sender !== userEmail && processSubtitleRef.current) {
+                processSubtitleRef.current(payload);
             }
         });
 
@@ -1190,9 +1262,13 @@ function ChatApp({ user, onLogout }) {
                                 </div>
 
                                 {inVoiceCall && isTranscribing && (
-                                    <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px' }}>
-                                        <label>🗣️ I am speaking:
-                                            <select value={spokenLang} onChange={e => { setSpokenLang(e.target.value); if (isTranscribing) { recognitionRef.current?.stop(); } }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', cursor: 'pointer' }}>
+                                    <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #334155' }}>
+                                        <div style={{ color: '#38bdf8', fontWeight: 'bold', marginRight: '10px' }}>Both users must click '💬 CC On' to share transcripts</div>
+                                        <label>🗣️ My Language:
+                                            <select value={spokenLang} onChange={e => {
+                                                setSpokenLang(e.target.value);
+                                                if (isTranscribingRef.current) { recognitionRef.current?.stop(); }
+                                            }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', cursor: 'pointer' }}>
                                                 <option value="en-US">English</option>
                                                 <option value="es-ES">Spanish</option>
                                                 <option value="fr-FR">French</option>
@@ -1218,7 +1294,7 @@ function ChatApp({ user, onLogout }) {
 
                                 {inVoiceCall && (
                                     <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Math.max(Object.keys(remoteStreams).length + 1, 2)}, 1fr)`, gap: 10, padding: 10 }}>
-                                        <LocalVideo stream={localStream} />
+                                        <LocalVideo stream={localStream} subtitle={subtitles[userEmail]} />
                                         {Object.entries(remoteStreams).map(([email, stream]) => <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} subtitle={subtitles[email]} />)}
                                     </div>
                                 )}
