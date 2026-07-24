@@ -856,7 +856,10 @@ function ChatApp({ user, onLogout }) {
             'zh-CN': 'zh',
             'ja-JP': 'ja',
             'pt-PT': 'pt',
-            'pt-BR': 'pt'
+            'pt-BR': 'pt',
+            'el-GR': 'el',
+            'ru-RU': 'ru',
+            'ar-SA': 'ar'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
@@ -1336,6 +1339,9 @@ function ChatApp({ user, onLogout }) {
                                                 <option value="ja-JP">Japanese</option>
                                                 <option value="pt-PT">Portuguese (PT)</option>
                                                 <option value="pt-BR">Portuguese (BR)</option>
+                                                <option value="el-GR">Greek</option>
+                                                <option value="ru-RU">Russian</option>
+                                                <option value="ar-SA">Arabic</option>
                                             </select>
                                         </label>
                                         <label>🌐 Translate others to:
@@ -1349,6 +1355,9 @@ function ChatApp({ user, onLogout }) {
                                                 <option value="ja-JP">Japanese</option>
                                                 <option value="pt-PT">Portuguese (PT)</option>
                                                 <option value="pt-BR">Portuguese (BR)</option>
+                                                <option value="el-GR">Greek</option>
+                                                <option value="ru-RU">Russian</option>
+                                                <option value="ar-SA">Arabic</option>
                                             </select>
                                         </label>
                                     </div>
