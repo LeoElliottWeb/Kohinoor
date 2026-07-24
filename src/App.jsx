@@ -837,7 +837,7 @@ function ChatApp({ user, onLogout }) {
         // =========================================================================
         // 🛑 INSERT YOUR DEEPGRAM API KEY HERE 🛑
         // =========================================================================
-        const DEEPGRAM_API_KEY = '6fad18b20b8cb263a38d87b7e4d4045d71acad96';
+        const DEEPGRAM_API_KEY = 'YOUR_DEEPGRAM_API_KEY';
 
         if (DEEPGRAM_API_KEY === 'YOUR_DEEPGRAM_API_KEY') {
             alert("Please insert your Deepgram API Key into the code to use transcription.");
@@ -1208,6 +1208,21 @@ function ChatApp({ user, onLogout }) {
                             </div>
                             <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>Logout</button>
                         </div>
+
+                        {/* ACTIVE CALL BANNER FOR MOBILE */}
+                        {inVoiceCall && (
+                            <div
+                                onClick={() => {
+                                    if (activeCallEmails.length > 0) {
+                                        setSelectedContact(activeCallEmails[0]);
+                                    }
+                                }}
+                                style={{ padding: 15, backgroundColor: '#005c4b', color: 'white', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold', borderBottom: '1px solid #222d34' }}
+                            >
+                                📞 Active Call - Tap to Return
+                            </div>
+                        )}
+
                         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
                             <div onClick={() => setIsOnlineExpanded(!isOnlineExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34' }}>
                                 <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Online ({onlineUsers.length})</span>
@@ -1261,21 +1276,39 @@ function ChatApp({ user, onLogout }) {
                                         <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{activeName[0]?.toUpperCase()}</div>
                                         <b>{activeName}</b>
                                     </div>
-                                    <div style={{ display: 'flex', gap: 10 }}>
-                                        <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
-                                            {isVonageCalling ? '📞 Calling...' : '📞 Call Mobile'}
+
+                                    {/* RESPONSIVE BUTTON CONTAINER */}
+                                    <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                        <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                            {isMobile ? (isVonageCalling ? '📞...' : '📞') : (isVonageCalling ? '📞 Calling...' : '📞 Call Mobile')}
                                         </button>
 
                                         {!inVoiceCall ? (
-                                            <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>📹 Call</button>
+                                            <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                {isMobile ? '📹' : '📹 Call'}
+                                            </button>
                                         ) : (
                                             <>
-                                                {!activeCallEmails.includes(selectedContact) && <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>➕ Add</button>}
-                                                <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isTranscribing ? '💬 Transcribe On' : '💬 Transcribe Off'}</button>
-                                                <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isMuted ? '🔇 Unmute' : '🎙️ Mute'}</button>
-                                                <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isVideoOff ? '📷 Camera On' : '📸 Camera Off'}</button>
-                                                <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isScreenSharing ? '💻 Stop Share' : '💻 Share'}</button>
-                                                <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>🔴 End</button>
+                                                {!activeCallEmails.includes(selectedContact) && (
+                                                    <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                        {isMobile ? '➕' : '➕ Add'}
+                                                    </button>
+                                                )}
+                                                <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                    {isMobile ? (isTranscribing ? '💬 On' : '💬 Off') : (isTranscribing ? '💬 Transcribe On' : '💬 Transcribe Off')}
+                                                </button>
+                                                <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                    {isMobile ? (isMuted ? '🔇' : '🎙️') : (isMuted ? '🔇 Unmute' : '🎙️ Mute')}
+                                                </button>
+                                                <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                    {isMobile ? (isVideoOff ? '📷' : '📸') : (isVideoOff ? '📷 Camera On' : '📸 Camera Off')}
+                                                </button>
+                                                <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                    {isMobile ? (isScreenSharing ? '💻 Stop' : '💻 Share') : (isScreenSharing ? '💻 Stop Share' : '💻 Share')}
+                                                </button>
+                                                <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                    {isMobile ? '🔴' : '🔴 End'}
+                                                </button>
                                             </>
                                         )}
                                     </div>
