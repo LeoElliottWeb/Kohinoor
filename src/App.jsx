@@ -145,7 +145,7 @@ function EmojiPicker({ onSelectEmoji, onClose }) {
 }
 
 // ==========================================
-// 🖼️ URL PREVIEW COMPONENT 
+// 🖼️ URL PREVIEW COMPONENT
 // ==========================================
 function LinkPreview({ url, style = {} }) {
     const [preview, setPreview] = useState(null);
@@ -381,8 +381,9 @@ function ChatApp({ user, onLogout }) {
     const pendingCandidatesRef = useRef({});
     const localStreamRef = useRef(null);
 
-    // Translation Refs
-    const recognitionRef = useRef(null);
+    // Translation & Deepgram Refs
+    const deepgramSocketRef = useRef(null);
+    const ccMediaRecorderRef = useRef(null);
     const isTranscribingRef = useRef(false);
     const spokenLangRef = useRef('en-US');
     const targetLangRef = useRef('es-ES');
@@ -467,13 +468,6 @@ function ChatApp({ user, onLogout }) {
             supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
-
-    useEffect(() => {
-        if (chatInput) {
-            const match = chatInput.match(urlExtractRegex);
-            setPreviewUrl((match && match[0]) ? match[0] : null);
-        } else setPreviewUrl(null);
-    }, [chatInput]);
 
     const handleImportContacts = async () => {
         if (isImporting) return;
@@ -836,63 +830,94 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ TRANSCRIPTION & SUBTITLE CONTROLS ✨
-    const startCC = () => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) return;
+    // ✨ DEEPGRAM LIVE AUDIO STREAMING ✨
+    const startCC = async () => {
         if (isTranscribingRef.current) return;
+
+        // =========================================================================
+        // 🛑 INSERT YOUR DEEPGRAM API KEY HERE 🛑
+        // =========================================================================
+        const DEEPGRAM_API_KEY = '6fad18b20b8cb263a38d87b7e4d4045d71acad96';
+
+        if (DEEPGRAM_API_KEY === 'YOUR_DEEPGRAM_API_KEY') {
+            alert("Please insert your Deepgram API Key into the code to use transcription.");
+            return;
+        }
 
         setIsTranscribing(true);
         isTranscribingRef.current = true;
 
-        const rec = new SpeechRecognition();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = spokenLangRef.current;
-
-        rec.onresult = (event) => {
-            let interim = '';
-            let final = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) final += event.results[i][0].transcript;
-                else interim += event.results[i][0].transcript;
-            }
-
-            const currentText = final || interim;
-            const isFinalSent = !!final;
-
-            if (currentText) {
-                const payload = { sender: userEmail, text: currentText, lang: spokenLangRef.current, isFinal: isFinalSent };
-                // Send it to ourselves so local transcription shows up
-                if (processSubtitleRef.current) processSubtitleRef.current(payload);
-                // Broadcast to others
-                channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload });
-            }
+        const langMap = {
+            'en-US': 'en',
+            'es-ES': 'es',
+            'fr-FR': 'fr',
+            'de-DE': 'de',
+            'it-IT': 'it',
+            'zh-CN': 'zh',
+            'ja-JP': 'ja'
         };
+        const dgLang = langMap[spokenLangRef.current] || 'en';
 
-        rec.onerror = (e) => {
-            if (e.error !== 'aborted' && isTranscribingRef.current) {
-                setTimeout(() => { try { rec.start(); } catch (err) { } }, 1000);
-            }
-        };
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            ccMediaRecorderRef.current = new MediaRecorder(stream);
 
-        rec.onend = () => {
-            if (isTranscribingRef.current) {
-                rec.lang = spokenLangRef.current;
-                try { rec.start(); } catch (e) { }
-            }
-        };
+            const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?model=nova-3&language=${dgLang}&interim_results=true`, ['token', DEEPGRAM_API_KEY]);
+            deepgramSocketRef.current = socket;
 
-        recognitionRef.current = rec;
-        rec.start();
+            socket.onopen = () => {
+                ccMediaRecorderRef.current.addEventListener('dataavailable', event => {
+                    if (event.data.size > 0 && socket.readyState === 1) {
+                        socket.send(event.data);
+                    }
+                });
+                ccMediaRecorderRef.current.start(250);
+            };
+
+            socket.onmessage = (message) => {
+                const received = JSON.parse(message.data);
+                const transcript = received.channel?.alternatives[0]?.transcript;
+
+                if (transcript) {
+                    const payload = { sender: userEmail, text: transcript, lang: spokenLangRef.current, isFinal: received.is_final };
+
+                    if (processSubtitleRef.current) processSubtitleRef.current(payload);
+                    channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload });
+                }
+            };
+
+            socket.onerror = (error) => {
+                console.error("Deepgram WebSocket Error:", error);
+            };
+
+            socket.onclose = () => {
+                if (isTranscribingRef.current) {
+                    setIsTranscribing(false);
+                    isTranscribingRef.current = false;
+                }
+            };
+
+        } catch (err) {
+            console.error("Microphone access denied or error:", err);
+            setIsTranscribing(false);
+            isTranscribingRef.current = false;
+        }
     };
 
     const stopCC = () => {
         setIsTranscribing(false);
         isTranscribingRef.current = false;
-        if (recognitionRef.current) {
-            recognitionRef.current.stop();
+
+        if (ccMediaRecorderRef.current && ccMediaRecorderRef.current.state !== 'inactive') {
+            ccMediaRecorderRef.current.stop();
+            ccMediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
         }
+
+        if (deepgramSocketRef.current) {
+            deepgramSocketRef.current.close();
+            deepgramSocketRef.current = null;
+        }
+
         setSubtitles({});
         channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload: { sender: userEmail, text: '', lang: spokenLangRef.current, isFinal: true, clear: true } });
     };
@@ -901,11 +926,6 @@ function ChatApp({ user, onLogout }) {
         if (isTranscribingRef.current) {
             stopCC();
         } else {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("Live transcription is not supported in this browser (try Google Chrome or Edge).");
-                return;
-            }
             startCC();
         }
     };
@@ -1251,7 +1271,7 @@ function ChatApp({ user, onLogout }) {
                                         ) : (
                                             <>
                                                 {!activeCallEmails.includes(selectedContact) && <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>➕ Add</button>}
-                                                <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isTranscribing ? '💬 CC On' : '💬 CC Off'}</button>
+                                                <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isTranscribing ? '💬 Transcribe On' : '💬 Transcribe Off'}</button>
                                                 <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isMuted ? '🔇 Unmute' : '🎙️ Mute'}</button>
                                                 <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isVideoOff ? '📷 Camera On' : '📸 Camera Off'}</button>
                                                 <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold' }}>{isScreenSharing ? '💻 Stop Share' : '💻 Share'}</button>
@@ -1263,11 +1283,14 @@ function ChatApp({ user, onLogout }) {
 
                                 {inVoiceCall && isTranscribing && (
                                     <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #334155' }}>
-                                        <div style={{ color: '#38bdf8', fontWeight: 'bold', marginRight: '10px' }}>Both users must click '💬 CC On' to share transcripts</div>
+                                        <div style={{ color: '#38bdf8', fontWeight: 'bold', marginRight: '10px' }}>Both users must click '💬 Transcribe On' to share transcripts</div>
                                         <label>🗣️ My Language:
                                             <select value={spokenLang} onChange={e => {
                                                 setSpokenLang(e.target.value);
-                                                if (isTranscribingRef.current) { recognitionRef.current?.stop(); }
+                                                if (isTranscribingRef.current) {
+                                                    stopCC();
+                                                    startCC();
+                                                }
                                             }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', cursor: 'pointer' }}>
                                                 <option value="en-US">English</option>
                                                 <option value="es-ES">Spanish</option>
