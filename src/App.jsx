@@ -1210,7 +1210,7 @@ function ChatApp({ user, onLogout }) {
                         </div>
 
                         {/* ACTIVE CALL BANNER FOR MOBILE */}
-                        {inVoiceCall && (
+                        {isMobile && inVoiceCall && (
                             <div
                                 onClick={() => {
                                     if (activeCallEmails.length > 0) {
