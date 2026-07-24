@@ -854,7 +854,9 @@ function ChatApp({ user, onLogout }) {
             'de-DE': 'de',
             'it-IT': 'it',
             'zh-CN': 'zh',
-            'ja-JP': 'ja'
+            'ja-JP': 'ja',
+            'pt-PT': 'pt',
+            'pt-BR': 'pt'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
@@ -1332,6 +1334,8 @@ function ChatApp({ user, onLogout }) {
                                                 <option value="it-IT">Italian</option>
                                                 <option value="zh-CN">Chinese</option>
                                                 <option value="ja-JP">Japanese</option>
+                                                <option value="pt-PT">Portuguese (PT)</option>
+                                                <option value="pt-BR">Portuguese (BR)</option>
                                             </select>
                                         </label>
                                         <label>🌐 Translate others to:
@@ -1343,6 +1347,8 @@ function ChatApp({ user, onLogout }) {
                                                 <option value="it-IT">Italian</option>
                                                 <option value="zh-CN">Chinese</option>
                                                 <option value="ja-JP">Japanese</option>
+                                                <option value="pt-PT">Portuguese (PT)</option>
+                                                <option value="pt-BR">Portuguese (BR)</option>
                                             </select>
                                         </label>
                                     </div>
@@ -1452,6 +1458,10 @@ export default function App() {
         if (type === 'signup' && password.length < 6) {
             setError("Password must be at least 6 characters long");
             return;
+        }
+
+        if (type === 'signup' && mobile.trim()) {
+
         }
 
         setLoading(true);
