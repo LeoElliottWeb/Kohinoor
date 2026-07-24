@@ -837,7 +837,7 @@ function ChatApp({ user, onLogout }) {
         // =========================================================================
         // 🛑 INSERT YOUR DEEPGRAM API KEY HERE 🛑
         // =========================================================================
-        const DEEPGRAM_API_KEY = 'YOUR_DEEPGRAM_API_KEY';
+        const DEEPGRAM_API_KEY = '6fad18b20b8cb263a38d87b7e4d4045d71acad96';
 
         if (DEEPGRAM_API_KEY === 'YOUR_DEEPGRAM_API_KEY') {
             alert("Please insert your Deepgram API Key into the code to use transcription.");
