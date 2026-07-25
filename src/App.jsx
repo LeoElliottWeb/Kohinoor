@@ -331,6 +331,27 @@ function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn }) {
 }
 
 // ==========================================
+// 🌐 SHARED LANGUAGE OPTIONS
+// ==========================================
+const LanguageOptions = () => (
+    <>
+        <option value="en-US">English</option>
+        <option value="es-ES">Spanish</option>
+        <option value="fr-FR">French</option>
+        <option value="de-DE">German</option>
+        <option value="it-IT">Italian</option>
+        <option value="zh-CN">Chinese</option>
+        <option value="ja-JP">Japanese</option>
+        <option value="pt-PT">Portuguese (PT)</option>
+        <option value="pt-BR">Portuguese (BR)</option>
+        <option value="el-GR">Greek</option>
+        <option value="ru-RU">Russian</option>
+        <option value="ar-SA">Arabic</option>
+        <option value="yo-NG">Yoruba</option>
+    </>
+);
+
+// ==========================================
 // 🛡️ MAIN CHAT COMPONENT
 // ==========================================
 function ChatApp({ user, onLogout }) {
@@ -364,10 +385,15 @@ function ChatApp({ user, onLogout }) {
     const [targetLang, setTargetLang] = useState('es-ES');
     const [subtitles, setSubtitles] = useState({});
 
+    // ✨ Local Translate Mode State
+    const [showLocalTranslator, setShowLocalTranslator] = useState(false);
+    const isLocalTranslateModeRef = useRef(false);
+    useEffect(() => { isLocalTranslateModeRef.current = showLocalTranslator; }, [showLocalTranslator]);
+
     // Auto-enable state
     const [hasSavedSettings, setHasSavedSettings] = useState(false);
 
-    // ✨ NEW: Text To Speech Toggle
+    // Text To Speech Toggle
     const [isTTSOn, setIsTTSOn] = useState(false);
     const isTTSOnRef = useRef(false);
     useEffect(() => { isTTSOnRef.current = isTTSOn; }, [isTTSOn]);
@@ -1038,7 +1064,9 @@ function ChatApp({ user, onLogout }) {
                     const payload = { sender: userEmail, text: transcript, lang: spokenLangRef.current, isFinal: received.is_final };
 
                     if (processSubtitleRef.current) processSubtitleRef.current(payload);
-                    if (channelRef.current) {
+
+                    // Only broadcast if we are actually in a WebRTC call
+                    if (channelRef.current && inCallRef.current) {
                         channelRef.current.send({
                             type: 'broadcast',
                             event: 'webrtc-subtitle',
@@ -1081,7 +1109,8 @@ function ChatApp({ user, onLogout }) {
         }
 
         setSubtitles({});
-        if (channelRef.current) {
+        // Only broadcast clear message if we are actively in a WebRTC call
+        if (channelRef.current && inCallRef.current) {
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-subtitle',
@@ -1118,6 +1147,24 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // ✨ LANGUAGE SWAP UTILITY FOR LOCAL TRANSLATOR
+    const swapLanguages = () => {
+        const newSpoken = targetLang;
+        const newTarget = spokenLang;
+        setSpokenLang(newSpoken);
+        setTargetLang(newTarget);
+        spokenLangRef.current = newSpoken;
+        targetLangRef.current = newTarget;
+        saveUserSettings(newSpoken, newTarget);
+
+        if (isTranscribingRef.current) {
+            stopCC();
+            setTimeout(() => {
+                startCC();
+            }, 300);
+        }
+    };
+
     // ✨ AUTO-START CC AND TTS IF SETTINGS EXIST
     const autoStartedRef = useRef(false);
     useEffect(() => {
@@ -1137,7 +1184,9 @@ function ChatApp({ user, onLogout }) {
     useEffect(() => {
         processSubtitleRef.current = async (payload) => {
             const { sender, text, lang, isFinal, clear } = payload;
-            if (!inCallRef.current) return;
+
+            // Allow processing if in a WebRTC call OR using Local Translator Mode
+            if (!inCallRef.current && !isLocalTranslateModeRef.current) return;
 
             if (clear) {
                 setSubtitles(prev => { const n = { ...prev }; delete n[sender]; return n; });
@@ -1168,8 +1217,11 @@ function ChatApp({ user, onLogout }) {
                             return prev;
                         });
 
-                        // Speak the translated text if it's final and from someone else
-                        if (isFinal && sender !== userEmail && isTTSOnRef.current && 'speechSynthesis' in window) {
+                        // Speak the translated text if it's final
+                        // If local mode, we want to speak our own translated output for the other person
+                        const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
+
+                        if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
                             const utterance = new SpeechSynthesisUtterance(translated || text);
                             utterance.lang = targetLangRef.current; // Speaks the translation language chosen
                             window.speechSynthesis.speak(utterance);
@@ -1184,11 +1236,15 @@ function ChatApp({ user, onLogout }) {
                     clearTimeout(debounceTimers.current[sender]);
                     debounceTimers.current[sender] = setTimeout(doTranslate, 800);
                 }
-            } else if (!needsTranslation && isFinal && sender !== userEmail && isTTSOnRef.current && text.trim().length > 0 && 'speechSynthesis' in window) {
+            } else if (!needsTranslation && isFinal && isTTSOnRef.current && text.trim().length > 0 && 'speechSynthesis' in window) {
                 // Speak the untranslated text if they happen to speak the same language
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = targetLangRef.current;
-                window.speechSynthesis.speak(utterance);
+                const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
+
+                if (shouldSpeak) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = targetLangRef.current;
+                    window.speechSynthesis.speak(utterance);
+                }
             }
 
             if (isFinal) {
@@ -1424,7 +1480,60 @@ function ChatApp({ user, onLogout }) {
     const totalOnlineCount = onlineUsers.length + 1;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
+
+            {/* ✨ LOCAL TRANSLATOR OVERLAY ✨ */}
+            {showLocalTranslator && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0b141a', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
+
+                    <div style={{ padding: '15px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222d34' }}>
+                        <h3 style={{ margin: 0, color: '#00a884', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            🗣️ Offline Local Translator
+                        </h3>
+                        <button onClick={() => { setShowLocalTranslator(false); if (!inCallRef.current) stopCC(); }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '24px', cursor: 'pointer' }}>✖</button>
+                    </div>
+
+                    <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
+                        <div style={{ flex: 1, backgroundColor: '#111b21', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #222d34' }}>
+                            <span style={{ color: '#8696a0', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>They hear ({targetLang})</span>
+                            <div style={{ fontSize: '32px', color: '#38bdf8', fontWeight: 'bold', textAlign: 'center' }}>
+                                {subtitles[userEmail]?.translated || "..."}
+                            </div>
+                        </div>
+
+                        <div style={{ flex: 1, backgroundColor: '#111b21', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #222d34' }}>
+                            <span style={{ color: '#8696a0', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>You say ({spokenLang})</span>
+                            <div style={{ fontSize: '24px', color: '#aebac1', textAlign: 'center', fontStyle: 'italic' }}>
+                                {subtitles[userEmail]?.original || "Listening..."}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ padding: '20px', backgroundColor: '#202c33', borderTop: '1px solid #222d34' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                            <select value={spokenLang} onChange={(e) => { setSpokenLang(e.target.value); spokenLangRef.current = e.target.value; saveUserSettings(e.target.value, targetLang); if (isTranscribingRef.current) { stopCC(); setTimeout(startCC, 300); } }} style={{ padding: '10px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', flex: 1, maxWidth: '150px' }}>
+                                <LanguageOptions />
+                            </select>
+
+                            <button onClick={swapLanguages} title="Swap Languages" style={{ background: '#00a884', color: '#111', border: 'none', borderRadius: '50%', width: '45px', height: '45px', cursor: 'pointer', fontSize: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' }}>⇄</button>
+
+                            <select value={targetLang} onChange={(e) => { setTargetLang(e.target.value); targetLangRef.current = e.target.value; saveUserSettings(spokenLang, e.target.value); }} style={{ padding: '10px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #00a884', flex: 1, maxWidth: '150px' }}>
+                                <LanguageOptions />
+                            </select>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '15px' }}>
+                            <button onClick={toggleTranscription} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTranscribing ? '#ef4444' : '#00a884', color: 'white', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
+                                {isTranscribing ? '⏹ Stop Listening' : '🎤 Start Listening'}
+                            </button>
+                            <button onClick={() => setIsTTSOn(!isTTSOn)} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTTSOn ? '#005c4b' : 'transparent', color: isTTSOn ? 'white' : '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
+                                {isTTSOn ? '🔊 Speaker: ON' : '🔇 Speaker: OFF'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                 {incomingCall && (
                     <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: 20, borderRadius: 8, zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
@@ -1567,19 +1676,7 @@ function ChatApp({ user, onLogout }) {
                                                     startCC();
                                                 }
                                             }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', cursor: 'pointer' }}>
-                                                <option value="en-US">English</option>
-                                                <option value="es-ES">Spanish</option>
-                                                <option value="fr-FR">French</option>
-                                                <option value="de-DE">German</option>
-                                                <option value="it-IT">Italian</option>
-                                                <option value="zh-CN">Chinese</option>
-                                                <option value="ja-JP">Japanese</option>
-                                                <option value="pt-PT">Portuguese (PT)</option>
-                                                <option value="pt-BR">Portuguese (BR)</option>
-                                                <option value="el-GR">Greek</option>
-                                                <option value="ru-RU">Russian</option>
-                                                <option value="ar-SA">Arabic</option>
-                                                <option value="yo-NG">Yoruba</option>
+                                                <LanguageOptions />
                                             </select>
                                         </label>
                                         <label>🌐 Translate others to:
@@ -1588,19 +1685,7 @@ function ChatApp({ user, onLogout }) {
                                                 setTargetLang(newVal);
                                                 saveUserSettings(spokenLang, newVal);
                                             }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #00a884', cursor: 'pointer' }}>
-                                                <option value="en-US">English</option>
-                                                <option value="es-ES">Spanish</option>
-                                                <option value="fr-FR">French</option>
-                                                <option value="de-DE">German</option>
-                                                <option value="it-IT">Italian</option>
-                                                <option value="zh-CN">Chinese</option>
-                                                <option value="ja-JP">Japanese</option>
-                                                <option value="pt-PT">Portuguese (PT)</option>
-                                                <option value="pt-BR">Portuguese (BR)</option>
-                                                <option value="el-GR">Greek</option>
-                                                <option value="ru-RU">Russian</option>
-                                                <option value="ar-SA">Arabic</option>
-                                                <option value="yo-NG">Yoruba</option>
+                                                <LanguageOptions />
                                             </select>
                                         </label>
                                     </div>
@@ -1656,8 +1741,18 @@ function ChatApp({ user, onLogout }) {
                                 </form>
                             </>
                         ) : (
-                            <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'center', alignItems: 'center', color: '#8696a0', textAlign: 'center' }}>
-                                <div><h2>TotalRecall</h2><p>Select a contact to start</p></div>
+                            <div style={{ display: 'flex', flexGrow: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#8696a0', textAlign: 'center' }}>
+                                <div>
+                                    <h2 style={{ color: 'white', marginBottom: '10px' }}>TotalRecall</h2>
+                                    <p>Select a contact to start chatting</p>
+                                </div>
+                                <div style={{ margin: '30px 0', width: '40px', height: '1px', backgroundColor: '#222d34' }}></div>
+                                <div>
+                                    <p style={{ fontSize: '13px', marginBottom: '15px' }}>Talking face-to-face with someone?</p>
+                                    <button onClick={() => setShowLocalTranslator(true)} style={{ padding: '12px 24px', borderRadius: '24px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0, 168, 132, 0.3)' }}>
+                                        🗣️ Open Local Translator
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
