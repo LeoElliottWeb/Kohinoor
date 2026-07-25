@@ -364,6 +364,9 @@ function ChatApp({ user, onLogout }) {
     const [targetLang, setTargetLang] = useState('es-ES');
     const [subtitles, setSubtitles] = useState({});
 
+    // Auto-enable state
+    const [hasSavedSettings, setHasSavedSettings] = useState(false);
+
     // ✨ NEW: Text To Speech Toggle
     const [isTTSOn, setIsTTSOn] = useState(false);
     const isTTSOnRef = useRef(false);
@@ -411,6 +414,52 @@ function ChatApp({ user, onLogout }) {
     const isEndingRef = useRef(false);
     const lastActionRef = useRef(0);
 
+    // ==========================================
+    // 💾 USER SETTINGS: LOAD & SAVE
+    // ==========================================
+    useEffect(() => {
+        const loadSettings = async () => {
+            if (!userEmail) return;
+            const { data, error } = await supabase
+                .from('user_settings')
+                .select('spoken_lang, target_lang')
+                .eq('user_email', userEmail)
+                .maybeSingle();
+
+            if (error) {
+                console.error('Failed to load user settings:', error.message);
+            } else if (data) {
+                if (data.spoken_lang) setSpokenLang(data.spoken_lang);
+                if (data.target_lang) setTargetLang(data.target_lang);
+                setHasSavedSettings(true);
+            }
+        };
+        loadSettings();
+    }, [userEmail]);
+
+    const saveUserSettings = async (newSpoken, newTarget) => {
+        if (!userEmail) return;
+
+        console.log(`Attempting to save: Email=${userEmail}, Spoken=${newSpoken}, Target=${newTarget}`);
+
+        const { data, error } = await supabase.from('user_settings').upsert({
+            user_email: userEmail,
+            spoken_lang: newSpoken,
+            target_lang: newTarget
+        }, {
+            onConflict: 'user_email'
+        }).select();
+
+        if (error) {
+            console.error('Supabase Save Error:', error);
+            alert(`⚠️ Supabase Error: Could not save settings!\n\nDetails: ${error.message}\n\nHint: Make sure you ran the SQL fix provided!`);
+        } else {
+            console.log('Settings successfully saved to database:', data);
+            setHasSavedSettings(true);
+        }
+    };
+    // ==========================================
+
     useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
     useEffect(() => {
         const h = () => setIsMobile(window.innerWidth <= 768);
@@ -447,7 +496,13 @@ function ChatApp({ user, onLogout }) {
         if ((incomingCall || isCallingOut) && !ringer.isActive()) {
             ringer.start('incoming', () => {
                 if (incomingCallRef.current) {
-                    channelRef.current?.send({ type: 'broadcast', event: 'webrtc-decline', payload: { targetEmail: incomingCallRef.current.sender, sender: userEmail } });
+                    if (channelRef.current) {
+                        channelRef.current.send({
+                            type: 'broadcast',
+                            event: 'webrtc-decline',
+                            payload: { targetEmail: incomingCallRef.current.sender, sender: userEmail }
+                        });
+                    }
                     setIncomingCall(null);
                 }
             });
@@ -550,7 +605,11 @@ function ChatApp({ user, onLogout }) {
         if (!inCallRef.current || !channelRef.current) return;
         const connectedPeers = Object.keys(peersRef.current).filter(e => peersRef.current[e].connectionState === 'connected');
         connectedPeers.forEach(target => {
-            channelRef.current.send({ type: 'broadcast', event: 'webrtc-mesh-sync', payload: { targetEmail: target, peers: connectedPeers, sender: userEmail } });
+            channelRef.current.send({
+                type: 'broadcast',
+                event: 'webrtc-mesh-sync',
+                payload: { targetEmail: target, peers: connectedPeers, sender: userEmail }
+            });
         });
     };
 
@@ -566,7 +625,13 @@ function ChatApp({ user, onLogout }) {
         }
 
         pc.onicecandidate = (e) => {
-            if (e.candidate) channelRef.current?.send({ type: 'broadcast', event: 'webrtc-ice', payload: { targetEmail: email, candidate: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex, usernameFragment: e.candidate.usernameFragment }, sender: userEmail } });
+            if (e.candidate && channelRef.current) {
+                channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'webrtc-ice',
+                    payload: { targetEmail: email, candidate: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex, usernameFragment: e.candidate.usernameFragment }, sender: userEmail }
+                });
+            }
         };
 
         pc.onconnectionstatechange = () => {
@@ -582,20 +647,28 @@ function ChatApp({ user, onLogout }) {
     };
 
     const cleanPeer = (email) => {
-        peersRef.current[email]?.close();
-        delete peersRef.current[email];
+        if (peersRef.current[email]) {
+            peersRef.current[email].close();
+            delete peersRef.current[email];
+        }
         setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
         setActiveCallEmails(prev => prev.filter(e => e !== email));
         delete pendingCandidatesRef.current[email];
-        if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) endCall(false);
-        else if (inCallRef.current) broadcastMeshState();
+
+        if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
+            endCall(false);
+        } else if (inCallRef.current) {
+            broadcastMeshState();
+        }
     };
 
     const endCall = (broadcast = true) => {
         if (isEndingRef.current) return;
         isEndingRef.current = true;
         inCallRef.current = false;
+
         if (ringer.isActive()) ringer.stop();
+
         setIsCallingOut(false);
         setIsScreenSharing(false);
         setIsMuted(false);
@@ -604,8 +677,22 @@ function ChatApp({ user, onLogout }) {
 
         stopCC();
 
-        if (broadcast) Object.keys(peersRef.current).forEach(email => channelRef.current?.send({ type: 'broadcast', event: 'webrtc-end', payload: { targetEmail: email, sender: userEmail } }));
-        Object.values(peersRef.current).forEach(pc => { try { pc.close(); } catch (e) { } });
+        if (broadcast) {
+            Object.keys(peersRef.current).forEach(email => {
+                if (channelRef.current) {
+                    channelRef.current.send({
+                        type: 'broadcast',
+                        event: 'webrtc-end',
+                        payload: { targetEmail: email, sender: userEmail }
+                    });
+                }
+            });
+        }
+
+        Object.values(peersRef.current).forEach(pc => {
+            try { pc.close(); } catch (e) { }
+        });
+
         peersRef.current = {};
         pendingCandidatesRef.current = {};
         setRemoteStreams({});
@@ -618,6 +705,7 @@ function ChatApp({ user, onLogout }) {
                 setLocalStream(null);
             }
         }, 2000);
+
         setInVoiceCall(false);
         setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
@@ -723,7 +811,13 @@ function ChatApp({ user, onLogout }) {
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
             const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
-            channelRef.current?.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail } });
+            if (channelRef.current) {
+                channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'webrtc-answer',
+                    payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
+                });
+            }
             const pending = pendingCandidatesRef.current[call.sender] || [];
             for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
             pendingCandidatesRef.current[call.sender] = [];
@@ -745,13 +839,23 @@ function ChatApp({ user, onLogout }) {
             await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
             const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
-            channelRef.current.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail } });
+            if (channelRef.current) {
+                channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'webrtc-answer',
+                    payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
+                });
+            }
             const pending = pendingCandidatesRef.current[call.sender] || [];
             for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
             pendingCandidatesRef.current[call.sender] = [];
             setInVoiceCall(true);
             setSelectedContact(call.sender);
-        } catch (err) { alert("Accept failed: " + err.message); if (Object.keys(peersRef.current).length === 0) endCall(false); else cleanPeer(call.sender); }
+        } catch (err) {
+            alert("Accept failed: " + err.message);
+            if (Object.keys(peersRef.current).length === 0) endCall(false);
+            else cleanPeer(call.sender);
+        }
     };
 
     const toggleScreenShare = async () => {
@@ -761,7 +865,10 @@ function ChatApp({ user, onLogout }) {
                 const newCameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } });
                 const newVideoTrack = newCameraStream.getVideoTracks()[0];
                 if (isVideoOff) newVideoTrack.enabled = false;
-                Object.values(peersRef.current).forEach(pc => { const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(newVideoTrack); });
+                Object.values(peersRef.current).forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (sender) sender.replaceTrack(newVideoTrack);
+                });
                 const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
                 const newStream = new MediaStream([newVideoTrack]);
                 if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
@@ -773,7 +880,10 @@ function ChatApp({ user, onLogout }) {
                 const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 const screenVideoTrack = screenStream.getVideoTracks()[0];
                 screenVideoTrack.onended = () => { if (inCallRef.current) toggleScreenShare(); };
-                Object.values(peersRef.current).forEach(pc => { const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(screenVideoTrack); });
+                Object.values(peersRef.current).forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (sender) sender.replaceTrack(screenVideoTrack);
+                });
                 const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
                 const newStream = new MediaStream([screenVideoTrack]);
                 if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
@@ -809,7 +919,13 @@ function ChatApp({ user, onLogout }) {
     const decline = () => {
         if (ringer.isActive()) ringer.stop();
         const call = incomingCallRef.current;
-        if (call) channelRef.current?.send({ type: 'broadcast', event: 'webrtc-decline', payload: { targetEmail: call.sender, sender: userEmail } });
+        if (call && channelRef.current) {
+            channelRef.current.send({
+                type: 'broadcast',
+                event: 'webrtc-decline',
+                payload: { targetEmail: call.sender, sender: userEmail }
+            });
+        }
         setIncomingCall(null);
     };
 
@@ -870,7 +986,8 @@ function ChatApp({ user, onLogout }) {
             'pt-BR': 'pt',
             'el-GR': 'el',
             'ru-RU': 'ru',
-            'ar-SA': 'ar'
+            'ar-SA': 'ar',
+            'yo-NG': 'yo'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
@@ -898,7 +1015,13 @@ function ChatApp({ user, onLogout }) {
                     const payload = { sender: userEmail, text: transcript, lang: spokenLangRef.current, isFinal: received.is_final };
 
                     if (processSubtitleRef.current) processSubtitleRef.current(payload);
-                    channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload });
+                    if (channelRef.current) {
+                        channelRef.current.send({
+                            type: 'broadcast',
+                            event: 'webrtc-subtitle',
+                            payload
+                        });
+                    }
                 }
             };
 
@@ -935,7 +1058,13 @@ function ChatApp({ user, onLogout }) {
         }
 
         setSubtitles({});
-        channelRef.current?.send({ type: 'broadcast', event: 'webrtc-subtitle', payload: { sender: userEmail, text: '', lang: spokenLangRef.current, isFinal: true, clear: true } });
+        if (channelRef.current) {
+            channelRef.current.send({
+                type: 'broadcast',
+                event: 'webrtc-subtitle',
+                payload: { sender: userEmail, text: '', lang: spokenLangRef.current, isFinal: true, clear: true }
+            });
+        }
     };
 
     const toggleTranscription = () => {
@@ -945,6 +1074,22 @@ function ChatApp({ user, onLogout }) {
             startCC();
         }
     };
+
+    // ✨ AUTO-START CC AND TTS IF SETTINGS EXIST
+    const autoStartedRef = useRef(false);
+    useEffect(() => {
+        if (inVoiceCall && hasSavedSettings && !autoStartedRef.current) {
+            setIsTTSOn(true);
+            if (!isTranscribingRef.current) {
+                // By forcing the state to true right away, we guarantee the UI updates immediately
+                setIsTranscribing(true);
+                startCC();
+            }
+            autoStartedRef.current = true;
+        } else if (!inVoiceCall) {
+            autoStartedRef.current = false;
+        }
+    }, [inVoiceCall, hasSavedSettings]);
 
     useEffect(() => {
         processSubtitleRef.current = async (payload) => {
@@ -1089,7 +1234,13 @@ function ChatApp({ user, onLogout }) {
             });
         });
 
-        ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => { if (payload.targetEmail === userEmail) { setIsCallingOut(false); cleanPeer(payload.sender); } });
+        ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail) {
+                setIsCallingOut(false);
+                cleanPeer(payload.sender);
+            }
+        });
+
         ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
             if (payload.targetEmail === userEmail) {
                 if (incomingCallRef.current?.sender === payload.sender) setIncomingCall(null);
@@ -1350,7 +1501,9 @@ function ChatApp({ user, onLogout }) {
                                         <div style={{ color: '#38bdf8', fontWeight: 'bold', marginRight: '10px' }}>Both users must click '💬 Transcribe On' to share transcripts</div>
                                         <label>🗣️ My Language:
                                             <select value={spokenLang} onChange={e => {
-                                                setSpokenLang(e.target.value);
+                                                const newVal = e.target.value;
+                                                setSpokenLang(newVal);
+                                                saveUserSettings(newVal, targetLang);
                                                 if (isTranscribingRef.current) {
                                                     stopCC();
                                                     startCC();
@@ -1368,10 +1521,15 @@ function ChatApp({ user, onLogout }) {
                                                 <option value="el-GR">Greek</option>
                                                 <option value="ru-RU">Russian</option>
                                                 <option value="ar-SA">Arabic</option>
+                                                <option value="yo-NG">Yoruba</option>
                                             </select>
                                         </label>
                                         <label>🌐 Translate others to:
-                                            <select value={targetLang} onChange={e => setTargetLang(e.target.value)} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #00a884', cursor: 'pointer' }}>
+                                            <select value={targetLang} onChange={e => {
+                                                const newVal = e.target.value;
+                                                setTargetLang(newVal);
+                                                saveUserSettings(spokenLang, newVal);
+                                            }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #00a884', cursor: 'pointer' }}>
                                                 <option value="en-US">English</option>
                                                 <option value="es-ES">Spanish</option>
                                                 <option value="fr-FR">French</option>
@@ -1384,6 +1542,7 @@ function ChatApp({ user, onLogout }) {
                                                 <option value="el-GR">Greek</option>
                                                 <option value="ru-RU">Russian</option>
                                                 <option value="ar-SA">Arabic</option>
+                                                <option value="yo-NG">Yoruba</option>
                                             </select>
                                         </label>
                                     </div>
@@ -1495,10 +1654,6 @@ export default function App() {
         if (type === 'signup' && password.length < 6) {
             setError("Password must be at least 6 characters long");
             return;
-        }
-
-        if (type === 'signup' && mobile.trim()) {
-
         }
 
         setLoading(true);
