@@ -302,7 +302,7 @@ function LocalVideo({ stream, subtitle }) {
 // ==========================================
 // 📺 REMOTE VIDEO COMPONENT
 // ==========================================
-function RemoteVideo({ stream, email, allKnownUsers, subtitle }) {
+function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn }) {
     const videoRef = useRef(null);
     useEffect(() => {
         const videoEl = videoRef.current;
@@ -311,6 +311,12 @@ function RemoteVideo({ stream, email, allKnownUsers, subtitle }) {
         videoEl.play().catch(() => { });
         return () => { if (videoEl) videoEl.srcObject = null; };
     }, [stream, email]);
+
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.muted = isTTSOn;
+        }
+    }, [isTTSOn]);
 
     const safeEmail = email?.trim().toLowerCase();
     const contactName = allKnownUsers.find(c => c.email?.trim().toLowerCase() === safeEmail)?.name || email.split('@')[0];
@@ -352,11 +358,16 @@ function ChatApp({ user, onLogout }) {
     const [isVonageCalling, setIsVonageCalling] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-    // CC & Translation States
+    // CC, Translation & TTS States
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [spokenLang, setSpokenLang] = useState('en-US');
     const [targetLang, setTargetLang] = useState('es-ES');
     const [subtitles, setSubtitles] = useState({});
+
+    // ✨ NEW: Text To Speech Toggle
+    const [isTTSOn, setIsTTSOn] = useState(false);
+    const isTTSOnRef = useRef(false);
+    useEffect(() => { isTTSOnRef.current = isTTSOn; }, [isTTSOn]);
 
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef(null);
@@ -958,7 +969,7 @@ function ChatApp({ user, onLogout }) {
                 }
             }));
 
-            // DEBOUNCE LOGIC (FIXED): Update translated string immediately on final, blindly merging with state.
+            // DEBOUNCE & TTS LOGIC 
             if (needsTranslation && text.trim().length > 0) {
                 const doTranslate = () => {
                     translateText(text, lang, targetLangRef.current).then(translated => {
@@ -968,6 +979,13 @@ function ChatApp({ user, onLogout }) {
                             }
                             return prev;
                         });
+
+                        // Speak the translated text if it's final and from someone else
+                        if (isFinal && sender !== userEmail && isTTSOnRef.current && 'speechSynthesis' in window) {
+                            const utterance = new SpeechSynthesisUtterance(translated || text);
+                            utterance.lang = targetLangRef.current; // Speaks the translation language chosen
+                            window.speechSynthesis.speak(utterance);
+                        }
                     });
                 };
 
@@ -978,6 +996,11 @@ function ChatApp({ user, onLogout }) {
                     clearTimeout(debounceTimers.current[sender]);
                     debounceTimers.current[sender] = setTimeout(doTranslate, 800);
                 }
+            } else if (!needsTranslation && isFinal && sender !== userEmail && isTTSOnRef.current && text.trim().length > 0 && 'speechSynthesis' in window) {
+                // Speak the untranslated text if they happen to speak the same language
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = targetLangRef.current;
+                window.speechSynthesis.speak(utterance);
             }
 
             if (isFinal) {
@@ -1302,6 +1325,9 @@ function ChatApp({ user, onLogout }) {
                                                 <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                                     {isMobile ? (isTranscribing ? '💬 On' : '💬 Off') : (isTranscribing ? '💬 Transcribe On' : '💬 Transcribe Off')}
                                                 </button>
+                                                <button onClick={() => setIsTTSOn(!isTTSOn)} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                    {isMobile ? (isTTSOn ? '🔊 On' : '🔇 Off') : (isTTSOn ? '🔊 Speak On' : '🔇 Speak Off')}
+                                                </button>
                                                 <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                                     {isMobile ? (isMuted ? '🔇' : '🎙️') : (isMuted ? '🔇 Unmute' : '🎙️ Mute')}
                                                 </button>
@@ -1366,7 +1392,9 @@ function ChatApp({ user, onLogout }) {
                                 {inVoiceCall && (
                                     <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Math.max(Object.keys(remoteStreams).length + 1, 2)}, 1fr)`, gap: 10, padding: 10 }}>
                                         <LocalVideo stream={localStream} subtitle={subtitles[userEmail]} />
-                                        {Object.entries(remoteStreams).map(([email, stream]) => <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} subtitle={subtitles[email]} />)}
+                                        {Object.entries(remoteStreams).map(([email, stream]) => (
+                                            <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} subtitle={subtitles[email]} isTTSOn={isTTSOn} />
+                                        ))}
                                     </div>
                                 )}
 
