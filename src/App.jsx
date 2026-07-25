@@ -440,8 +440,6 @@ function ChatApp({ user, onLogout }) {
     const saveUserSettings = async (newSpoken, newTarget) => {
         if (!userEmail) return;
 
-        console.log(`Attempting to save: Email=${userEmail}, Spoken=${newSpoken}, Target=${newTarget}`);
-
         const { data, error } = await supabase.from('user_settings').upsert({
             user_email: userEmail,
             spoken_lang: newSpoken,
@@ -452,9 +450,8 @@ function ChatApp({ user, onLogout }) {
 
         if (error) {
             console.error('Supabase Save Error:', error);
-            alert(`⚠️ Supabase Error: Could not save settings!\n\nDetails: ${error.message}\n\nHint: Make sure you ran the SQL fix provided!`);
+            alert(`⚠️ Supabase Error: Could not save settings!\n\nDetails: ${error.message}`);
         } else {
-            console.log('Settings successfully saved to database:', data);
             setHasSavedSettings(true);
         }
     };
@@ -720,7 +717,21 @@ function ChatApp({ user, onLogout }) {
             const pc = createPC(email);
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
-            channelRef.current.send({ type: 'broadcast', event: 'webrtc-offer', payload: { targetEmail: email, offer: pc.localDescription, sender: userEmail, isAuto } });
+
+            // Check if user is currently transcribing OR is about to auto-start due to saved settings
+            const isT = isTranscribingRef.current || hasSavedSettings;
+
+            channelRef.current.send({
+                type: 'broadcast',
+                event: 'webrtc-offer',
+                payload: {
+                    targetEmail: email,
+                    offer: pc.localDescription,
+                    sender: userEmail,
+                    isAuto,
+                    isTranscribing: isT
+                }
+            });
             setInVoiceCall(true);
         } catch (err) {
             if (!isAuto) alert("Call failed: " + err.message);
@@ -821,6 +832,12 @@ function ChatApp({ user, onLogout }) {
             const pending = pendingCandidatesRef.current[call.sender] || [];
             for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
             pendingCandidatesRef.current[call.sender] = [];
+
+            // If caller has transcribe ON, turn it on for recipient too
+            if (call.isTranscribing && !isTranscribingRef.current) {
+                setIsTranscribing(true);
+                startCC();
+            }
         } catch (err) { cleanPeer(call.sender); }
     };
 
@@ -851,6 +868,12 @@ function ChatApp({ user, onLogout }) {
             pendingCandidatesRef.current[call.sender] = [];
             setInVoiceCall(true);
             setSelectedContact(call.sender);
+
+            // If caller has transcribe ON, turn it on for recipient too
+            if (call.isTranscribing && !isTranscribingRef.current) {
+                setIsTranscribing(true);
+                startCC();
+            }
         } catch (err) {
             alert("Accept failed: " + err.message);
             if (Object.keys(peersRef.current).length === 0) endCall(false);
@@ -1070,8 +1093,28 @@ function ChatApp({ user, onLogout }) {
     const toggleTranscription = () => {
         if (isTranscribingRef.current) {
             stopCC();
+            // Tell other peers we turned it off
+            if (inCallRef.current && channelRef.current) {
+                Object.keys(peersRef.current).forEach(peer => {
+                    channelRef.current.send({
+                        type: 'broadcast',
+                        event: 'webrtc-transcribe-off',
+                        payload: { targetEmail: peer, sender: userEmail }
+                    });
+                });
+            }
         } else {
             startCC();
+            // Tell other peers we turned it on
+            if (inCallRef.current && channelRef.current) {
+                Object.keys(peersRef.current).forEach(peer => {
+                    channelRef.current.send({
+                        type: 'broadcast',
+                        event: 'webrtc-transcribe-on',
+                        payload: { targetEmail: peer, sender: userEmail }
+                    });
+                });
+            }
         }
     };
 
@@ -1178,9 +1221,25 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
+        // Event: Subtitles
         ch.on('broadcast', { event: 'webrtc-subtitle' }, ({ payload }) => {
             if (payload.sender !== userEmail && processSubtitleRef.current) {
                 processSubtitleRef.current(payload);
+            }
+        });
+
+        // Event: Remote user turned transcribe ON
+        ch.on('broadcast', { event: 'webrtc-transcribe-on' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail && inCallRef.current && !isTranscribingRef.current) {
+                setIsTranscribing(true);
+                startCC();
+            }
+        });
+
+        // Event: Remote user turned transcribe OFF
+        ch.on('broadcast', { event: 'webrtc-transcribe-off' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail && inCallRef.current && isTranscribingRef.current) {
+                stopCC();
             }
         });
 
@@ -1498,7 +1557,6 @@ function ChatApp({ user, onLogout }) {
 
                                 {inVoiceCall && isTranscribing && (
                                     <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #334155' }}>
-                                        <div style={{ color: '#38bdf8', fontWeight: 'bold', marginRight: '10px' }}>Both users must click '💬 Transcribe On' to share transcripts</div>
                                         <label>🗣️ My Language:
                                             <select value={spokenLang} onChange={e => {
                                                 const newVal = e.target.value;
