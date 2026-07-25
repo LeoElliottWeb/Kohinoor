@@ -1570,6 +1570,16 @@ function ChatApp({ user, onLogout }) {
                             </div>
                         )}
 
+                        {/* ✨ PROMINENT LOCAL TRANSLATOR BUTTON IN SIDEBAR ✨ */}
+                        <div style={{ padding: '15px', borderBottom: '1px solid #222d34' }}>
+                            <button
+                                onClick={() => setShowLocalTranslator(true)}
+                                style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+                            >
+                                🗣️ Open Local Translator
+                            </button>
+                        </div>
+
                         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
                             <div onClick={() => setIsOnlineExpanded(!isOnlineExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34' }}>
                                 <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Online ({onlineUsers.length})</span>
