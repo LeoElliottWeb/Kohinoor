@@ -380,6 +380,12 @@ function ChatApp({ user, onLogout }) {
     const [isVonageCalling, setIsVonageCalling] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+    // Modal & Current Mobile States
+    const [currentUserMobile, setCurrentUserMobile] = useState(user?.user_metadata?.mobile || '');
+    const [showMobileModal, setShowMobileModal] = useState(false);
+    const [newMobile, setNewMobile] = useState('');
+    const [isUpdatingMobile, setIsUpdatingMobile] = useState(false);
+
     // CC, Translation & TTS States
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [spokenLang, setSpokenLang] = useState('en-US');
@@ -442,26 +448,39 @@ function ChatApp({ user, onLogout }) {
     const lastActionRef = useRef(0);
 
     // ==========================================
-    // 💾 USER SETTINGS: LOAD & SAVE
+    // 💾 USER SETTINGS & PROFILE: LOAD & SAVE
     // ==========================================
     useEffect(() => {
-        const loadSettings = async () => {
+        const loadSettingsAndProfile = async () => {
             if (!userEmail) return;
-            const { data, error } = await supabase
+
+            // Load language settings
+            const { data: settingsData } = await supabase
                 .from('user_settings')
                 .select('spoken_lang, target_lang')
                 .eq('user_email', userEmail)
                 .maybeSingle();
 
-            if (error) {
-                console.error('Failed to load user settings:', error.message);
-            } else if (data) {
-                if (data.spoken_lang) setSpokenLang(data.spoken_lang);
-                if (data.target_lang) setTargetLang(data.target_lang);
+            if (settingsData) {
+                if (settingsData.spoken_lang) setSpokenLang(settingsData.spoken_lang);
+                if (settingsData.target_lang) setTargetLang(settingsData.target_lang);
                 setHasSavedSettings(true);
             }
+
+            // Load current mobile number
+            try {
+                const { data: profileData } = await supabase
+                    .from('profiles')
+                    .select('mobile')
+                    .eq('email', userEmail)
+                    .maybeSingle();
+
+                if (profileData?.mobile) {
+                    setCurrentUserMobile(profileData.mobile);
+                }
+            } catch (e) { }
         };
-        loadSettings();
+        loadSettingsAndProfile();
     }, [userEmail]);
 
     const saveUserSettings = async (newSpoken, newTarget) => {
@@ -620,6 +639,31 @@ function ChatApp({ user, onLogout }) {
                 return updated;
             });
             if (selectedContact === emailToRemove) setSelectedContact(null);
+        }
+    };
+
+    const handleUpdateMobile = async () => {
+        if (!newMobile.trim()) {
+            alert("Please enter a valid mobile number.");
+            return;
+        }
+        setIsUpdatingMobile(true);
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ mobile: newMobile.trim() })
+                .eq('email', userEmail);
+
+            if (error) throw error;
+
+            alert("Mobile number updated successfully!");
+            setCurrentUserMobile(newMobile.trim());
+            setShowMobileModal(false);
+            setNewMobile('');
+        } catch (err) {
+            alert("Failed to update mobile number: " + err.message);
+        } finally {
+            setIsUpdatingMobile(false);
         }
     };
 
@@ -1536,6 +1580,30 @@ function ChatApp({ user, onLogout }) {
                 </div>
             )}
 
+            {/* ✨ CHANGE MOBILE NUMBER MODAL ✨ */}
+            {showMobileModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 4000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>📱 Change Mobile Number</h3>
+                        <p style={{ color: '#8696a0', fontSize: '13px', marginBottom: '20px' }}>Enter your new mobile number below to update your profile.</p>
+                        <input
+                            type="tel"
+                            value={newMobile}
+                            onChange={(e) => setNewMobile(e.target.value)}
+                            placeholder="e.g., +447..."
+                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
+                            autoFocus
+                        />
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => { setShowMobileModal(false); setNewMobile(''); }} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                            <button onClick={handleUpdateMobile} disabled={isUpdatingMobile} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: isUpdatingMobile ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                                {isUpdatingMobile ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                 {incomingCall && (
                     <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: 20, borderRadius: 8, zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
@@ -1553,7 +1621,10 @@ function ChatApp({ user, onLogout }) {
                         <div style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>{displayName[0]?.toUpperCase()}</div>
-                                <b style={{ color: '#00a884' }}>{displayName}</b>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                    <b style={{ color: '#00a884', fontSize: '16px' }}>{displayName}</b>
+                                    {currentUserMobile && <span style={{ color: '#8696a0', fontSize: '13px' }}>Mobile {currentUserMobile}</span>}
+                                </div>
                             </div>
                             <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>Logout</button>
                         </div>
@@ -1572,13 +1643,19 @@ function ChatApp({ user, onLogout }) {
                             </div>
                         )}
 
-                        {/* ✨ PROMINENT LOCAL TRANSLATOR BUTTON IN SIDEBAR ✨ */}
-                        <div style={{ padding: '15px', borderBottom: '1px solid #222d34' }}>
+                        {/* ✨ PROMINENT BUTTONS IN SIDEBAR ✨ */}
+                        <div style={{ padding: '15px', borderBottom: '1px solid #222d34', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <button
                                 onClick={() => setShowLocalTranslator(true)}
                                 style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
                             >
                                 🗣️ Open Local Translator
+                            </button>
+                            <button
+                                onClick={() => setShowMobileModal(true)}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: '#2a3942', color: '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                            >
+                                📱 Change Mobile Number
                             </button>
                         </div>
 
@@ -1772,7 +1849,7 @@ function ChatApp({ user, onLogout }) {
             </div>
             {/* FOOTER */}
             <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
-                <span>© NoirSoft Creation 2026</span>
+                <span>© NoirSoft Ltd</span>
                 <div style={{ display: 'flex', gap: '20px' }}><span>👥 Members: {memberCount}</span><span>🟢 Online: {totalOnlineCount}</span></div>
             </div>
         </div>
