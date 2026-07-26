@@ -1793,18 +1793,61 @@ export default function App() {
     const [mobile, setMobile] = useState('');
     const [loading, setLoading] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [confirmMessage, setConfirmMessage] = useState('');
     const [error, setError] = useState('');
     const [isSignupMode, setIsSignupMode] = useState(false);
+    const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => setUser(s?.user || null));
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            setUser(session?.user || null);
+
+            // Intercept password recovery flow when they click the email link
+            if (event === 'PASSWORD_RECOVERY') {
+                const newPassword = prompt("Please enter your new password (minimum 6 characters):");
+                if (newPassword && newPassword.length >= 6) {
+                    supabase.auth.updateUser({ password: newPassword }).then(({ error }) => {
+                        if (error) {
+                            alert("Failed to update password: " + error.message);
+                        } else {
+                            alert("Password updated successfully!");
+                        }
+                    });
+                } else {
+                    alert("Password update cancelled or invalid. Please try resetting again if needed.");
+                }
+            }
+        });
+
         return () => subscription.unsubscribe();
     }, []);
 
     const auth = async (e, type) => {
         e.preventDefault();
         setError('');
+
+        if (type === 'reset') {
+            if (!email.trim()) {
+                setError("Please enter your email address");
+                return;
+            }
+            setLoading(true);
+            try {
+                const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                    redirectTo: window.location.origin,
+                });
+                if (error) throw new Error(error.message);
+                setConfirmMessage("We've sent you a password reset link.");
+                setShowConfirm(true);
+            } catch (err) {
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
 
         if (type === 'login' && (!email || !password)) {
             setError("Please fill in all fields");
@@ -1839,10 +1882,23 @@ export default function App() {
                         }
                     }
                 });
-                if (error) throw new Error(error.message.includes('User already registered') ? "This email is already registered. Please log in instead." : error.message);
+
+                const isExistingUser = (error && error.message.includes('User already registered')) ||
+                    (data?.user && data.user.identities && data.user.identities.length === 0);
+
+                if (isExistingUser) {
+                    throw new Error("This email is already registered. Please log in instead.");
+                } else if (error) {
+                    throw new Error(error.message);
+                }
+
                 if (data?.user) {
                     if (data.session) setUser(data.user);
-                    else { setShowConfirm(true); setEmail(''); setPassword(''); setMobile(''); }
+                    else {
+                        setConfirmMessage("We've sent you a confirmation link.");
+                        setShowConfirm(true);
+                        setEmail(''); setPassword(''); setMobile('');
+                    }
                 }
             }
         } catch (err) { setError(err.message); } finally { setLoading(false); }
@@ -1855,23 +1911,42 @@ export default function App() {
             <div style={{ backgroundColor: '#202c33', padding: 40, borderRadius: 8, width: 350, maxWidth: '90%', textAlign: 'center' }}>
                 <h2 style={{ color: '#00a884', marginBottom: 30 }}>TotalRecall</h2>
                 {error && <div style={{ backgroundColor: '#dc2626', color: 'white', padding: 10, borderRadius: 4, marginBottom: 15, wordWrap: 'break-word' }}>{error}</div>}
+
                 {showConfirm ? (
                     <div>
                         <h3>✅ Check your email</h3>
-                        <p style={{ color: '#8696a0', marginBottom: 20 }}>We've sent you a confirmation link.</p>
-                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
+                        <p style={{ color: '#8696a0', marginBottom: 20 }}>{confirmMessage}</p>
+                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); setIsForgotPasswordMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
                     </div>
+                ) : isForgotPasswordMode ? (
+                    <form onSubmit={e => e.preventDefault()}>
+                        <p style={{ color: '#8696a0', marginBottom: 15, fontSize: '14px' }}>Enter your email address and we'll send you a link to reset your password.</p>
+                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+
+                        <button onClick={e => auth(e, 'reset')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>
+                            {loading ? 'Sending...' : 'Send Reset Link'}
+                        </button>
+                        <button onClick={() => { setIsForgotPasswordMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>
+                            Back to Login
+                        </button>
+                    </form>
                 ) : (
                     <form onSubmit={e => e.preventDefault()}>
                         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+
                         {isSignupMode && (
                             <input type="tel" placeholder="Mobile Number (Mandatory)" value={mobile} onChange={e => setMobile(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} required />
                         )}
+
                         <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+
                         {!isSignupMode ? (
                             <>
                                 <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Log In'}</button>
                                 <button onClick={() => { setIsSignupMode(true); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Sign Up</button>
+                                <button onClick={() => { setIsForgotPasswordMode(true); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: 'none', fontSize: '13px', cursor: 'pointer', marginTop: '10px', textDecoration: 'underline' }} disabled={loading}>
+                                    Forgot Password?
+                                </button>
                             </>
                         ) : (
                             <>
