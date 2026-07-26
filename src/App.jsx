@@ -69,21 +69,13 @@ const urlExtractRegex = /((?:https?:\/\/|www\.)[^\s<]+[^<.,:;"')\]\s])/gi;
 
 const renderTextWithLinks = (text) => {
     if (!text) return null;
-
     const parts = text.split(urlExtractRegex);
     let result = [];
-
     parts.forEach((part, i) => {
         if (part && part.match(urlExtractRegex)) {
             const href = part.startsWith('http') ? part : `https://${part}`;
             result.push(
-                <a
-                    key={i}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: '#38bdf8', textDecoration: 'underline', wordBreak: 'break-all' }}
-                >
+                <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline', wordBreak: 'break-all' }}>
                     {part}
                 </a>
             );
@@ -95,7 +87,6 @@ const renderTextWithLinks = (text) => {
             });
         }
     });
-
     return result;
 };
 
@@ -105,39 +96,24 @@ const renderTextWithLinks = (text) => {
 function EmojiPicker({ onSelectEmoji, onClose }) {
     const emojiCategories = {
         '😊': ['😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '🥰', '😘', '😗', '😙', '😚', '🙂', '🤗', '🤩', '🤔', '🤨', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯', '😪', '😫', '😴', '😌', '😛', '😜', '😝', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞', '😟', '😤', '😢', '😭', '😦', '😧', '😨', '😩', '🤯', '😬', '😰', '😱', '🥵', '🥶', '😳', '🤪', '😵', '😡', '😠', '🤬'],
-        '❤️': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️'],
-        '👍': ['👍', '👎', '👊', '✊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✌️', '🤟', '🤘', '👌', '🤌', '🤏', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤙', '💪', '🦾', '🖕', '✍️', '🙇', '💁', '🙋', '🧏', '🙆', '🙅', '🤷', '🤦', '🙎', '🙍', '💇', '💆', '🧖', '💅', '🤳', '💃', '🕺', '👯', '🕴️', '👨‍🦽', '👩‍🦽', '🧑‍🦽', '👨‍🦼', '👩‍🦼', '🧑‍🦼'],
-        '👋': ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦵', '🦿', '🦶', '👣', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '🫦'],
-        '🐱': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊'],
-        '🍕': ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🫒', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫘', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪'],
-        '🚗': ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🏍️', '🛵', '🚲', '🛴', '🛹', '🛼', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢'],
-        '💡': ['💡', '🔦', '🕯️', '🧯', '🪔', '🧨', '💣', '🧲', '🧰', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🔩', '⚙️', '🧱', '⛓️', '🧪', '🧫', '🧬', '🔬', '🔭', '📡', '💉', '🩸', '💊', '🩹', '🩺', '🧹', '🧺', '🧻', '🪣', '🧼', '🫧', '🪥', '🧽', '🧴', '🪞', '🪟', '🚰', '🪠', '🪤', '🪣', '🧯'],
-        '📱': ['📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '💽', '💾', '💿', '📀', '🧮', '🎥', '📽️', '📺', '📷', '📸', '📹', '📼', '🔍', '🔎', '🕯️', '💡', '🔦', '🏮', '🪔', '📔', '📕', '📖', '📗', '📘', '📙', '📚', '📓', '📒', '📃', '📜', '📄', '📰', '🗞️', '📑', '🔖', '📌', '📍', '✂️', '📐', '📏', '🧷', '📎', '🖇️', '📏', '📐', '✒️', '🖊️', '🖋️', '✏️', '🖍️', '🖌️', '🔏', '🔐', '🔒', '🔓']
+        '👍': ['👍', '👎', '👊', '✊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✌️', '🤟', '🤘', '👌', '🤌', '🤏', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤙', '💪', '🦾', '🖕', '✍️', '🙇', '💁', '🙋', '🧏', '🙆', '🙅', '🤷', '🤦', '🙎', '🙍', '💇', '💆', '🧖', '💅', '🤳', '💃', '🕺', '👯', '🕴️', '👨‍🦽', '👩‍🦽', '🧑‍🦽', '👨‍🦼', '👩‍🦼', '🧑‍🦼']
     };
-
     const [selectedCategory, setSelectedCategory] = useState('😊');
     const categories = Object.keys(emojiCategories);
     const emojis = emojiCategories[selectedCategory] || [];
 
-    const handleEmojiClick = (emoji) => {
-        onSelectEmoji(emoji);
-        onClose();
-    };
+    const handleEmojiClick = (emoji) => { onSelectEmoji(emoji); onClose(); };
 
     return (
-        <div style={{ position: 'absolute', bottom: '70px', left: '10px', backgroundColor: '#202c33', borderRadius: '12px', padding: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.1)', zIndex: 1000, width: '320px', maxHeight: '350px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '10px' }}>
+        <div style={{ position: 'absolute', bottom: '70px', left: '10px', backgroundColor: '#1a2639', borderRadius: '12px', padding: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', border: '1px solid #2d3748', zIndex: 1000, width: '320px', maxHeight: '350px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '10px', borderBottom: '1px solid #2d3748', marginBottom: '10px' }}>
                 {categories.map(category => (
-                    <button key={category} onClick={() => setSelectedCategory(category)} style={{ background: selectedCategory === category ? '#2a3942' : 'transparent', border: 'none', color: '#e9edef', fontSize: '20px', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}>
-                        {category}
-                    </button>
+                    <button key={category} onClick={() => setSelectedCategory(category)} style={{ background: selectedCategory === category ? '#2d3748' : 'transparent', border: 'none', color: '#e2e8f0', fontSize: '20px', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}>{category}</button>
                 ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '2px', overflowY: 'auto', padding: '4px', maxHeight: '220px' }}>
                 {emojis.map((emoji, index) => (
-                    <button key={index} onClick={() => handleEmojiClick(emoji)} style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '4px', borderRadius: '4px', transition: 'background 0.2s', color: '#e9edef' }} onMouseEnter={(e) => e.currentTarget.style.background = '#2a3942'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                        {emoji}
-                    </button>
+                    <button key={index} onClick={() => handleEmojiClick(emoji)} style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '4px', borderRadius: '4px', transition: 'background 0.2s', color: '#e2e8f0' }} onMouseEnter={(e) => e.currentTarget.style.background = '#2d3748'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>{emoji}</button>
                 ))}
             </div>
         </div>
@@ -159,14 +135,11 @@ function LinkPreview({ url, style = {} }) {
         let isMounted = true;
         let cleanUrl = url.trim();
         if (!cleanUrl.startsWith('http')) cleanUrl = 'https://' + cleanUrl;
-
         let hostname = '';
         try { hostname = new URL(cleanUrl).hostname; } catch (e) { hostname = 'link'; }
         const cleanHostname = hostname.replace('www.', '');
 
-        if (isMounted) {
-            setPreview({ title: 'Loading preview...', description: cleanUrl, image: null, publisher: cleanHostname, isLoading: true });
-        }
+        if (isMounted) setPreview({ title: 'Loading preview...', description: cleanUrl, image: null, publisher: cleanHostname, isLoading: true });
 
         const fetchPreview = async () => {
             let ytImage = null;
@@ -174,37 +147,30 @@ function LinkPreview({ url, style = {} }) {
                 const ytIdMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
                 if (ytIdMatch && ytIdMatch[1]) ytImage = `https://img.youtube.com/vi/${ytIdMatch[1]}/hqdefault.jpg`;
             }
-
             try {
                 const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(cleanUrl)}&screenshot=true&meta=true`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data.status === 'success' && data.data) {
                         if (isMounted) {
-                            const screenshotUrl = data.data.screenshot?.url;
-                            const ogImage = data.data.image?.url;
-                            const logoUrl = data.data.logo?.url;
-                            const finalImage = ytImage || screenshotUrl || ogImage || logoUrl || null;
+                            const finalImage = ytImage || data.data.screenshot?.url || data.data.image?.url || data.data.logo?.url || null;
                             setPreview({ title: data.data.title || cleanHostname.toUpperCase(), description: data.data.description || data.data.og?.description || '', image: finalImage, publisher: data.data.publisher || data.data.og?.site_name || cleanHostname, isLoading: false });
                             setIsLoading(false);
                         }
                         return;
                     }
                 }
-            } catch (err) { console.log('Preview fetch error:', err); }
-
+            } catch (err) { }
             if (ytImage && isMounted) {
-                setPreview({ title: 'YouTube Video', description: 'Click to watch on YouTube', image: ytImage, publisher: 'YouTube', isLoading: false });
+                setPreview({ title: 'YouTube Video', description: 'Click to watch', image: ytImage, publisher: 'YouTube', isLoading: false });
                 setIsLoading(false);
                 return;
             }
-
             if (isMounted) {
                 setPreview({ title: cleanHostname.toUpperCase(), description: cleanUrl, image: `https://www.google.com/s2/favicons?domain=${cleanHostname}&sz=128`, publisher: cleanHostname, isLoading: false, isFallback: true });
                 setIsLoading(false);
             }
         };
-
         fetchPreview();
         return () => { isMounted = false; };
     }, [url]);
@@ -212,121 +178,30 @@ function LinkPreview({ url, style = {} }) {
     if (!preview) return null;
     if (preview.isLoading) {
         return (
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '12px 16px', marginTop: 8, gap: 12, border: '1px solid rgba(255,255,255,0.05)', ...style }}>
-                <div style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)', flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }} />
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '12px', marginTop: 8, gap: 12, border: '1px solid rgba(255,255,255,0.05)', ...style }}>
+                <div style={{ width: 50, height: 50, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)', animation: 'pulse 1.5s ease-in-out infinite' }} />
                 <div style={{ flex: 1 }}>
-                    <div style={{ height: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 8, width: '70%', animation: 'pulse 1.5s ease-in-out infinite' }} />
-                    <div style={{ height: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 4, width: '40%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                    <div style={{ height: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 8, width: '70%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                    <div style={{ height: 8, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 4, width: '40%', animation: 'pulse 1.5s ease-in-out infinite' }} />
                 </div>
             </div>
         );
     }
-
     const hasImage = preview.image && !imgError && !preview.isFallback;
-
     return (
         <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block', marginTop: 8, ...style }}>
-            <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)', transition: 'background-color 0.2s ease', cursor: 'pointer', maxWidth: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#0f172a', borderRadius: 8, overflow: 'hidden', border: '1px solid #334155', cursor: 'pointer' }}>
                 {hasImage && (
-                    <div style={{ width: '100%', height: 160, backgroundColor: '#1a1a1a', overflow: 'hidden', position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <img src={preview.image} alt={preview.title || 'Link preview'} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={() => setImgError(true)} onLoad={() => setIsLoading(false)} />
-                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }} />
+                    <div style={{ width: '100%', height: 120, backgroundColor: '#000', position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <img src={preview.image} alt={preview.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgError(true)} onLoad={() => setIsLoading(false)} />
                     </div>
                 )}
-                <div style={{ padding: hasImage ? '12px 14px 14px 14px' : '14px 16px', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                    {!hasImage && preview.image && <div style={{ marginBottom: 6 }}><img src={preview.image} alt="" style={{ width: 20, height: 20, borderRadius: 4 }} onError={(e) => e.target.style.display = 'none'} /></div>}
-                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: '#e9edef', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }}>{preview.title}</div>
-                    {preview.description && preview.description !== preview.title && (
-                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.5, marginTop: 2, marginBottom: 6 }}>{preview.description}</div>
-                    )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.3px' }}>{preview.publisher}</span>
-                    </div>
+                <div style={{ padding: '10px 12px' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, color: '#e2e8f0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{preview.title}</div>
+                    <div style={{ fontSize: 11, color: '#10b981', textTransform: 'uppercase', fontWeight: 600 }}>{preview.publisher}</div>
                 </div>
             </div>
         </a>
-    );
-}
-
-// ==========================================
-// 📝 SUBTITLE OVERLAY COMPONENT
-// ==========================================
-function SubtitleOverlay({ subtitle }) {
-    if (!subtitle || !subtitle.original) return null;
-
-    const hasTranslation = subtitle.translated && subtitle.translated !== subtitle.original && subtitle.translated !== '...';
-
-    return (
-        <div style={{ position: 'absolute', bottom: '20px', left: '0', right: '0', display: 'flex', justifyContent: 'center', zIndex: 20, pointerEvents: 'none', padding: '0 5%' }}>
-            <div style={{ display: 'inline-block', backgroundColor: 'rgba(0,0,0,0.75)', padding: '8px 16px', borderRadius: '8px', maxWidth: '100%', wordWrap: 'break-word', textShadow: '1px 1px 2px black', textAlign: 'center' }}>
-                {hasTranslation && (
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#38bdf8', marginBottom: '4px' }}>
-                        {subtitle.translated}
-                    </div>
-                )}
-                <div style={{
-                    fontSize: hasTranslation ? '13px' : '18px',
-                    fontWeight: hasTranslation ? 'normal' : 'bold',
-                    color: hasTranslation ? '#aebac1' : 'white',
-                    fontStyle: hasTranslation ? 'italic' : 'normal'
-                }}>
-                    {subtitle.original}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ==========================================
-// 📺 LOCAL VIDEO COMPONENT
-// ==========================================
-function LocalVideo({ stream, subtitle }) {
-    const videoRef = useRef(null);
-    useEffect(() => {
-        const videoEl = videoRef.current;
-        if (!videoEl || !stream) return;
-        videoEl.srcObject = stream;
-        videoEl.muted = true;
-        videoEl.play().catch(() => { });
-        return () => { if (videoEl) videoEl.srcObject = null; };
-    }, [stream]);
-    return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
-            <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff', zIndex: 10 }}>You</span>
-            <SubtitleOverlay subtitle={subtitle} />
-        </div>
-    );
-}
-
-// ==========================================
-// 📺 REMOTE VIDEO COMPONENT
-// ==========================================
-function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn }) {
-    const videoRef = useRef(null);
-    useEffect(() => {
-        const videoEl = videoRef.current;
-        if (!videoEl || !stream) return;
-        videoEl.srcObject = stream;
-        videoEl.play().catch(() => { });
-        return () => { if (videoEl) videoEl.srcObject = null; };
-    }, [stream, email]);
-
-    useEffect(() => {
-        if (videoRef.current) {
-            videoRef.current.muted = isTTSOn;
-        }
-    }, [isTTSOn]);
-
-    const safeEmail = email?.trim().toLowerCase();
-    const contactName = allKnownUsers.find(c => c.email?.trim().toLowerCase() === safeEmail)?.name || email.split('@')[0];
-
-    return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
-            <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff', zIndex: 10 }}>{contactName}</span>
-            <SubtitleOverlay subtitle={subtitle} />
-        </div>
     );
 }
 
@@ -352,55 +227,175 @@ const LanguageOptions = () => (
     </>
 );
 
+// Helper for strict email normalization
+const normalizeEmail = (email) => (email || '').trim().toLowerCase();
+
 // ==========================================
-// 🛡️ MAIN CHAT COMPONENT
+// 📝 SUBTITLE OVERLAY COMPONENT (TRN DESIGN)
+// ==========================================
+function SubtitleOverlay({ subtitle }) {
+    if (!subtitle || !subtitle.original) return null;
+
+    const hasTranslation = subtitle.translated && subtitle.translated !== subtitle.original && subtitle.translated !== '...';
+
+    return (
+        <div style={{ position: 'absolute', bottom: '80px', left: '30px', zIndex: 20, pointerEvents: 'none', maxWidth: '60%' }}>
+            <div style={{ display: 'inline-block', backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(10px)', padding: '15px 25px', borderRadius: '16px', wordWrap: 'break-word', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+                <div style={{ fontSize: '12px', color: '#10b981', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5v14M7 5v14M22 9v6M2 9v6" /></svg>
+                    Speaking in {subtitle.lang ? subtitle.lang.split('-')[0].toUpperCase() : 'UNKNOWN'}
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: '500', color: '#f8fafc', marginBottom: hasTranslation ? '6px' : '0', lineHeight: '1.4' }}>
+                    {subtitle.original}
+                </div>
+                {hasTranslation && (
+                    <div style={{ fontSize: '16px', color: '#94a3b8' }}>
+                        {subtitle.translated}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ==========================================
+// 📺 LOCAL VIDEO COMPONENT
+// ==========================================
+function LocalVideo({ stream, subtitle, isPip }) {
+    const videoRef = useRef(null);
+    useEffect(() => {
+        const videoEl = videoRef.current;
+        if (!videoEl || !stream) return;
+        videoEl.srcObject = stream;
+        videoEl.muted = true;
+        videoEl.play().catch(() => { });
+        return () => { if (videoEl) videoEl.srcObject = null; };
+    }, [stream]);
+
+    return (
+        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000', borderRadius: isPip ? '12px' : '16px', overflow: 'hidden' }}>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+
+            {/* Tag Styling depends on if it's main or PIP */}
+            {isPip ? (
+                <div style={{ position: 'absolute', bottom: '8px', left: '8px', background: 'rgba(0,0,0,0.6)', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>You</span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3"><path d="M12 4v16M17 8v8M7 8v8" /></svg>
+                </div>
+            ) : (
+                <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', gap: '10px' }}>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid #10b981', padding: '4px 12px', borderRadius: '16px', fontSize: '13px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5v14M7 5v14M22 9v6M2 9v6" /></svg>
+                        LIVE
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.6)', padding: '4px 12px', borderRadius: '16px', fontSize: '13px', color: '#fff' }}>
+                        You
+                    </div>
+                </div>
+            )}
+
+            {!isPip && <SubtitleOverlay subtitle={subtitle} />}
+        </div>
+    );
+}
+
+// ==========================================
+// 📺 REMOTE VIDEO COMPONENT
+// ==========================================
+function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn, isPip }) {
+    const videoRef = useRef(null);
+    useEffect(() => {
+        const videoEl = videoRef.current;
+        if (!videoEl || !stream) return;
+        videoEl.srcObject = stream;
+        videoEl.play().catch(() => { });
+        return () => { if (videoEl) videoEl.srcObject = null; };
+    }, [stream, email]);
+
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.muted = isTTSOn;
+        }
+    }, [isTTSOn]);
+
+    const safeEmail = normalizeEmail(email);
+    const contactName = allKnownUsers.find(c => normalizeEmail(c.email) === safeEmail)?.name || email?.split('@')?.[0] || 'Unknown';
+
+    return (
+        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000', borderRadius: isPip ? '12px' : '16px', overflow: 'hidden' }}>
+            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+
+            {/* Tag Styling depends on if it's main or PIP */}
+            {isPip ? (
+                <div style={{ position: 'absolute', bottom: '8px', left: '8px', background: 'rgba(0,0,0,0.6)', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{contactName}</span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3"><path d="M12 4v16M17 8v8M7 8v8" /></svg>
+                </div>
+            ) : (
+                <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', gap: '10px' }}>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid #10b981', padding: '4px 12px', borderRadius: '16px', fontSize: '13px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5v14M7 5v14M22 9v6M2 9v6" /></svg>
+                        LIVE
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.6)', padding: '4px 12px', borderRadius: '16px', fontSize: '13px', color: '#fff' }}>
+                        {contactName}
+                    </div>
+                </div>
+            )}
+
+            {!isPip && <SubtitleOverlay subtitle={subtitle} />}
+        </div>
+    );
+}
+
+// ==========================================
+// 🛡️ MAIN CHAT COMPONENT (TRN Redesign)
 // ==========================================
 function ChatApp({ user, onLogout }) {
     const userEmail = user?.email || '';
-    const displayName = userEmail.split('@')[0];
+    const safeEmail = normalizeEmail(userEmail);
+    const displayName = userEmail?.split('@')?.[0] || 'Unknown';
 
+    // ------------------------------------------
+    // STATE DECLARATIONS
+    // ------------------------------------------
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [members, setMembers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
 
-    const onlineUsersRef = useRef([]);
-    useEffect(() => { onlineUsersRef.current = onlineUsers; }, [onlineUsers]);
-
-    const membersRef = useRef([]);
-    useEffect(() => { membersRef.current = members; }, [members]);
+    const [showContactsPanel, setShowContactsPanel] = useState(true);
 
     const [isOnlineExpanded, setIsOnlineExpanded] = useState(true);
     const [isMembersExpanded, setIsMembersExpanded] = useState(true);
     const [isContactsExpanded, setIsContactsExpanded] = useState(true);
+
     const [selectedContact, setSelectedContact] = useState(null);
     const [chatMessages, setChatMessages] = useState([]);
+    const [transcriptHistory, setTranscriptHistory] = useState([]);
+    const [rightPanelTab, setRightPanelTab] = useState('Conversation');
+
     const [chatInput, setChatInput] = useState('');
-    const [previewUrl, setPreviewUrl] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
     const [isVonageCalling, setIsVonageCalling] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-    // Modal & Current Mobile States
     const [currentUserMobile, setCurrentUserMobile] = useState(user?.user_metadata?.mobile || '');
     const [showMobileModal, setShowMobileModal] = useState(false);
     const [newMobile, setNewMobile] = useState('');
     const [isUpdatingMobile, setIsUpdatingMobile] = useState(false);
 
-    // CC, Translation & TTS States
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [spokenLang, setSpokenLang] = useState('en-US');
     const [targetLang, setTargetLang] = useState('es-ES');
     const [subtitles, setSubtitles] = useState({});
 
-    // ✨ Local Translate Mode State
     const [showLocalTranslator, setShowLocalTranslator] = useState(false);
     const isLocalTranslateModeRef = useRef(false);
     useEffect(() => { isLocalTranslateModeRef.current = showLocalTranslator; }, [showLocalTranslator]);
 
-    // Auto-enable state
     const [hasSavedSettings, setHasSavedSettings] = useState(false);
+    const autoStartedRef = useRef(false);
 
-    // Text To Speech Toggle
     const [isTTSOn, setIsTTSOn] = useState(false);
     const isTTSOnRef = useRef(false);
     useEffect(() => { isTTSOnRef.current = isTTSOn; }, [isTTSOn]);
@@ -408,6 +403,7 @@ function ChatApp({ user, onLogout }) {
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
+
     const selectedContactRef = useRef(selectedContact);
     const channelRef = useRef(null);
     const autoJoinCallerRef = useRef(null);
@@ -417,6 +413,7 @@ function ChatApp({ user, onLogout }) {
     const [incomingCall, setIncomingCall] = useState(null);
     const incomingCallRef = useRef(null);
     const [isCallingOut, setIsCallingOut] = useState(false);
+    const [callDuration, setCallDuration] = useState(0);
 
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
@@ -424,11 +421,15 @@ function ChatApp({ user, onLogout }) {
 
     const [localStream, setLocalStream] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({});
+
+    // ------------------------------------------
+    // REFS
+    // ------------------------------------------
+    const onlineUsersRef = useRef([]);
+    const membersRef = useRef([]);
     const peersRef = useRef({});
     const pendingCandidatesRef = useRef({});
     const localStreamRef = useRef(null);
-
-    // Translation & Deepgram Refs
     const deepgramSocketRef = useRef(null);
     const ccMediaRecorderRef = useRef(null);
     const isTranscribingRef = useRef(false);
@@ -436,25 +437,51 @@ function ChatApp({ user, onLogout }) {
     const targetLangRef = useRef('es-ES');
     const processSubtitleRef = useRef(null);
     const debounceTimers = useRef({});
-
-    useEffect(() => { isTranscribingRef.current = isTranscribing; }, [isTranscribing]);
-    useEffect(() => { spokenLangRef.current = spokenLang; }, [spokenLang]);
-    useEffect(() => { targetLangRef.current = targetLang; }, [targetLang]);
-
     const chatContainerRef = useRef(null);
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    const transcriptContainerRef = useRef(null);
     const inCallRef = useRef(false);
     const isEndingRef = useRef(false);
     const lastActionRef = useRef(0);
 
-    // ==========================================
-    // 💾 USER SETTINGS & PROFILE: LOAD & SAVE
-    // ==========================================
+    // ------------------------------------------
+    // EFFECTS
+    // ------------------------------------------
+    useEffect(() => { onlineUsersRef.current = onlineUsers; }, [onlineUsers]);
+    useEffect(() => { membersRef.current = members; }, [members]);
+    useEffect(() => { isTranscribingRef.current = isTranscribing; }, [isTranscribing]);
+    useEffect(() => { spokenLangRef.current = spokenLang; }, [spokenLang]);
+    useEffect(() => { targetLangRef.current = targetLang; }, [targetLang]);
+    useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
+    useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
+    useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
+
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    useEffect(() => {
+        const h = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', h);
+        return () => window.removeEventListener('resize', h);
+    }, []);
+
+    useEffect(() => {
+        let interval = null;
+        if (inVoiceCall) {
+            interval = setInterval(() => setCallDuration(prev => prev + 1), 1000);
+        } else {
+            setCallDuration(0);
+        }
+        return () => clearInterval(interval);
+    }, [inVoiceCall]);
+
+    const formatTime = (seconds) => {
+        const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+        const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    };
+
     useEffect(() => {
         const loadSettingsAndProfile = async () => {
             if (!userEmail) return;
-
-            // Load language settings
             const { data: settingsData } = await supabase
                 .from('user_settings')
                 .select('spoken_lang, target_lang')
@@ -467,7 +494,6 @@ function ChatApp({ user, onLogout }) {
                 setHasSavedSettings(true);
             }
 
-            // Load current mobile number
             try {
                 const { data: profileData } = await supabase
                     .from('profiles')
@@ -485,32 +511,17 @@ function ChatApp({ user, onLogout }) {
 
     const saveUserSettings = async (newSpoken, newTarget) => {
         if (!userEmail) return;
-
-        const { data, error } = await supabase.from('user_settings').upsert({
-            user_email: userEmail,
-            spoken_lang: newSpoken,
-            target_lang: newTarget
-        }, {
-            onConflict: 'user_email'
-        }).select();
+        const { error } = await supabase.from('user_settings').upsert({
+            user_email: userEmail, spoken_lang: newSpoken, target_lang: newTarget
+        }, { onConflict: 'user_email' });
 
         if (error) {
-            console.error('Supabase Save Error:', error);
             alert(`⚠️ Supabase Error: Could not save settings!\n\nDetails: ${error.message}`);
         } else {
             setHasSavedSettings(true);
         }
     };
-    // ==========================================
 
-    useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
-    useEffect(() => {
-        const h = () => setIsMobile(window.innerWidth <= 768);
-        window.addEventListener('resize', h);
-        return () => window.removeEventListener('resize', h);
-    }, []);
-
-    // ✨ URL INTERCEPTOR
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const caller = params.get('call_from');
@@ -523,7 +534,6 @@ function ChatApp({ user, onLogout }) {
 
     const METERED_USERNAME = "5e5e334296060e35c8d16fa0";
     const METERED_CREDENTIAL = "QB1S/xQpZ7Bq3llP";
-
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -533,8 +543,6 @@ function ChatApp({ user, onLogout }) {
         iceCandidatePoolSize: 10
     };
 
-    useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
-
     useEffect(() => {
         if ((incomingCall || isCallingOut) && !ringer.isActive()) {
             ringer.start('incoming', () => {
@@ -543,7 +551,7 @@ function ChatApp({ user, onLogout }) {
                         channelRef.current.send({
                             type: 'broadcast',
                             event: 'webrtc-decline',
-                            payload: { targetEmail: incomingCallRef.current.sender, sender: userEmail }
+                            payload: { targetEmail: incomingCallRef.current.sender, sender: safeEmail }
                         });
                     }
                     setIncomingCall(null);
@@ -556,7 +564,6 @@ function ChatApp({ user, onLogout }) {
 
     useEffect(() => {
         supabase.from('auth').select('email, name').then(({ data }) => { if (data) setMembers(data); });
-
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) try { setSavedContacts(JSON.parse(stored)); } catch (e) { }
 
@@ -567,8 +574,8 @@ function ChatApp({ user, onLogout }) {
         return () => { supabase.removeChannel(pc); };
     }, []);
 
-    useEffect(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, [chatMessages]);
-    useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
+    useEffect(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, [chatMessages, rightPanelTab]);
+    useEffect(() => { if (transcriptContainerRef.current) transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight; }, [transcriptHistory, rightPanelTab]);
 
     useEffect(() => {
         if (!selectedContact || !userEmail) return;
@@ -598,11 +605,11 @@ function ChatApp({ user, onLogout }) {
             }
 
             if (contactsToProcess.length === 0) { setIsImporting(false); return; }
-            const existingEmails = new Set(savedContacts.map(c => c.email?.trim().toLowerCase()));
+            const existingEmails = new Set(savedContacts.map(c => normalizeEmail(c.email)));
             const contactsToAdd = [], contactsAlreadyExist = [];
 
             contactsToProcess.forEach(contact => {
-                if (existingEmails.has(contact.email.trim().toLowerCase())) contactsAlreadyExist.push(contact);
+                if (existingEmails.has(normalizeEmail(contact.email))) contactsAlreadyExist.push(contact);
                 else contactsToAdd.push(contact);
             });
 
@@ -649,13 +656,8 @@ function ChatApp({ user, onLogout }) {
         }
         setIsUpdatingMobile(true);
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ mobile: newMobile.trim() })
-                .eq('email', userEmail);
-
+            const { error } = await supabase.from('profiles').update({ mobile: newMobile.trim() }).eq('email', userEmail);
             if (error) throw error;
-
             alert("Mobile number updated successfully!");
             setCurrentUserMobile(newMobile.trim());
             setShowMobileModal(false);
@@ -676,17 +678,19 @@ function ChatApp({ user, onLogout }) {
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-mesh-sync',
-                payload: { targetEmail: target, peers: connectedPeers, sender: userEmail }
+                payload: { targetEmail: target, peers: connectedPeers, sender: safeEmail }
             });
         });
     };
 
     const createPC = (email) => {
-        if (peersRef.current[email]) peersRef.current[email].close();
+        const safeTarget = normalizeEmail(email);
+
+        if (peersRef.current[safeTarget]) peersRef.current[safeTarget].close();
         const pc = new RTCPeerConnection(rtcConfig);
-        peersRef.current[email] = pc;
-        setActiveCallEmails(prev => [...new Set([...prev, email])]);
-        if (!pendingCandidatesRef.current[email]) pendingCandidatesRef.current[email] = [];
+        peersRef.current[safeTarget] = pc;
+        setActiveCallEmails(prev => [...new Set([...prev, safeTarget])]);
+        if (!pendingCandidatesRef.current[safeTarget]) pendingCandidatesRef.current[safeTarget] = [];
 
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
@@ -697,31 +701,32 @@ function ChatApp({ user, onLogout }) {
                 channelRef.current.send({
                     type: 'broadcast',
                     event: 'webrtc-ice',
-                    payload: { targetEmail: email, candidate: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex, usernameFragment: e.candidate.usernameFragment }, sender: userEmail }
+                    payload: { targetEmail: safeTarget, candidate: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex, usernameFragment: e.candidate.usernameFragment }, sender: safeEmail }
                 });
             }
         };
 
         pc.onconnectionstatechange = () => {
             if (pc.connectionState === 'connected') { setIsCallingOut(false); broadcastMeshState(); }
-            else if (pc.connectionState === 'failed') cleanPeer(email);
-            else if (pc.connectionState === 'disconnected') setTimeout(() => { if (peersRef.current[email]?.connectionState === 'disconnected') cleanPeer(email); }, 5000);
+            else if (pc.connectionState === 'failed') cleanPeer(safeTarget);
+            else if (pc.connectionState === 'disconnected') setTimeout(() => { if (peersRef.current[safeTarget]?.connectionState === 'disconnected') cleanPeer(safeTarget); }, 5000);
         };
 
         pc.ontrack = (event) => {
-            if (event.streams && event.streams.length > 0) setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
+            if (event.streams && event.streams.length > 0) setRemoteStreams(prev => ({ ...prev, [safeTarget]: event.streams[0] }));
         };
         return pc;
     };
 
     const cleanPeer = (email) => {
-        if (peersRef.current[email]) {
-            peersRef.current[email].close();
-            delete peersRef.current[email];
+        const safeTarget = normalizeEmail(email);
+        if (peersRef.current[safeTarget]) {
+            peersRef.current[safeTarget].close();
+            delete peersRef.current[safeTarget];
         }
-        setRemoteStreams(prev => { const n = { ...prev }; delete n[email]; return n; });
-        setActiveCallEmails(prev => prev.filter(e => e !== email));
-        delete pendingCandidatesRef.current[email];
+        setRemoteStreams(prev => { const n = { ...prev }; delete n[safeTarget]; return n; });
+        setActiveCallEmails(prev => prev.filter(e => normalizeEmail(e) !== safeTarget));
+        delete pendingCandidatesRef.current[safeTarget];
 
         if (!Object.keys(peersRef.current).length && inCallRef.current && !isEndingRef.current) {
             endCall(false);
@@ -745,15 +750,13 @@ function ChatApp({ user, onLogout }) {
 
         stopCC();
 
-        if (broadcast) {
+        if (broadcast && channelRef.current) {
             Object.keys(peersRef.current).forEach(email => {
-                if (channelRef.current) {
-                    channelRef.current.send({
-                        type: 'broadcast',
-                        event: 'webrtc-end',
-                        payload: { targetEmail: email, sender: userEmail }
-                    });
-                }
+                channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'webrtc-end',
+                    payload: { targetEmail: normalizeEmail(email), sender: safeEmail }
+                });
             });
         }
 
@@ -789,16 +792,15 @@ function ChatApp({ user, onLogout }) {
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
 
-            // Check if user is currently transcribing OR is about to auto-start due to saved settings
             const isT = isTranscribingRef.current || hasSavedSettings;
 
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-offer',
                 payload: {
-                    targetEmail: email,
+                    targetEmail: normalizeEmail(email),
                     offer: pc.localDescription,
-                    sender: userEmail,
+                    sender: safeEmail,
                     isAuto,
                     isTranscribing: isT
                 }
@@ -813,7 +815,8 @@ function ChatApp({ user, onLogout }) {
 
     const triggerVonageCall = async (emailToCall) => {
         let targetMobile = null;
-        const member = membersRef.current.find(m => m.email?.toLowerCase() === emailToCall.toLowerCase());
+        const normalizedEmailToCall = normalizeEmail(emailToCall);
+        const member = membersRef.current.find(m => normalizeEmail(m.email) === normalizedEmailToCall);
         if (member && member.mobile) {
             targetMobile = member.mobile;
         }
@@ -834,9 +837,7 @@ function ChatApp({ user, onLogout }) {
 
         if (!targetMobile) {
             targetMobile = prompt(`Could not automatically find a mobile number for ${emailToCall}.\n\nEnter their mobile number to call (including country code, e.g., 447...):`);
-            if (!targetMobile || !targetMobile.trim()) {
-                return;
-            }
+            if (!targetMobile || !targetMobile.trim()) return;
         }
 
         const cleanNumber = targetMobile.replace(/[^0-9]/g, '');
@@ -867,12 +868,17 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    const handleVonageMobileCallUI = () => {
+        if (selectedContact) triggerVonageCall(selectedContact);
+    };
+
     const initiateCall = async (email, isAuto = false) => {
         if (!isAuto) {
             if (Date.now() - lastActionRef.current < 2000) return;
             lastActionRef.current = Date.now();
 
-            const isOnline = onlineUsersRef.current.some(u => u.email?.toLowerCase() === email.toLowerCase());
+            const normalizedTarget = normalizeEmail(email);
+            const isOnline = onlineUsersRef.current.some(u => normalizeEmail(u.email) === normalizedTarget);
 
             if (!isOnline) {
                 await triggerVonageCall(email);
@@ -880,10 +886,6 @@ function ChatApp({ user, onLogout }) {
             }
         }
         startWebRTCCall(email, isAuto);
-    };
-
-    const handleVonageMobileCallUI = () => {
-        if (selectedContact) triggerVonageCall(selectedContact);
     };
 
     const autoAcceptCall = async (call) => {
@@ -897,14 +899,13 @@ function ChatApp({ user, onLogout }) {
                 channelRef.current.send({
                     type: 'broadcast',
                     event: 'webrtc-answer',
-                    payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
+                    payload: { targetEmail: normalizeEmail(call.sender), answer: pc.localDescription, sender: safeEmail }
                 });
             }
-            const pending = pendingCandidatesRef.current[call.sender] || [];
+            const pending = pendingCandidatesRef.current[normalizeEmail(call.sender)] || [];
             for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
-            pendingCandidatesRef.current[call.sender] = [];
+            pendingCandidatesRef.current[normalizeEmail(call.sender)] = [];
 
-            // If caller has transcribe ON, turn it on for recipient too
             if (call.isTranscribing && !isTranscribingRef.current) {
                 setIsTranscribing(true);
                 startCC();
@@ -931,16 +932,15 @@ function ChatApp({ user, onLogout }) {
                 channelRef.current.send({
                     type: 'broadcast',
                     event: 'webrtc-answer',
-                    payload: { targetEmail: call.sender, answer: pc.localDescription, sender: userEmail }
+                    payload: { targetEmail: normalizeEmail(call.sender), answer: pc.localDescription, sender: safeEmail }
                 });
             }
-            const pending = pendingCandidatesRef.current[call.sender] || [];
+            const pending = pendingCandidatesRef.current[normalizeEmail(call.sender)] || [];
             for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
-            pendingCandidatesRef.current[call.sender] = [];
+            pendingCandidatesRef.current[normalizeEmail(call.sender)] = [];
             setInVoiceCall(true);
             setSelectedContact(call.sender);
 
-            // If caller has transcribe ON, turn it on for recipient too
             if (call.isTranscribing && !isTranscribingRef.current) {
                 setIsTranscribing(true);
                 startCC();
@@ -1017,7 +1017,7 @@ function ChatApp({ user, onLogout }) {
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-decline',
-                payload: { targetEmail: call.sender, sender: userEmail }
+                payload: { targetEmail: normalizeEmail(call.sender), sender: safeEmail }
             });
         }
         setIncomingCall(null);
@@ -1037,7 +1037,6 @@ function ChatApp({ user, onLogout }) {
             return data[0].map(item => item[0]).join('');
         } catch (e) {
             console.error("Google Translation API error, attempting fallback:", e);
-            // Fallback API (MyMemory)
             try {
                 const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceBase}|${targetBase}`);
                 const data2 = await res2.json();
@@ -1054,10 +1053,6 @@ function ChatApp({ user, onLogout }) {
     // ✨ DEEPGRAM LIVE AUDIO STREAMING ✨
     const startCC = async () => {
         if (isTranscribingRef.current) return;
-
-        // =========================================================================
-        // 🛑 INSERT YOUR DEEPGRAM API KEY HERE 🛑
-        // =========================================================================
         const DEEPGRAM_API_KEY = '6fad18b20b8cb263a38d87b7e4d4045d71acad96';
 
         if (DEEPGRAM_API_KEY === 'YOUR_DEEPGRAM_API_KEY') {
@@ -1067,29 +1062,11 @@ function ChatApp({ user, onLogout }) {
 
         setIsTranscribing(true);
         isTranscribingRef.current = true;
-
-        const langMap = {
-            'en-US': 'en',
-            'es-ES': 'es',
-            'fr-FR': 'fr',
-            'de-DE': 'de',
-            'it-IT': 'it',
-            'zh-CN': 'zh',
-            'ja-JP': 'ja',
-            'pt-PT': 'pt',
-            'pt-BR': 'pt',
-            'el-GR': 'el',
-            'ru-RU': 'ru',
-            'ar-SA': 'ar',
-            'yo-NG': 'yo',
-            'nb-NO': 'no'
-        };
-        const dgLang = langMap[spokenLangRef.current] || 'en';
+        const dgLang = spokenLangRef.current.split('-')[0] || 'en';
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             ccMediaRecorderRef.current = new MediaRecorder(stream);
-
             const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?model=nova-3&language=${dgLang}&interim_results=true`, ['token', DEEPGRAM_API_KEY]);
             deepgramSocketRef.current = socket;
 
@@ -1107,11 +1084,10 @@ function ChatApp({ user, onLogout }) {
                 const transcript = received.channel?.alternatives[0]?.transcript;
 
                 if (transcript) {
-                    const payload = { sender: userEmail, text: transcript, lang: spokenLangRef.current, isFinal: received.is_final };
+                    const payload = { sender: safeEmail, text: transcript, lang: spokenLangRef.current, isFinal: received.is_final };
 
                     if (processSubtitleRef.current) processSubtitleRef.current(payload);
 
-                    // Only broadcast if we are actually in a WebRTC call
                     if (channelRef.current && inCallRef.current) {
                         channelRef.current.send({
                             type: 'broadcast',
@@ -1122,17 +1098,13 @@ function ChatApp({ user, onLogout }) {
                 }
             };
 
-            socket.onerror = (error) => {
-                console.error("Deepgram WebSocket Error:", error);
-            };
-
+            socket.onerror = (error) => { console.error("Deepgram WebSocket Error:", error); };
             socket.onclose = () => {
                 if (isTranscribingRef.current) {
                     setIsTranscribing(false);
                     isTranscribingRef.current = false;
                 }
             };
-
         } catch (err) {
             console.error("Microphone access denied or error:", err);
             setIsTranscribing(false);
@@ -1155,12 +1127,11 @@ function ChatApp({ user, onLogout }) {
         }
 
         setSubtitles({});
-        // Only broadcast clear message if we are actively in a WebRTC call
         if (channelRef.current && inCallRef.current) {
             channelRef.current.send({
                 type: 'broadcast',
                 event: 'webrtc-subtitle',
-                payload: { sender: userEmail, text: '', lang: spokenLangRef.current, isFinal: true, clear: true }
+                payload: { sender: safeEmail, text: '', lang: spokenLangRef.current, isFinal: true, clear: true }
             });
         }
     };
@@ -1168,32 +1139,29 @@ function ChatApp({ user, onLogout }) {
     const toggleTranscription = () => {
         if (isTranscribingRef.current) {
             stopCC();
-            // Tell other peers we turned it off
             if (inCallRef.current && channelRef.current) {
                 Object.keys(peersRef.current).forEach(peer => {
                     channelRef.current.send({
                         type: 'broadcast',
                         event: 'webrtc-transcribe-off',
-                        payload: { targetEmail: peer, sender: userEmail }
+                        payload: { targetEmail: normalizeEmail(peer), sender: safeEmail }
                     });
                 });
             }
         } else {
             startCC();
-            // Tell other peers we turned it on
             if (inCallRef.current && channelRef.current) {
                 Object.keys(peersRef.current).forEach(peer => {
                     channelRef.current.send({
                         type: 'broadcast',
                         event: 'webrtc-transcribe-on',
-                        payload: { targetEmail: peer, sender: userEmail }
+                        payload: { targetEmail: normalizeEmail(peer), sender: safeEmail }
                     });
                 });
             }
         }
     };
 
-    // ✨ LANGUAGE SWAP UTILITY FOR LOCAL TRANSLATOR
     const swapLanguages = () => {
         const newSpoken = targetLang;
         const newTarget = spokenLang;
@@ -1205,19 +1173,14 @@ function ChatApp({ user, onLogout }) {
 
         if (isTranscribingRef.current) {
             stopCC();
-            setTimeout(() => {
-                startCC();
-            }, 300);
+            setTimeout(() => { startCC(); }, 300);
         }
     };
 
-    // ✨ AUTO-START CC AND TTS IF SETTINGS EXIST
-    const autoStartedRef = useRef(false);
     useEffect(() => {
         if (inVoiceCall && hasSavedSettings && !autoStartedRef.current) {
             setIsTTSOn(true);
             if (!isTranscribingRef.current) {
-                // By forcing the state to true right away, we guarantee the UI updates immediately
                 setIsTranscribing(true);
                 startCC();
             }
@@ -1230,8 +1193,6 @@ function ChatApp({ user, onLogout }) {
     useEffect(() => {
         processSubtitleRef.current = async (payload) => {
             const { sender, text, lang, isFinal, clear } = payload;
-
-            // Allow processing if in a WebRTC call OR using Local Translator Mode
             if (!inCallRef.current && !isLocalTranslateModeRef.current) return;
 
             if (clear) {
@@ -1248,29 +1209,28 @@ function ChatApp({ user, onLogout }) {
                 [sender]: {
                     original: text,
                     translated: needsTranslation ? (prev[sender]?.translated || '...') : text,
-                    isFinal
+                    isFinal,
+                    lang
                 }
             }));
 
-            // DEBOUNCE & TTS LOGIC 
             if (needsTranslation && text.trim().length > 0) {
                 const doTranslate = () => {
                     translateText(text, lang, targetLangRef.current).then(translated => {
                         setSubtitles(prev => {
-                            if (prev[sender]) {
-                                return { ...prev, [sender]: { ...prev[sender], translated, isFinal } };
-                            }
+                            if (prev[sender]) return { ...prev, [sender]: { ...prev[sender], translated, isFinal } };
                             return prev;
                         });
 
-                        // Speak the translated text if it's final
-                        // If local mode, we want to speak our own translated output for the other person
-                        const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
+                        if (isFinal) {
+                            setTranscriptHistory(prev => [...prev, { id: Date.now() + Math.random(), sender, original: text, translated, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
 
-                        if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
-                            const utterance = new SpeechSynthesisUtterance(translated || text);
-                            utterance.lang = targetLangRef.current; // Speaks the translation language chosen
-                            window.speechSynthesis.speak(utterance);
+                            const shouldSpeak = (sender !== safeEmail) || isLocalTranslateModeRef.current;
+                            if (shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
+                                const utterance = new SpeechSynthesisUtterance(translated || text);
+                                utterance.lang = targetLangRef.current;
+                                window.speechSynthesis.speak(utterance);
+                            }
                         }
                     });
                 };
@@ -1282,14 +1242,16 @@ function ChatApp({ user, onLogout }) {
                     clearTimeout(debounceTimers.current[sender]);
                     debounceTimers.current[sender] = setTimeout(doTranslate, 800);
                 }
-            } else if (!needsTranslation && isFinal && isTTSOnRef.current && text.trim().length > 0 && 'speechSynthesis' in window) {
-                // Speak the untranslated text if they happen to speak the same language
-                const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
+            } else if (!needsTranslation && isFinal) {
+                setTranscriptHistory(prev => [...prev, { id: Date.now() + Math.random(), sender, original: text, translated: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
 
-                if (shouldSpeak) {
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = targetLangRef.current;
-                    window.speechSynthesis.speak(utterance);
+                if (isTTSOnRef.current && text.trim().length > 0 && 'speechSynthesis' in window) {
+                    const shouldSpeak = (sender !== safeEmail) || isLocalTranslateModeRef.current;
+                    if (shouldSpeak) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = targetLangRef.current;
+                        window.speechSynthesis.speak(utterance);
+                    }
                 }
             }
 
@@ -1299,11 +1261,16 @@ function ChatApp({ user, onLogout }) {
                 }, 6000);
             }
         };
-    }, [userEmail]);
+    }, [safeEmail]);
 
     useEffect(() => {
-        if (!userEmail) return;
-        const ch = supabase.channel('totalrecall-global', { config: { presence: { key: `u_${userEmail}` } } });
+        if (!safeEmail) return;
+        const ch = supabase.channel('totalrecall-global', {
+            config: {
+                presence: { key: `u_${safeEmail}` },
+                broadcast: { ack: true }
+            }
+        });
         channelRef.current = ch;
 
         ch.on('presence', { event: 'sync' }, () => {
@@ -1311,48 +1278,53 @@ function ChatApp({ user, onLogout }) {
             const users = [];
             for (const k in st) {
                 const p = st[k]?.[0];
-                if (p?.email && p.email !== userEmail && !users.find(u => u.email === p.email)) users.push({ email: p.email });
+                if (p?.email && normalizeEmail(p.email) !== safeEmail && !users.find(u => normalizeEmail(u.email) === normalizeEmail(p.email))) {
+                    users.push({ email: p.email });
+                }
             }
             setOnlineUsers(users);
         });
 
         ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, p => {
-            if ((p.new.sender_email === selectedContactRef.current && p.new.receiver_email === userEmail) ||
-                (p.new.sender_email === userEmail && p.new.receiver_email === selectedContactRef.current)) {
+            const newSender = normalizeEmail(p.new.sender_email);
+            const newReceiver = normalizeEmail(p.new.receiver_email);
+            const selected = normalizeEmail(selectedContactRef.current);
+
+            if ((newSender === selected && newReceiver === safeEmail) ||
+                (newSender === safeEmail && newReceiver === selected)) {
                 setChatMessages(prev => prev.find(m => m.id === p.new.id) ? prev : [...prev, p.new]);
             }
         });
 
-        // Event: Subtitles
         ch.on('broadcast', { event: 'webrtc-subtitle' }, ({ payload }) => {
-            if (payload.sender !== userEmail && processSubtitleRef.current) {
+            if (normalizeEmail(payload.sender) !== safeEmail && processSubtitleRef.current) {
                 processSubtitleRef.current(payload);
             }
         });
 
-        // Event: Remote user turned transcribe ON
         ch.on('broadcast', { event: 'webrtc-transcribe-on' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail && inCallRef.current && !isTranscribingRef.current) {
+            if (normalizeEmail(payload.targetEmail) === safeEmail && inCallRef.current && !isTranscribingRef.current) {
                 setIsTranscribing(true);
                 startCC();
             }
         });
 
-        // Event: Remote user turned transcribe OFF
         ch.on('broadcast', { event: 'webrtc-transcribe-off' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail && inCallRef.current && isTranscribingRef.current) {
+            if (normalizeEmail(payload.targetEmail) === safeEmail && inCallRef.current && isTranscribingRef.current) {
                 stopCC();
             }
         });
 
         ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
-            if (payload.targetEmail !== userEmail) return;
-            if (peersRef.current[payload.sender]) {
+            if (normalizeEmail(payload.targetEmail) !== safeEmail) return;
+            const senderNormalized = normalizeEmail(payload.sender);
+
+            if (peersRef.current[senderNormalized]) {
                 try {
-                    await peersRef.current[payload.sender].setRemoteDescription(new RTCSessionDescription(payload.offer));
-                    const ans = await peersRef.current[payload.sender].createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-                    await peersRef.current[payload.sender].setLocalDescription(ans);
-                    ch.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: payload.sender, answer: ans, sender: userEmail } });
+                    await peersRef.current[senderNormalized].setRemoteDescription(new RTCSessionDescription(payload.offer));
+                    const ans = await peersRef.current[senderNormalized].createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+                    await peersRef.current[senderNormalized].setLocalDescription(ans);
+                    ch.send({ type: 'broadcast', event: 'webrtc-answer', payload: { targetEmail: senderNormalized, answer: ans, sender: safeEmail } });
                 } catch (e) { }
                 return;
             }
@@ -1361,76 +1333,80 @@ function ChatApp({ user, onLogout }) {
         });
 
         ch.on('broadcast', { event: 'webrtc-answer' }, async ({ payload }) => {
-            if (payload.targetEmail !== userEmail) return;
+            if (normalizeEmail(payload.targetEmail) !== safeEmail) return;
             setIsCallingOut(false);
-            const pc = peersRef.current[payload.sender];
+            const senderNormalized = normalizeEmail(payload.sender);
+            const pc = peersRef.current[senderNormalized];
+
             if (pc && pc.signalingState === 'have-local-offer') {
                 try {
                     await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
-                    const pending = pendingCandidatesRef.current[payload.sender] || [];
+                    const pending = pendingCandidatesRef.current[senderNormalized] || [];
                     for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
-                    pendingCandidatesRef.current[payload.sender] = [];
+                    pendingCandidatesRef.current[senderNormalized] = [];
                 } catch (e) { }
             }
         });
 
         ch.on('broadcast', { event: 'webrtc-ice' }, async ({ payload }) => {
-            if (payload.targetEmail !== userEmail) return;
-            const candidateData = payload.candidate;
-            const pc = peersRef.current[payload.sender];
-            const candidate = new RTCIceCandidate({ candidate: candidateData.candidate, sdpMid: candidateData.sdpMid, sdpMLineIndex: candidateData.sdpMLineIndex, usernameFragment: candidateData.usernameFragment });
+            if (normalizeEmail(payload.targetEmail) !== safeEmail) return;
+            const senderNormalized = normalizeEmail(payload.sender);
+            const pc = peersRef.current[senderNormalized];
+            const candidate = new RTCIceCandidate({ candidate: payload.candidate.candidate, sdpMid: payload.candidate.sdpMid, sdpMLineIndex: payload.candidate.sdpMLineIndex, usernameFragment: payload.candidate.usernameFragment });
+
             if (pc?.remoteDescription) { try { await pc.addIceCandidate(candidate); } catch (e) { } }
             else {
-                if (!pendingCandidatesRef.current[payload.sender]) pendingCandidatesRef.current[payload.sender] = [];
-                pendingCandidatesRef.current[payload.sender].push(candidate);
+                if (!pendingCandidatesRef.current[senderNormalized]) pendingCandidatesRef.current[senderNormalized] = [];
+                pendingCandidatesRef.current[senderNormalized].push(candidate);
             }
         });
 
         ch.on('broadcast', { event: 'webrtc-mesh-sync' }, ({ payload }) => {
-            if (payload.targetEmail !== userEmail || !inCallRef.current) return;
+            if (normalizeEmail(payload.targetEmail) !== safeEmail || !inCallRef.current) return;
             payload.peers.forEach(peer => {
-                if (peer !== userEmail && !peersRef.current[peer]) {
-                    if (userEmail.toLowerCase() < peer.toLowerCase()) startWebRTCCall(peer, true);
+                const peerNorm = normalizeEmail(peer);
+                if (peerNorm !== safeEmail && !peersRef.current[peerNorm]) {
+                    if (safeEmail < peerNorm) startWebRTCCall(peerNorm, true);
                 }
             });
         });
 
         ch.on('broadcast', { event: 'webrtc-decline' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) {
+            if (normalizeEmail(payload.targetEmail) === safeEmail) {
                 setIsCallingOut(false);
-                cleanPeer(payload.sender);
+                cleanPeer(normalizeEmail(payload.sender));
             }
         });
 
         ch.on('broadcast', { event: 'webrtc-end' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail) {
-                if (incomingCallRef.current?.sender === payload.sender) setIncomingCall(null);
-                cleanPeer(payload.sender);
+            if (normalizeEmail(payload.targetEmail) === safeEmail) {
+                if (normalizeEmail(incomingCallRef.current?.sender) === normalizeEmail(payload.sender)) setIncomingCall(null);
+                cleanPeer(normalizeEmail(payload.sender));
             }
         });
 
         ch.on('broadcast', { event: 'webrtc-request-offer' }, ({ payload }) => {
-            if (payload.targetEmail === userEmail && inCallRef.current) {
-                startWebRTCCall(payload.sender, true);
+            if (normalizeEmail(payload.targetEmail) === safeEmail && inCallRef.current) {
+                startWebRTCCall(normalizeEmail(payload.sender), true);
             }
         });
 
         ch.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                try { await ch.track({ email: userEmail, online: true }); } catch (e) { }
+                try { await ch.track({ email: safeEmail, online: true }); } catch (e) { }
 
                 if (autoJoinCallerRef.current) {
-                    const callerToJoin = autoJoinCallerRef.current;
+                    const callerToJoin = normalizeEmail(autoJoinCallerRef.current);
                     autoJoinCallerRef.current = null;
                     setTimeout(() => {
-                        ch.send({ type: 'broadcast', event: 'webrtc-request-offer', payload: { targetEmail: callerToJoin, sender: userEmail } });
+                        ch.send({ type: 'broadcast', event: 'webrtc-request-offer', payload: { targetEmail: callerToJoin, sender: safeEmail } });
                     }, 1500);
                 }
             }
         });
 
         return () => { try { ch.untrack(); supabase.removeChannel(ch); } catch (e) { } channelRef.current = null; };
-    }, [userEmail]);
+    }, [safeEmail]);
 
     const startRecording = async () => {
         try {
@@ -1458,121 +1434,484 @@ function ChatApp({ user, onLogout }) {
     const stopRecording = () => { if (mediaRecorderRef.current && isRecording) { mediaRecorderRef.current.stop(); setIsRecording(false); } };
     const toggleRecording = () => isRecording ? stopRecording() : startRecording();
 
-    const handleEmojiSelect = (emoji) => {
-        setChatInput(prev => prev + emoji);
-        setShowEmojiPicker(false);
-        const textarea = document.querySelector('textarea');
-        if (textarea) textarea.focus();
-    };
+    const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
 
     const sendMsg = async (e) => {
         e.preventDefault();
         if (!chatInput.trim() || !selectedContact) return;
-        const txt = chatInput;
-        setChatInput('');
-        setShowEmojiPicker(false);
+        const txt = chatInput; setChatInput(''); setShowEmojiPicker(false);
         const { data, error } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: txt }]).select();
         if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
     };
 
     const handlePaste = async (e) => {
-        const items = e.clipboardData?.items;
-        if (!items) return;
+        const items = e.clipboardData?.items; if (!items) return;
         let hasImage = false, imageFile = null;
-
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf("image") !== -1) {
-                hasImage = true;
-                imageFile = items[i].getAsFile();
-                break;
-            }
-        }
-
+        for (let i = 0; i < items.length; i++) { if (items[i].type.indexOf("image") !== -1) { hasImage = true; imageFile = items[i].getAsFile(); break; } }
         if (hasImage && imageFile) {
             e.preventDefault();
-            let currentText = chatInput.trim();
-            const pastedText = e.clipboardData.getData('text/plain');
+            let currentText = chatInput.trim(); const pastedText = e.clipboardData.getData('text/plain');
             if (pastedText) currentText = currentText ? (currentText + '\n' + pastedText) : pastedText;
-
             if (currentText && selectedContact) {
-                const { data: textDataObj, error: textErr } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: currentText }]).select();
-                if (!textErr && textDataObj?.length) setChatMessages(prev => prev.find(m => m.id === textDataObj[0].id) ? prev : [...prev, textDataObj[0]]);
+                const { data } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: currentText }]).select();
+                if (data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
                 setChatInput('');
             }
-
             const reader = new FileReader();
             reader.onloadend = async () => {
-                const base64Image = reader.result;
                 if (!selectedContact) return;
-                const { data, error } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: `[IMAGE]${base64Image}` }]).select();
-                if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
+                const { data } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: `[IMAGE]${reader.result}` }]).select();
+                if (data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
             };
             reader.readAsDataURL(imageFile);
         }
     };
 
-    const showSidebar = !isMobile || !selectedContact;
-    const showChat = !isMobile || !!selectedContact;
-    const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
-
-    const safeEmail = userEmail?.toLowerCase() || '';
+    const dispMembers = members.filter(m => normalizeEmail(m.email) !== safeEmail);
+    const dispContacts = savedContacts.filter(c => c.email && normalizeEmail(c.email) !== safeEmail);
     const allKnown = [...members, ...savedContacts];
-    const dispMembers = members.filter(m => m.email?.toLowerCase() !== safeEmail);
-    const dispContacts = savedContacts.filter(c => c.email && c.email.trim().toLowerCase() !== safeEmail);
 
-    const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
-    const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
-    const memberCount = members.filter(m => m.email?.toLowerCase() !== safeEmail).length;
-    const totalOnlineCount = onlineUsers.length + 1;
+    const activeRemoteEmail = Object.keys(remoteStreams)[0];
+    const activeRemoteStream = remoteStreams[activeRemoteEmail];
+    const activeContact = selectedContact ? allKnown.find(c => normalizeEmail(c.email) === normalizeEmail(selectedContact)) : null;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#0f172a', color: '#f8fafc', fontFamily: 'Segoe UI, system-ui, sans-serif', overflow: 'hidden' }}>
+
+            <header style={{ height: '60px', backgroundColor: '#0f172a', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: '800', letterSpacing: '1px' }}>
+                        <span style={{ color: '#10b981' }}>TRN</span> TOTAL RECALL NETWORK
+                    </div>
+                    {selectedContact && (
+                        <div style={{ borderLeft: '1px solid #334155', paddingLeft: '20px', color: '#e2e8f0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            Client Sync – Product Roadmap <span style={{ fontSize: '10px' }}>▼</span>
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <select value={spokenLang} onChange={(e) => { setSpokenLang(e.target.value); saveUserSettings(e.target.value, targetLang); }} style={{ background: 'transparent', color: '#f8fafc', border: 'none', outline: 'none', cursor: 'pointer', appearance: 'none', fontWeight: 'bold' }}>
+                            <LanguageOptions />
+                        </select>
+                        <button onClick={swapLanguages} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0 5px' }}>➔</button>
+                        <select value={targetLang} onChange={(e) => { setTargetLang(e.target.value); saveUserSettings(spokenLang, e.target.value); }} style={{ background: 'transparent', color: '#f8fafc', border: 'none', outline: 'none', cursor: 'pointer', appearance: 'none', fontWeight: 'bold' }}>
+                            <LanguageOptions />
+                        </select>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                        <span style={{ fontSize: '8px' }}>●</span> Original audio + translated captions <span style={{ color: '#64748b' }}>▼</span>
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#10b981' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        Secure connection
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#1e293b', padding: '6px 12px', borderRadius: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#ef4444', fontWeight: 'bold' }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></div> REC
+                        </div>
+                        <span style={{ fontFamily: 'monospace', color: '#e2e8f0', fontSize: '14px' }}>{formatTime(callDuration)}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#94a3b8' }}>👥 {activeCallEmails.length + 1}</span>
+                        <button style={{ background: '#1e293b', border: '1px solid #334155', color: '#f8fafc', borderRadius: '6px', padding: '6px', cursor: 'pointer' }}>⊞</button>
+                    </div>
+                </div>
+            </header>
+
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+                {/* NARROW LEFT SIDEBAR */}
+                <nav style={{ width: '70px', backgroundColor: '#0f172a', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', zIndex: 10 }}>
+                    <button style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '24px', cursor: 'pointer', marginBottom: '30px' }}>≡</button>
+
+                    <button onClick={() => setShowContactsPanel(!showContactsPanel)} style={{ background: showContactsPanel ? '#1e293b' : 'transparent', border: showContactsPanel ? '1px solid #334155' : 'none', color: '#38bdf8', borderRadius: '12px', width: '45px', height: '45px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', position: 'relative', marginBottom: '20px' }}>
+                        👥
+                        {onlineUsers.length > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#10b981', color: '#000', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{onlineUsers.length}</span>}
+                    </button>
+
+                    {/* Show avatars for active call participants in sidebar */}
+                    {activeCallEmails.map(email => (
+                        <div key={email} style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold', marginBottom: '10px', position: 'relative' }}>
+                            {email?.charAt(0)?.toUpperCase() || '?'}
+                            <span style={{ position: 'absolute', bottom: 0, right: 0, width: '10px', height: '10px', background: '#10b981', borderRadius: '50%', border: '2px solid #0f172a' }}></span>
+                        </div>
+                    ))}
+
+                    <div style={{ flex: 1 }}></div>
+
+                    {/* Local Translator Button */}
+                    <button onClick={() => setShowLocalTranslator(true)} title="Local Translator" style={{ background: 'transparent', border: '1px solid #334155', color: '#f8fafc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', marginBottom: '15px' }}>
+                        🗣️
+                    </button>
+
+                    {/* Mobile Number Modal Trigger */}
+                    <button onClick={() => setShowMobileModal(true)} title="Change Mobile Number" style={{ background: 'transparent', border: '1px solid #334155', color: '#f8fafc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', marginBottom: '15px' }}>
+                        📱
+                    </button>
+
+                    <button onClick={onLogout} title="Logout" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ fontSize: '18px' }}>⎋</span> Logout
+                    </button>
+                </nav>
+
+                {/* EXPANDABLE CONTACTS PANEL OVERLAY */}
+                {showContactsPanel && (
+                    <div style={{ width: '280px', backgroundColor: '#111827', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', position: 'absolute', left: '70px', top: '60px', bottom: 0, zIndex: 9, boxShadow: '4px 0 15px rgba(0,0,0,0.5)' }}>
+                        <div style={{ padding: '15px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#10b981', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#000', fontWeight: 'bold' }}>{displayName?.charAt(0)?.toUpperCase() || '?'}</div>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{displayName}</span>
+                                    {currentUserMobile && <span style={{ fontSize: '11px', color: '#94a3b8' }}>{currentUserMobile}</span>}
+                                </div>
+                            </div>
+                            <button onClick={onLogout} title="Logout" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>Logout</button>
+                            <button onClick={() => setShowContactsPanel(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginLeft: '10px' }}>✖</button>
+                        </div>
+
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                            {/* Online section */}
+                            <div onClick={() => setIsOnlineExpanded(!isOnlineExpanded)} style={{ padding: '10px 15px', color: '#64748b', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>Online ({onlineUsers.length})</span>
+                                <span>{isOnlineExpanded ? '▼' : '▶'}</span>
+                            </div>
+                            {isOnlineExpanded && onlineUsers.map(u => (
+                                <div key={u.email} onClick={() => { setSelectedContact(u.email); setShowContactsPanel(false); }} style={{ padding: '12px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #1e293b', background: normalizeEmail(selectedContact) === normalizeEmail(u.email) ? '#1e293b' : 'transparent' }}>
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '12px', color: '#000', fontWeight: 'bold' }}>{u.email?.charAt(0)?.toUpperCase() || '?'}</div>
+                                    <div style={{ fontSize: '14px' }}>{allKnown.find(k => normalizeEmail(k.email) === normalizeEmail(u.email))?.name || u.email?.split('@')?.[0] || 'Unknown'}</div>
+                                </div>
+                            ))}
+
+                            {/* Members section */}
+                            <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', color: '#64748b', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '10px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>Members ({dispMembers.length})</span>
+                                <span>{isMembersExpanded ? '▼' : '▶'}</span>
+                            </div>
+                            {isMembersExpanded && dispMembers.map(c => (
+                                <div key={c.email} onClick={() => { setSelectedContact(c.email); setShowContactsPanel(false); }} style={{ padding: '12px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #1e293b', background: normalizeEmail(selectedContact) === normalizeEmail(c.email) ? '#1e293b' : 'transparent' }}>
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '12px', color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)?.charAt(0)?.toUpperCase() || '?'}</div>
+                                    <div style={{ fontSize: '14px' }}>{c.name?.trim() || c.email?.split('@')?.[0] || 'Unknown'}</div>
+                                </div>
+                            ))}
+
+                            {/* External Contacts section */}
+                            <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', color: '#64748b', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                                <span>Contacts ({dispContacts.length})</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button onClick={(e) => { e.stopPropagation(); handleImportContacts(); }} disabled={isImporting} style={{ background: '#1e293b', border: '1px solid #334155', color: '#10b981', borderRadius: '4px', cursor: isImporting ? 'not-allowed' : 'pointer', padding: '2px 6px', fontSize: '10px' }}>
+                                        {isImporting ? '...' : '+ Add'}
+                                    </button>
+                                    <span>{isContactsExpanded ? '▼' : '▶'}</span>
+                                </div>
+                            </div>
+                            {isContactsExpanded && dispContacts.map(c => (
+                                <div key={c.email} onClick={() => { setSelectedContact(c.email); setShowContactsPanel(false); }} style={{ padding: '12px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #1e293b', background: normalizeEmail(selectedContact) === normalizeEmail(c.email) ? '#1e293b' : 'transparent' }}>
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: '12px', color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)?.charAt(0)?.toUpperCase() || '?'}</div>
+                                    <div style={{ flexGrow: 1 }}>
+                                        <div style={{ fontSize: '14px' }}>{c.name || c.email?.split('@')?.[0] || 'Unknown'}</div>
+                                        <div style={{ fontSize: '11px', color: '#64748b' }}>{c.email}</div>
+                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); handleRemoveContact(e, c.email); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✖</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* MAIN VIDEO AREA */}
+                <main style={{ flex: 1, backgroundColor: '#0f172a', position: 'relative', display: 'flex', flexDirection: 'column', padding: '20px' }}>
+
+                    {!selectedContact ? (
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#64748b' }}>
+                            <div style={{ fontSize: '60px', marginBottom: '20px' }}>👋</div>
+                            <h2 style={{ color: '#f8fafc', marginBottom: '10px' }}>Welcome to TotalRecall</h2>
+                            <p>Select a contact from the left menu to start a call or chat.</p>
+                        </div>
+                    ) : (
+                        <div style={{ flex: 1, backgroundColor: '#000', borderRadius: '16px', position: 'relative', overflow: 'hidden', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column' }}>
+
+                            {/* Call Prompt if not in call */}
+                            {!inVoiceCall && (
+                                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 15, background: 'rgba(15, 23, 42, 0.8)' }}>
+                                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#10b981', color: '#000', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '32px', fontWeight: 'bold', marginBottom: '20px' }}>
+                                        {activeContact?.name?.charAt(0)?.toUpperCase() || selectedContact?.charAt(0)?.toUpperCase() || '?'}
+                                    </div>
+                                    <h2 style={{ margin: '0 0 10px 0' }}>{activeContact?.name || selectedContact?.split('@')?.[0] || 'Unknown'}</h2>
+                                    <p style={{ color: '#94a3b8', marginBottom: '30px' }}>{selectedContact}</p>
+                                    <div style={{ display: 'flex', gap: '15px' }}>
+                                        <button onClick={() => initiateCall(selectedContact)} style={{ padding: '12px 30px', background: '#10b981', color: '#000', border: 'none', borderRadius: '30px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>
+                                            Start Video Call
+                                        </button>
+                                        <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ padding: '12px 30px', background: 'transparent', color: '#38bdf8', border: '2px solid #38bdf8', borderRadius: '30px', fontSize: '16px', fontWeight: 'bold', cursor: isVonageCalling ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            📞 {isVonageCalling ? 'Calling...' : 'Call Mobile'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* MAIN VIDEO (Remote preferred, fallback to Local) */}
+                            {activeRemoteStream ? (
+                                <RemoteVideo stream={activeRemoteStream} email={activeRemoteEmail} allKnownUsers={allKnown} subtitle={subtitles[activeRemoteEmail]} isTTSOn={isTTSOn} />
+                            ) : (
+                                <LocalVideo stream={localStream} subtitle={subtitles[userEmail]} />
+                            )}
+
+                            {/* PIP VIDEO (Local if remote is active) */}
+                            {activeRemoteStream && localStream && (
+                                <div style={{ position: 'absolute', top: '20px', right: '20px', width: '220px', height: '150px', borderRadius: '12px', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)', background: '#111', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 10 }}>
+                                    <LocalVideo stream={localStream} subtitle={null} isPip={true} />
+                                </div>
+                            )}
+
+                            {/* Main Video Label (Only show if waiting) */}
+                            {inVoiceCall && !activeRemoteStream && (
+                                <div style={{ position: 'absolute', top: '20px', left: '20px', background: 'rgba(0,0,0,0.6)', padding: '4px 12px', borderRadius: '16px', fontSize: '13px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10 }}>
+                                    <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: 8, height: 8, background: '#10b981', borderRadius: '50%' }}></div> LIVE</span>
+                                    <span>Waiting for others...</span>
+                                </div>
+                            )}
+
+                            {/* BOTTOM CONTROL PILL */}
+                            {inVoiceCall && (
+                                <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(10px)', padding: '10px', borderRadius: '40px', border: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 30 }}>
+
+                                    {/* Captions Toggle */}
+                                    <button onClick={toggleTranscription} style={{ background: isTranscribing ? '#065f46' : 'transparent', border: isTranscribing ? '1px solid #10b981' : '1px solid transparent', color: isTranscribing ? '#10b981' : '#94a3b8', borderRadius: '30px', padding: '6px 16px', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                        <div style={{ background: isTranscribing ? '#10b981' : '#334155', color: isTranscribing ? '#065f46' : '#94a3b8', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold' }}>CC</div>
+                                        <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '600' }}>Captions</div>
+                                            <div style={{ fontSize: '10px' }}>{isTranscribing ? 'ON' : 'OFF'}</div>
+                                        </div>
+                                    </button>
+
+                                    {/* Mic Toggle */}
+                                    <button onClick={toggleMute} style={{ background: 'transparent', border: 'none', color: isMuted ? '#ef4444' : '#f8fafc', padding: '6px 12px', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}>
+                                        <div style={{ fontSize: '18px' }}>{isMuted ? '🔇' : '🎙️'}</div>
+                                        <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '600', color: '#f8fafc' }}>Mic</div>
+                                            <div style={{ fontSize: '10px', color: isMuted ? '#ef4444' : '#10b981' }}>{isMuted ? 'OFF' : 'ON'} <span style={{ color: '#64748b' }}>▼</span></div>
+                                        </div>
+                                    </button>
+
+                                    {/* Camera Toggle */}
+                                    <button onClick={toggleCamera} style={{ background: 'transparent', border: 'none', color: isVideoOff ? '#ef4444' : '#f8fafc', padding: '6px 12px', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}>
+                                        <div style={{ fontSize: '18px' }}>{isVideoOff ? '📷' : '📸'}</div>
+                                        <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '600', color: '#f8fafc' }}>Camera</div>
+                                            <div style={{ fontSize: '10px', color: isVideoOff ? '#ef4444' : '#10b981' }}>{isVideoOff ? 'OFF' : 'ON'} <span style={{ color: '#64748b' }}>▼</span></div>
+                                        </div>
+                                    </button>
+
+                                    {/* Participants */}
+                                    <button style={{ background: 'transparent', border: 'none', color: '#f8fafc', padding: '6px 12px', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', borderLeft: '1px solid #334155', borderRadius: 0 }}>
+                                        <div style={{ fontSize: '18px' }}>👥</div>
+                                        <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '600' }}>Participants</div>
+                                            <div style={{ fontSize: '10px', color: '#10b981' }}>{activeCallEmails.length + 1}</div>
+                                        </div>
+                                    </button>
+
+                                    {/* Share Screen */}
+                                    <button onClick={toggleScreenShare} style={{ background: 'transparent', border: 'none', color: '#f8fafc', padding: '6px 12px', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}>
+                                        <div style={{ fontSize: '18px' }}>{isScreenSharing ? '⏹' : '⏏'}</div>
+                                        <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '600' }}>Share screen</div>
+                                        </div>
+                                    </button>
+
+                                    {/* More */}
+                                    <button style={{ background: 'transparent', border: 'none', color: '#f8fafc', padding: '6px 12px', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}>
+                                        <div style={{ fontSize: '18px' }}>⋮</div>
+                                        <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '600' }}>More</div>
+                                        </div>
+                                    </button>
+
+                                    {/* End Call */}
+                                    <button onClick={() => endCall(true)} style={{ background: '#ef4444', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: '30px', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', marginLeft: '10px' }}>
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                        End call
+                                    </button>
+
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </main>
+
+                {/* RIGHT SIDEBAR (Chat & Transcript) */}
+                <aside style={{ width: isMobile ? '100%' : '380px', backgroundColor: '#0f172a', borderLeft: '1px solid #1e293b', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+
+                    {/* Tabs */}
+                    <div style={{ display: 'flex', padding: '0 20px', borderBottom: '1px solid #1e293b', gap: '20px', marginTop: '15px' }}>
+                        <button onClick={() => setRightPanelTab('Conversation')} style={{ background: 'none', border: 'none', color: rightPanelTab === 'Conversation' ? '#10b981' : '#94a3b8', padding: '10px 0', borderBottom: rightPanelTab === 'Conversation' ? '2px solid #10b981' : '2px solid transparent', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            💬 Conversation
+                        </button>
+                        <button onClick={() => setRightPanelTab('Transcript')} style={{ background: 'none', border: 'none', color: rightPanelTab === 'Transcript' ? '#10b981' : '#94a3b8', padding: '10px 0', borderBottom: rightPanelTab === 'Transcript' ? '2px solid #10b981' : '2px solid transparent', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            ☷ Transcript
+                        </button>
+                    </div>
+
+                    <div style={{ padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600' }}>Live conversation</span>
+                        <span style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: 6, height: 6, background: '#10b981', borderRadius: '50%' }}></div> Live</span>
+                    </div>
+
+                    {/* Feed Area */}
+                    <div ref={rightPanelTab === 'Conversation' ? chatContainerRef : transcriptContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px 20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+
+                        {rightPanelTab === 'Conversation' && chatMessages.map((m, i) => {
+                            const isVoiceMessage = m.text && m.text.startsWith('[VOICE]');
+                            const isImageMessage = m.text && m.text.startsWith('[IMAGE]');
+                            let content = m.text || '';
+                            if (isVoiceMessage) content = m.text.replace('[VOICE]', '');
+                            else if (isImageMessage) content = m.text.replace('[IMAGE]', '');
+                            const match = !isVoiceMessage && !isImageMessage ? content.match(urlExtractRegex) : null;
+                            const firstUrl = match ? match[0] : null;
+                            const isMine = normalizeEmail(m.sender_email) === safeEmail;
+
+                            return (
+                                <div key={m.id || i} style={{ background: '#1e293b', padding: '15px', borderRadius: '12px', border: '1px solid #334155' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '11px', color: '#94a3b8' }}>
+                                        <span style={{ fontWeight: 'bold', color: isMine ? '#38bdf8' : '#e2e8f0', fontSize: '13px' }}>{isMine ? 'You' : m.sender_email?.split('@')?.[0] || 'Unknown'}</span>
+                                        <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                    <div style={{ color: '#f8fafc', fontSize: '14px', lineHeight: '1.5', wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
+                                        {isVoiceMessage ? <audio controls src={content} style={{ height: '40px', width: '100%', outline: 'none' }} />
+                                            : isImageMessage ? <img src={content} alt="Attachment" style={{ maxWidth: '100%', borderRadius: 8 }} />
+                                                : <>{renderTextWithLinks(content)}{firstUrl && <LinkPreview url={firstUrl} />}</>}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {rightPanelTab === 'Transcript' && transcriptHistory.map((t) => {
+                            const isMine = normalizeEmail(t.sender) === safeEmail;
+                            const senderName = isMine ? 'You' : t.sender?.split('@')?.[0] || 'Unknown';
+                            const sourceL = t.lang ? t.lang : (isMine ? spokenLang : 'Remote');
+                            const targetL = isMine ? targetLang : spokenLang;
+
+                            return (
+                                <div key={t.id} style={{ background: '#1e293b', padding: '15px', borderRadius: '12px', border: '1px solid #334155' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '11px', color: '#94a3b8' }}>
+                                        <span style={{ fontWeight: 'bold', color: isMine ? '#38bdf8' : '#e2e8f0', fontSize: '13px' }}>{senderName}</span>
+                                        <span>{t.time}</span>
+                                        <span>• {sourceL.split('-')[0].toUpperCase()}</span>
+                                    </div>
+                                    <div style={{ color: '#f8fafc', fontSize: '14px', lineHeight: '1.5', marginBottom: '12px' }}>{t.original}</div>
+
+                                    {(t.translated && t.translated !== t.original) && (
+                                        <>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '11px', color: '#94a3b8' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '13px' }}>TRN Translation</span>
+                                                <span>{t.time}</span>
+                                                <span>• {targetL.split('-')[0].toUpperCase()}</span>
+                                            </div>
+                                            <div style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '1.5' }}>{t.translated}</div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Chat Input Area (Only visible on Conversation Tab) */}
+                    {rightPanelTab === 'Conversation' && selectedContact && (
+                        <div style={{ padding: '20px', borderTop: '1px solid #1e293b', background: '#0f172a' }}>
+                            <form onSubmit={sendMsg} style={{ display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative' }}>
+                                <div style={{ display: 'flex', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '4px', alignItems: 'center' }}>
+                                    <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background: 'none', border: 'none', color: '#94a3b8', padding: '8px', cursor: 'pointer', fontSize: '18px' }}>😊</button>
+                                    <button type="button" onClick={toggleRecording} style={{ background: 'none', border: 'none', color: isRecording ? '#ef4444' : '#94a3b8', padding: '8px', cursor: 'pointer', fontSize: '18px' }}>{isRecording ? '⏹' : '🎤'}</button>
+                                    <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} onPaste={handlePaste} placeholder={isRecording ? "Recording..." : "Type a message..."} disabled={isRecording} rows={1} style={{ flex: 1, background: 'transparent', border: 'none', color: '#f8fafc', padding: '10px', outline: 'none', resize: 'none', fontFamily: 'inherit' }} />
+                                    <button type="submit" disabled={!chatInput.trim() && !isRecording} style={{ background: chatInput.trim() ? '#10b981' : 'transparent', color: chatInput.trim() ? '#000' : '#64748b', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: chatInput.trim() ? 'pointer' : 'default', fontWeight: 'bold' }}>Send</button>
+                                </div>
+                                {showEmojiPicker && <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />}
+                            </form>
+                        </div>
+                    )}
+
+                    {/* AI Summary Banner (Placeholder for UI accuracy) */}
+                    {rightPanelTab === 'Transcript' && (
+                        <div style={{ margin: '20px', padding: '15px', background: 'linear-gradient(to right, rgba(16, 185, 129, 0.1), rgba(56, 189, 248, 0.1))', borderRadius: '12px', border: '1px solid #1e293b' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '16px' }}>✨</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>AI Summary (Beta) <span style={{ background: '#3b82f6', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>New</span></span>
+                            </div>
+                            <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '15px' }}>Get an AI summary and action items from this conversation.</p>
+                            <button style={{ width: '100%', background: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                                ✨ Generate summary
+                            </button>
+                        </div>
+                    )}
+
+                </aside>
+            </div>
+
+            {/* ✨ INCOMING CALL MODAL ✨ */}
+            {incomingCall && (
+                <div style={{ position: 'fixed', top: '20px', right: '20px', backgroundColor: '#1e293b', padding: '25px', borderRadius: '12px', zIndex: 10000, border: '1px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', width: '300px' }}>
+                    <h4 style={{ margin: '0 0 10px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>📹</span> Incoming Call
+                    </h4>
+                    <p style={{ margin: '0 0 20px', color: '#f8fafc', fontSize: '14px' }}>From: <b style={{ color: '#38bdf8' }}>{incomingCall?.sender?.split('@')?.[0] || 'Unknown'}</b></p>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <button onClick={acceptIncoming} style={{ flex: 1, backgroundColor: '#10b981', border: 'none', padding: '10px', borderRadius: '6px', color: '#000', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>Accept</button>
+                        <button onClick={decline} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: '10px', borderRadius: '6px', color: 'white', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}>Decline</button>
+                    </div>
+                </div>
+            )}
 
             {/* ✨ LOCAL TRANSLATOR OVERLAY ✨ */}
             {showLocalTranslator && (
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0b141a', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0f172a', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
 
-                    <div style={{ padding: '15px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222d34' }}>
-                        <h3 style={{ margin: 0, color: '#00a884', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ padding: '15px 20px', backgroundColor: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155' }}>
+                        <h3 style={{ margin: 0, color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px' }}>
                             🗣️ Offline Local Translator
                         </h3>
                         <button onClick={() => { setShowLocalTranslator(false); if (!inCallRef.current) stopCC(); }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '24px', cursor: 'pointer' }}>✖</button>
                     </div>
 
                     <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
-                        <div style={{ flex: 1, backgroundColor: '#111b21', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #222d34' }}>
-                            <span style={{ color: '#8696a0', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>They hear ({targetLang})</span>
+                        <div style={{ flex: 1, backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #334155' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>They hear ({targetLang})</span>
                             <div style={{ fontSize: '32px', color: '#38bdf8', fontWeight: 'bold', textAlign: 'center' }}>
                                 {subtitles[userEmail]?.translated || "..."}
                             </div>
                         </div>
 
-                        <div style={{ flex: 1, backgroundColor: '#111b21', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #222d34' }}>
-                            <span style={{ color: '#8696a0', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>You say ({spokenLang})</span>
-                            <div style={{ fontSize: '24px', color: '#aebac1', textAlign: 'center', fontStyle: 'italic' }}>
+                        <div style={{ flex: 1, backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #334155' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>You say ({spokenLang})</span>
+                            <div style={{ fontSize: '24px', color: '#cbd5e1', textAlign: 'center', fontStyle: 'italic' }}>
                                 {subtitles[userEmail]?.original || "Listening..."}
                             </div>
                         </div>
                     </div>
 
-                    <div style={{ padding: '20px', backgroundColor: '#202c33', borderTop: '1px solid #222d34' }}>
+                    <div style={{ padding: '20px', backgroundColor: '#1e293b', borderTop: '1px solid #334155' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                            <select value={spokenLang} onChange={(e) => { setSpokenLang(e.target.value); spokenLangRef.current = e.target.value; saveUserSettings(e.target.value, targetLang); if (isTranscribingRef.current) { stopCC(); setTimeout(startCC, 300); } }} style={{ padding: '10px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', flex: 1, maxWidth: '150px' }}>
+                            <select value={spokenLang} onChange={(e) => { setSpokenLang(e.target.value); spokenLangRef.current = e.target.value; saveUserSettings(e.target.value, targetLang); if (isTranscribingRef.current) { stopCC(); setTimeout(startCC, 300); } }} style={{ padding: '10px', borderRadius: '8px', background: '#0f172a', color: 'white', border: '1px solid #38bdf8', flex: 1, maxWidth: '150px' }}>
                                 <LanguageOptions />
                             </select>
 
-                            <button onClick={swapLanguages} title="Swap Languages" style={{ background: '#00a884', color: '#111', border: 'none', borderRadius: '50%', width: '45px', height: '45px', cursor: 'pointer', fontSize: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' }}>⇄</button>
+                            <button onClick={swapLanguages} title="Swap Languages" style={{ background: '#10b981', color: '#000', border: 'none', borderRadius: '50%', width: '45px', height: '45px', cursor: 'pointer', fontSize: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' }}>⇄</button>
 
-                            <select value={targetLang} onChange={(e) => { setTargetLang(e.target.value); targetLangRef.current = e.target.value; saveUserSettings(spokenLang, e.target.value); }} style={{ padding: '10px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #00a884', flex: 1, maxWidth: '150px' }}>
+                            <select value={targetLang} onChange={(e) => { setTargetLang(e.target.value); targetLangRef.current = e.target.value; saveUserSettings(spokenLang, e.target.value); }} style={{ padding: '10px', borderRadius: '8px', background: '#0f172a', color: 'white', border: '1px solid #10b981', flex: 1, maxWidth: '150px' }}>
                                 <LanguageOptions />
                             </select>
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '15px' }}>
-                            <button onClick={toggleTranscription} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTranscribing ? '#ef4444' : '#00a884', color: 'white', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
+                            <button onClick={toggleTranscription} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTranscribing ? '#ef4444' : '#10b981', color: isTranscribing ? 'white' : '#000', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
                                 {isTranscribing ? '⏹ Stop Listening' : '🎤 Start Listening'}
                             </button>
-                            <button onClick={() => setIsTTSOn(!isTTSOn)} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTTSOn ? '#005c4b' : 'transparent', color: isTTSOn ? 'white' : '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
+                            <button onClick={() => setIsTTSOn(!isTTSOn)} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTTSOn ? '#065f46' : 'transparent', color: isTTSOn ? 'white' : '#10b981', border: '1px solid #10b981', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
                                 {isTTSOn ? '🔊 Speaker: ON' : '🔇 Speaker: OFF'}
                             </button>
                         </div>
@@ -1582,276 +1921,27 @@ function ChatApp({ user, onLogout }) {
 
             {/* ✨ CHANGE MOBILE NUMBER MODAL ✨ */}
             {showMobileModal && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 4000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>📱 Change Mobile Number</h3>
-                        <p style={{ color: '#8696a0', fontSize: '13px', marginBottom: '20px' }}>Enter your new mobile number below to update your profile.</p>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ backgroundColor: '#1e293b', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                        <h3 style={{ color: '#10b981', marginTop: 0, marginBottom: '15px' }}>📱 Change Mobile Number</h3>
+                        <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '20px' }}>Enter your new mobile number below to update your profile.</p>
                         <input
                             type="tel"
                             value={newMobile}
                             onChange={(e) => setNewMobile(e.target.value)}
                             placeholder="e.g., +447..."
-                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
+                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
                             autoFocus
                         />
                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                            <button onClick={() => { setShowMobileModal(false); setNewMobile(''); }} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
-                            <button onClick={handleUpdateMobile} disabled={isUpdatingMobile} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: isUpdatingMobile ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                            <button onClick={() => { setShowMobileModal(false); setNewMobile(''); }} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: '#94a3b8', border: '1px solid #94a3b8', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                            <button onClick={handleUpdateMobile} disabled={isUpdatingMobile} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#10b981', color: '#000', border: 'none', cursor: isUpdatingMobile ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                                 {isUpdatingMobile ? 'Saving...' : 'Save'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
-
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {incomingCall && (
-                    <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: 20, borderRadius: 8, zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-                        <h4 style={{ margin: '0 0 10px' }}>📹 Incoming Call</h4>
-                        <p style={{ margin: '0 0 15px' }}>From: <b>{incomingCall.sender.split('@')[0]}</b></p>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button onClick={acceptIncoming} style={{ flex: 1, backgroundColor: '#00a884', border: 'none', padding: 8, borderRadius: 4, color: '#111', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
-                            <button onClick={decline} style={{ flex: 1, backgroundColor: '#ef4444', border: 'none', padding: 8, borderRadius: 4, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Decline</button>
-                        </div>
-                    </div>
-                )}
-
-                {showSidebar && (
-                    <div style={{ width: isMobile ? '100%' : '30%', minWidth: 250, borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21', height: '100%', overflow: 'hidden' }}>
-                        <div style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>{displayName[0]?.toUpperCase()}</div>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                                    <b style={{ color: '#00a884', fontSize: '16px' }}>{displayName}</b>
-                                    {currentUserMobile && <span style={{ color: '#8696a0', fontSize: '13px' }}>Mobile {currentUserMobile}</span>}
-                                </div>
-                            </div>
-                            <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>Logout</button>
-                        </div>
-
-                        {/* ACTIVE CALL BANNER FOR MOBILE */}
-                        {isMobile && inVoiceCall && (
-                            <div
-                                onClick={() => {
-                                    if (activeCallEmails.length > 0) {
-                                        setSelectedContact(activeCallEmails[0]);
-                                    }
-                                }}
-                                style={{ padding: 15, backgroundColor: '#005c4b', color: 'white', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold', borderBottom: '1px solid #222d34' }}
-                            >
-                                📞 Active Call - Tap to Return
-                            </div>
-                        )}
-
-                        {/* ✨ PROMINENT BUTTONS IN SIDEBAR ✨ */}
-                        <div style={{ padding: '15px', borderBottom: '1px solid #222d34', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <button
-                                onClick={() => setShowLocalTranslator(true)}
-                                style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
-                            >
-                                🗣️ Open Local Translator
-                            </button>
-                            <button
-                                onClick={() => setShowMobileModal(true)}
-                                style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: '#2a3942', color: '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                            >
-                                📱 Change Mobile Number
-                            </button>
-                        </div>
-
-                        <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-                            <div onClick={() => setIsOnlineExpanded(!isOnlineExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34' }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Online ({onlineUsers.length})</span>
-                                <span style={{ color: '#8696a0' }}>{isOnlineExpanded ? '▼' : '▶'}</span>
-                            </div>
-                            {isOnlineExpanded && onlineUsers.map(u => (
-                                <div key={u.email} onClick={() => setSelectedContact(u.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent' }}>
-                                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{u.email[0]?.toUpperCase()}</div>
-                                    <span>{allKnown.find(k => k.email?.toLowerCase() === u.email?.toLowerCase())?.name || u.email.split('@')[0]}</span>
-                                </div>
-                            ))}
-                            <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({dispMembers.length})</span>
-                                <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
-                            </div>
-                            {isMembersExpanded && dispMembers.map(c => {
-                                const isContact = savedContacts.some(sc => sc.email?.trim().toLowerCase() === c.email?.trim().toLowerCase());
-                                return (
-                                    <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
-                                        <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
-                                        <div style={{ flexGrow: 1 }}>{c.name?.trim() || c.email.split('@')[0]}</div>
-                                        {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title="Add to contacts">➕</button>}
-                                    </div>
-                                );
-                            })}
-                            <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({dispContacts.length})</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <button onClick={(e) => { e.stopPropagation(); handleImportContacts(); }} disabled={isImporting} style={{ backgroundColor: isImporting ? '#1a2a33' : '#2a3942', color: isImporting ? '#666' : '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: isImporting ? 'not-allowed' : 'pointer', fontSize: '11px' }}>{isImporting ? '⏳ Importing...' : '+ Add External'}</button>
-                                    <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
-                                </div>
-                            </div>
-                            {isContactsExpanded && dispContacts.map(c => (
-                                <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
-                                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
-                                    <div style={{ flexGrow: 1 }}><div>{c.name || c.email.split('@')[0]}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
-                                    <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}>❌</button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {showChat && (
-                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', height: '100%', overflow: 'hidden' }}>
-                        {selectedContact ? (
-                            <>
-                                <div style={{ padding: '10px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        {isMobile && <button onClick={() => setSelectedContact(null)} style={{ background: 'none', border: 'none', color: '#00a884', fontSize: 20, marginRight: 15, cursor: 'pointer' }}>🔙</button>}
-                                        <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{activeName[0]?.toUpperCase()}</div>
-                                        <b>{activeName}</b>
-                                    </div>
-
-                                    {/* RESPONSIVE BUTTON CONTAINER */}
-                                    <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                        <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                            {isMobile ? (isVonageCalling ? '📞...' : '📞') : (isVonageCalling ? '📞 Calling...' : '📞 Call Mobile')}
-                                        </button>
-
-                                        {!inVoiceCall ? (
-                                            <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                {isMobile ? '📹' : '📹 Call'}
-                                            </button>
-                                        ) : (
-                                            <>
-                                                {!activeCallEmails.includes(selectedContact) && (
-                                                    <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                        {isMobile ? '➕' : '➕ Add'}
-                                                    </button>
-                                                )}
-                                                <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isTranscribing ? '💬 On' : '💬 Off') : (isTranscribing ? '💬 Transcribe On' : '💬 Transcribe Off')}
-                                                </button>
-                                                <button onClick={() => setIsTTSOn(!isTTSOn)} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isTTSOn ? '🔊 On' : '🔇 Off') : (isTTSOn ? '🔊 Speak On' : '🔇 Speak Off')}
-                                                </button>
-                                                <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isMuted ? '🔇' : '🎙️') : (isMuted ? '🔇 Unmute' : '🎙️ Mute')}
-                                                </button>
-                                                <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isVideoOff ? '📷' : '📸') : (isVideoOff ? '📷 Camera On' : '📸 Camera Off')}
-                                                </button>
-                                                <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isScreenSharing ? '💻 Stop' : '💻 Share') : (isScreenSharing ? '💻 Stop Share' : '💻 Share')}
-                                                </button>
-                                                <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? '🔴' : '🔴 End'}
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {inVoiceCall && isTranscribing && (
-                                    <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #334155' }}>
-                                        <label>🗣️ My Language:
-                                            <select value={spokenLang} onChange={e => {
-                                                const newVal = e.target.value;
-                                                setSpokenLang(newVal);
-                                                saveUserSettings(newVal, targetLang);
-                                                if (isTranscribingRef.current) {
-                                                    stopCC();
-                                                    startCC();
-                                                }
-                                            }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', cursor: 'pointer' }}>
-                                                <LanguageOptions />
-                                            </select>
-                                        </label>
-                                        <label>🌐 Translate others to:
-                                            <select value={targetLang} onChange={e => {
-                                                const newVal = e.target.value;
-                                                setTargetLang(newVal);
-                                                saveUserSettings(spokenLang, newVal);
-                                            }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #00a884', cursor: 'pointer' }}>
-                                                <LanguageOptions />
-                                            </select>
-                                        </label>
-                                    </div>
-                                )}
-
-                                {inVoiceCall && (
-                                    <div style={{ height: '45vh', backgroundColor: '#000', display: 'grid', gridTemplateColumns: `repeat(${Math.max(Object.keys(remoteStreams).length + 1, 2)}, 1fr)`, gap: 10, padding: 10 }}>
-                                        <LocalVideo stream={localStream} subtitle={subtitles[userEmail]} />
-                                        {Object.entries(remoteStreams).map(([email, stream]) => (
-                                            <RemoteVideo key={email} stream={stream} email={email} allKnownUsers={allKnown} subtitle={subtitles[email]} isTTSOn={isTTSOn} />
-                                        ))}
-                                    </div>
-                                )}
-
-                                <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
-                                    {chatMessages.map((m, i) => {
-                                        const isVoiceMessage = m.text && m.text.startsWith('[VOICE]');
-                                        const isImageMessage = m.text && m.text.startsWith('[IMAGE]');
-                                        let content = m.text || '';
-                                        if (isVoiceMessage) content = m.text.replace('[VOICE]', '');
-                                        else if (isImageMessage) content = m.text.replace('[IMAGE]', '');
-                                        const match = !isVoiceMessage && !isImageMessage ? content.match(urlExtractRegex) : null;
-                                        let firstUrl = match ? match[0] : null;
-
-                                        return (
-                                            <div key={m.id || i} style={{ alignSelf: m.sender_email === userEmail ? 'flex-end' : 'flex-start', backgroundColor: m.sender_email === userEmail ? '#005c4b' : '#202c33', padding: '8px 12px', borderRadius: 8, maxWidth: '65%', wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
-                                                {isVoiceMessage ? (
-                                                    <audio controls src={content} style={{ height: '40px', maxWidth: '100%', outline: 'none' }} />
-                                                ) : isImageMessage ? (
-                                                    <img src={content} alt="Pasted attachment" style={{ maxWidth: '100%', borderRadius: 8 }} />
-                                                ) : (
-                                                    <>{renderTextWithLinks(content)}{firstUrl && <LinkPreview url={firstUrl} />}</>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'flex-end', position: 'relative' }}>
-                                    <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} title="Add Emoji" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>😊</button>
-                                    <button type="button" onClick={toggleRecording} title={isRecording ? "Stop Recording" : "Record Voice Message"} style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>{isRecording ? '⏹' : '🎤'}</button>
-                                    {showEmojiPicker && <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />}
-                                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#2a3942', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
-                                        {previewUrl && !isRecording && (
-                                            <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.2)', backgroundColor: '#1e293b' }}>
-                                                <div style={{ fontSize: 12, color: '#8696a0', marginBottom: 6, fontWeight: 'bold', textTransform: 'uppercase' }}>Link Preview</div>
-                                                <LinkPreview url={previewUrl} style={{ marginTop: 0 }} />
-                                            </div>
-                                        )}
-                                        <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} onPaste={handlePaste} placeholder={isRecording ? "Recording audio..." : "Message or paste image/link..."} disabled={isRecording} rows={1} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'Segoe UI, sans-serif' }} />
-                                    </div>
-                                    <button type="submit" disabled={!chatInput.trim() && !isRecording} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>➤</button>
-                                </form>
-                            </>
-                        ) : (
-                            <div style={{ display: 'flex', flexGrow: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#8696a0', textAlign: 'center' }}>
-                                <div>
-                                    <h2 style={{ color: 'white', marginBottom: '10px' }}>TotalRecall</h2>
-                                    <p>Select a contact to start chatting</p>
-                                </div>
-                                <div style={{ margin: '30px 0', width: '40px', height: '1px', backgroundColor: '#222d34' }}></div>
-                                <div>
-                                    <p style={{ fontSize: '13px', marginBottom: '15px' }}>Talking face-to-face with someone?</p>
-                                    <button onClick={() => setShowLocalTranslator(true)} style={{ padding: '12px 24px', borderRadius: '24px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0, 168, 132, 0.3)' }}>
-                                        🗣️ Open Local Translator
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-            {/* FOOTER */}
-            <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
-                <span>© NoirSoft Ltd</span>
-                <div style={{ display: 'flex', gap: '20px' }}><span>👥 Members: {memberCount}</span><span>🟢 Online: {totalOnlineCount}</span></div>
-            </div>
         </div>
     );
 }
@@ -1984,51 +2074,52 @@ export default function App() {
     if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
 
     return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
-            <div style={{ backgroundColor: '#202c33', padding: 40, borderRadius: 8, width: 350, maxWidth: '90%', textAlign: 'center' }}>
-                <h2 style={{ color: '#00a884', marginBottom: 30 }}>TotalRecall</h2>
-                {error && <div style={{ backgroundColor: '#dc2626', color: 'white', padding: 10, borderRadius: 4, marginBottom: 15, wordWrap: 'break-word' }}>{error}</div>}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#0f172a', color: '#f8fafc', fontFamily: 'Segoe UI, sans-serif' }}>
+            <div style={{ backgroundColor: '#1e293b', padding: 40, borderRadius: 12, width: 350, maxWidth: '90%', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+                <h2 style={{ color: '#10b981', marginBottom: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                    <span style={{ fontWeight: '900', letterSpacing: '2px' }}>TRN</span> TotalRecall
+                </h2>
+                {error && <div style={{ backgroundColor: '#ef4444', color: 'white', padding: 10, borderRadius: 6, marginBottom: 15, fontSize: '14px' }}>{error}</div>}
 
                 {showConfirm ? (
                     <div>
                         <h3>✅ Check your email</h3>
-                        <p style={{ color: '#8696a0', marginBottom: 20 }}>{confirmMessage}</p>
-                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); setIsForgotPasswordMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
+                        <p style={{ color: '#94a3b8', marginBottom: 20, fontSize: '14px' }}>{confirmMessage}</p>
+                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); setIsForgotPasswordMode(false); }} style={{ width: '100%', padding: '12px', backgroundColor: '#10b981', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
                     </div>
                 ) : isForgotPasswordMode ? (
                     <form onSubmit={e => e.preventDefault()}>
-                        <p style={{ color: '#8696a0', marginBottom: 15, fontSize: '14px' }}>Enter your email address and we'll send you a link to reset your password.</p>
-                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
-
-                        <button onClick={e => auth(e, 'reset')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>
+                        <p style={{ color: '#94a3b8', marginBottom: 20, fontSize: '14px' }}>Enter your email address to reset your password.</p>
+                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: 15, borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        <button onClick={e => auth(e, 'reset')} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#10b981', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>
                             {loading ? 'Sending...' : 'Send Reset Link'}
                         </button>
-                        <button onClick={() => { setIsForgotPasswordMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>
+                        <button onClick={() => { setIsForgotPasswordMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>
                             Back to Login
                         </button>
                     </form>
                 ) : (
                     <form onSubmit={e => e.preventDefault()}>
-                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: 15, borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
 
                         {isSignupMode && (
-                            <input type="tel" placeholder="Mobile Number (Mandatory)" value={mobile} onChange={e => setMobile(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} required />
+                            <input type="tel" placeholder="Mobile Number (Mandatory)" value={mobile} onChange={e => setMobile(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: 15, borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: 'white', boxSizing: 'border-box' }} disabled={loading} required />
                         )}
 
-                        <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: 20, borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
 
                         {!isSignupMode ? (
                             <>
-                                <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Log In'}</button>
-                                <button onClick={() => { setIsSignupMode(true); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Sign Up</button>
-                                <button onClick={() => { setIsForgotPasswordMode(true); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: 'none', fontSize: '13px', cursor: 'pointer', marginTop: '10px', textDecoration: 'underline' }} disabled={loading}>
+                                <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#10b981', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Log In'}</button>
+                                <button onClick={() => { setIsSignupMode(true); setError(''); }} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#10b981', border: '1px solid #10b981', borderRadius: '6px', fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Sign Up</button>
+                                <button onClick={() => { setIsForgotPasswordMode(true); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: '10px', backgroundColor: 'transparent', color: '#94a3b8', border: 'none', fontSize: '13px', cursor: 'pointer', marginTop: '10px' }} disabled={loading}>
                                     Forgot Password?
                                 </button>
                             </>
                         ) : (
                             <>
-                                <button onClick={e => auth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Create Account'}</button>
-                                <button onClick={() => { setIsSignupMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Back to Login</button>
+                                <button onClick={e => auth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#10b981', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Create Account'}</button>
+                                <button onClick={() => { setIsSignupMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Back to Login</button>
                             </>
                         )}
                     </form>
