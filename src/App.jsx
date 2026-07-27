@@ -360,6 +360,7 @@ function ChatApp({ user, onLogout }) {
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [members, setMembers] = useState([]);
     const [savedContacts, setSavedContacts] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const onlineUsersRef = useRef([]);
     useEffect(() => { onlineUsersRef.current = onlineUsers; }, [onlineUsers]);
@@ -1590,6 +1591,24 @@ function ChatApp({ user, onLogout }) {
         return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
     });
 
+    // ✨ SEARCH FILTER LOGIC ✨
+    const query = searchQuery.toLowerCase();
+
+    const filteredOnlineUsers = sortedOnlineUsers.filter(u => {
+        const name = allKnown.find(k => k.email?.toLowerCase() === u.email?.toLowerCase())?.name || u.email.split('@')[0];
+        return name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query);
+    });
+
+    const filteredMembers = sortedMembers.filter(c => {
+        const name = c.name?.trim() || c.email.split('@')[0];
+        return name.toLowerCase().includes(query) || c.email.toLowerCase().includes(query);
+    });
+
+    const filteredContacts = sortedContacts.filter(c => {
+        const name = c.name?.trim() || (c.email.includes('@') ? c.email.split('@')[0] : c.email);
+        return name.toLowerCase().includes(query) || c.email.toLowerCase().includes(query);
+    });
+
     const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
     const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
     const memberCount = members.filter(m => m.email?.toLowerCase() !== safeEmail).length;
@@ -1757,22 +1776,33 @@ function ChatApp({ user, onLogout }) {
                             </button>
                         </div>
 
+                        {/* ✨ SEARCH BAR ✨ */}
+                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #222d34', backgroundColor: '#111b21' }}>
+                            <input
+                                type="text"
+                                placeholder="🔍 Search users and contacts..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #2a3942', backgroundColor: '#202c33', color: 'white', boxSizing: 'border-box', outline: 'none' }}
+                            />
+                        </div>
+
                         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
                             <div onClick={() => setIsOnlineExpanded(!isOnlineExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34' }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Online ({sortedOnlineUsers.length})</span>
+                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Online ({filteredOnlineUsers.length})</span>
                                 <span style={{ color: '#8696a0' }}>{isOnlineExpanded ? '▼' : '▶'}</span>
                             </div>
-                            {isOnlineExpanded && sortedOnlineUsers.map(u => (
+                            {isOnlineExpanded && filteredOnlineUsers.map(u => (
                                 <div key={u.email} onClick={() => setSelectedContact(u.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent' }}>
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{u.email[0]?.toUpperCase()}</div>
                                     <span>{allKnown.find(k => k.email?.toLowerCase() === u.email?.toLowerCase())?.name || u.email.split('@')[0]}</span>
                                 </div>
                             ))}
                             <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({sortedMembers.length})</span>
+                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({filteredMembers.length})</span>
                                 <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
                             </div>
-                            {isMembersExpanded && sortedMembers.map(c => {
+                            {isMembersExpanded && filteredMembers.map(c => {
                                 const isContact = savedContacts.some(sc => sc.email?.trim().toLowerCase() === c.email?.trim().toLowerCase());
                                 return (
                                     <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
@@ -1783,13 +1813,13 @@ function ChatApp({ user, onLogout }) {
                                 );
                             })}
                             <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({sortedContacts.length})</span>
+                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({filteredContacts.length})</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <button onClick={(e) => { e.stopPropagation(); handleImportContacts(); }} disabled={isImporting} style={{ backgroundColor: isImporting ? '#1a2a33' : '#2a3942', color: isImporting ? '#666' : '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: isImporting ? 'not-allowed' : 'pointer', fontSize: '11px' }}>{isImporting ? '⏳ Importing...' : '+ Add External'}</button>
                                     <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
                                 </div>
                             </div>
-                            {isContactsExpanded && sortedContacts.map(c => (
+                            {isContactsExpanded && filteredContacts.map(c => (
                                 <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                     <div style={{ flexGrow: 1 }}><div>{c.name || (c.email.includes('@') ? c.email.split('@')[0] : c.email)}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
