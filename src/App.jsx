@@ -831,7 +831,7 @@ function ChatApp({ user, onLogout }) {
         }
 
         if (!targetMobile) {
-            targetMobile = prompt(`Could not automatically find a mobile number for ${emailToCall}.\n\nEnter their mobile number to call (including country code, e.g., 447...):`);
+            targetMobile = prompt(`Could not automatically find a mobile number for ${emailToCall}.\n\nEnter their mobile number to call (including country code, e.g., for a UK number 44  followed by your number):`);
             if (!targetMobile || !targetMobile.trim()) {
                 return;
             }
@@ -1586,7 +1586,7 @@ function ChatApp({ user, onLogout }) {
                             type="tel"
                             value={newMobile}
                             onChange={(e) => setNewMobile(e.target.value)}
-                            placeholder="e.g., For UK 447..."
+                            placeholder="For a UK number 44  then by your number"
                             style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
                             autoFocus
                         />
