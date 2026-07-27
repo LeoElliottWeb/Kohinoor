@@ -346,9 +346,7 @@ const LanguageOptions = () => (
         <option value="pt-BR">Portuguese (BR)</option>
         <option value="el-GR">Greek</option>
         <option value="ru-RU">Russian</option>
-        <option value="ar-SA">Arabic</option>
         <option value="yo-NG">Yoruba</option>
-        <option value="nb-NO">Norwegian</option>
     </>
 );
 
@@ -1080,9 +1078,7 @@ function ChatApp({ user, onLogout }) {
             'pt-BR': 'pt',
             'el-GR': 'el',
             'ru-RU': 'ru',
-            'ar-SA': 'ar',
-            'yo-NG': 'yo',
-            'nb-NO': 'no'
+            'yo-NG': 'yo'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
