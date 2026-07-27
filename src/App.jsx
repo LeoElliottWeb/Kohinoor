@@ -577,7 +577,24 @@ function ChatApp({ user, onLogout }) {
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
 
-    // ✨ UPDATED: Add External functionality for Email OR Mobile Number WITH NAME PROMPT
+    // ✨ BROADCAST LANGUAGE CHANGES TO REMOTE PEER ✨
+    const broadcastLanguageChange = (newSpoken, newTarget) => {
+        if (inCallRef.current && channelRef.current) {
+            Object.keys(peersRef.current).forEach(peer => {
+                channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'webrtc-language-update',
+                    payload: {
+                        targetEmail: peer,
+                        sender: userEmail,
+                        spokenLang: newSpoken,
+                        targetLang: newTarget
+                    }
+                });
+            });
+        }
+    };
+
     const handleImportContacts = async () => {
         if (isImporting) return;
         setIsImporting(true);
@@ -611,7 +628,6 @@ function ChatApp({ user, onLogout }) {
                 } else {
                     const cleanNum = trimmed.replace(/[^0-9]/g, '');
                     if (cleanNum.length >= 5) {
-                        // For Mobile numbers, name is required
                         contactName = prompt("Enter a name for this contact (Required):");
                         if (!contactName || !contactName.trim()) {
                             alert("A name is required when adding a mobile number.");
@@ -655,9 +671,7 @@ function ChatApp({ user, onLogout }) {
                             });
                             if (!error) sentCount++;
                         } else {
-                            // It is a mobile number. Call to invite and send SMS link to sign up.
                             const joinLink = `${window.location.origin}`;
-                            // NOTE: Requires a 'vonage-invite' edge function on Supabase to handle the TTS call + SMS registration link.
                             const { error } = await supabase.functions.invoke('vonage-invite', {
                                 body: {
                                     to: contact.email,
@@ -834,7 +848,6 @@ function ChatApp({ user, onLogout }) {
             const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(offer);
 
-            // Check if user is currently transcribing OR is about to auto-start due to saved settings
             const isT = isTranscribingRef.current || hasSavedSettings;
 
             channelRef.current.send({
@@ -845,7 +858,9 @@ function ChatApp({ user, onLogout }) {
                     offer: pc.localDescription,
                     sender: userEmail,
                     isAuto,
-                    isTranscribing: isT
+                    isTranscribing: isT,
+                    spokenLang: spokenLangRef.current, // Sync language on call initiation
+                    targetLang: targetLangRef.current  // Sync language on call initiation
                 }
             });
             setInVoiceCall(true);
@@ -856,11 +871,9 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ UPDATED: triggerVonageCall to support direct mobile string selected from contacts list
     const triggerVonageCall = async (emailToCall) => {
         let targetMobile = null;
 
-        // Check if the "emailToCall" is actually a direct mobile number (no @ sign)
         if (emailToCall && !emailToCall.includes('@') && /^\d+$/.test(emailToCall.replace(/[^0-9]/g, ''))) {
             targetMobile = emailToCall.replace(/[^0-9]/g, '');
         }
@@ -958,7 +971,6 @@ function ChatApp({ user, onLogout }) {
             for (const c of pending) { try { await pc.addIceCandidate(c); } catch (e) { } }
             pendingCandidatesRef.current[call.sender] = [];
 
-            // If caller has transcribe ON, turn it on for recipient too
             if (call.isTranscribing && !isTranscribingRef.current) {
                 setIsTranscribing(true);
                 startCC();
@@ -994,7 +1006,6 @@ function ChatApp({ user, onLogout }) {
             setInVoiceCall(true);
             setSelectedContact(call.sender);
 
-            // If caller has transcribe ON, turn it on for recipient too
             if (call.isTranscribing && !isTranscribingRef.current) {
                 setIsTranscribing(true);
                 startCC();
@@ -1091,7 +1102,6 @@ function ChatApp({ user, onLogout }) {
             return data[0].map(item => item[0]).join('');
         } catch (e) {
             console.error("Google Translation API error, attempting fallback:", e);
-            // Fallback API (MyMemory)
             try {
                 const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceBase}|${targetBase}`);
                 const data2 = await res2.json();
@@ -1109,9 +1119,6 @@ function ChatApp({ user, onLogout }) {
     const startCC = async () => {
         if (isTranscribingRef.current) return;
 
-        // =========================================================================
-        // 🛑 INSERT YOUR DEEPGRAM API KEY HERE 🛑
-        // =========================================================================
         const DEEPGRAM_API_KEY = '6fad18b20b8cb263a38d87b7e4d4045d71acad96';
 
         if (DEEPGRAM_API_KEY === 'YOUR_DEEPGRAM_API_KEY') {
@@ -1123,24 +1130,14 @@ function ChatApp({ user, onLogout }) {
         isTranscribingRef.current = true;
 
         const langMap = {
-            'en-US': 'en',
-            'es-ES': 'es',
-            'fr-FR': 'fr',
-            'de-DE': 'de',
-            'it-IT': 'it',
-            'zh-CN': 'zh',
-            'ja-JP': 'ja',
-            'pt-PT': 'pt',
-            'pt-BR': 'pt',
-            'el-GR': 'el',
-            'ru-RU': 'ru',
-            'yo-NG': 'yo'
+            'en-US': 'en', 'es-ES': 'es', 'fr-FR': 'fr', 'de-DE': 'de', 'it-IT': 'it',
+            'zh-CN': 'zh', 'ja-JP': 'ja', 'pt-PT': 'pt', 'pt-BR': 'pt', 'el-GR': 'el',
+            'ru-RU': 'ru', 'yo-NG': 'yo'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
         try {
             let stream;
-            // 🛑 FIX: Reuse existing WebRTC audio stream if available to prevent mic lock/mute issues
             if (localStreamRef.current && localStreamRef.current.getAudioTracks().length > 0) {
                 stream = new MediaStream([localStreamRef.current.getAudioTracks()[0]]);
             } else {
@@ -1169,7 +1166,6 @@ function ChatApp({ user, onLogout }) {
 
                     if (processSubtitleRef.current) processSubtitleRef.current(payload);
 
-                    // Only broadcast if we are actually in a WebRTC call
                     if (channelRef.current && inCallRef.current) {
                         channelRef.current.send({
                             type: 'broadcast',
@@ -1205,7 +1201,6 @@ function ChatApp({ user, onLogout }) {
         if (ccMediaRecorderRef.current && ccMediaRecorderRef.current.state !== 'inactive') {
             ccMediaRecorderRef.current.stop();
             ccMediaRecorderRef.current.stream.getTracks().forEach(track => {
-                // 🛑 FIX: Do not stop the track if it belongs to the active WebRTC call
                 const isMainTrack = localStreamRef.current?.getTracks().includes(track);
                 if (!isMainTrack) {
                     track.stop();
@@ -1219,7 +1214,6 @@ function ChatApp({ user, onLogout }) {
         }
 
         setSubtitles({});
-        // Only broadcast clear message if we are actively in a WebRTC call
         if (channelRef.current && inCallRef.current) {
             channelRef.current.send({
                 type: 'broadcast',
@@ -1232,7 +1226,6 @@ function ChatApp({ user, onLogout }) {
     const toggleTranscription = () => {
         if (isTranscribingRef.current) {
             stopCC();
-            // Tell other peers we turned it off
             if (inCallRef.current && channelRef.current) {
                 Object.keys(peersRef.current).forEach(peer => {
                     channelRef.current.send({
@@ -1244,7 +1237,6 @@ function ChatApp({ user, onLogout }) {
             }
         } else {
             startCC();
-            // Tell other peers we turned it on
             if (inCallRef.current && channelRef.current) {
                 Object.keys(peersRef.current).forEach(peer => {
                     channelRef.current.send({
@@ -1257,7 +1249,7 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ LANGUAGE SWAP UTILITY FOR LOCAL TRANSLATOR
+    // ✨ LANGUAGE SWAP UTILITY FOR LOCAL TRANSLATOR ✨
     const swapLanguages = () => {
         const newSpoken = targetLang;
         const newTarget = spokenLang;
@@ -1266,6 +1258,7 @@ function ChatApp({ user, onLogout }) {
         spokenLangRef.current = newSpoken;
         targetLangRef.current = newTarget;
         saveUserSettings(newSpoken, newTarget);
+        broadcastLanguageChange(newSpoken, newTarget);
 
         if (isTranscribingRef.current) {
             stopCC();
@@ -1275,13 +1268,10 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ AUTO-START CC IF SETTINGS EXIST (REMOVED AUTO TTS TO PREVENT MUTE)
     const autoStartedRef = useRef(false);
     useEffect(() => {
         if (inVoiceCall && hasSavedSettings && !autoStartedRef.current) {
-            // DO NOT auto-enable TTS here; it caused the incoming remote video to mute natively.
             if (!isTranscribingRef.current) {
-                // By forcing the state to true right away, we guarantee the UI updates immediately
                 setIsTranscribing(true);
                 startCC();
             }
@@ -1295,7 +1285,6 @@ function ChatApp({ user, onLogout }) {
         processSubtitleRef.current = async (payload) => {
             const { sender, text, lang, isFinal, clear } = payload;
 
-            // Allow processing if in a WebRTC call OR using Local Translator Mode
             if (!inCallRef.current && !isLocalTranslateModeRef.current) return;
 
             if (clear) {
@@ -1316,7 +1305,6 @@ function ChatApp({ user, onLogout }) {
                 }
             }));
 
-            // DEBOUNCE & TTS LOGIC 
             if (needsTranslation && text.trim().length > 0) {
                 const doTranslate = () => {
                     translateText(text, lang, targetLangRef.current).then(translated => {
@@ -1327,13 +1315,11 @@ function ChatApp({ user, onLogout }) {
                             return prev;
                         });
 
-                        // Speak the translated text if it's final
-                        // If local mode, we want to speak our own translated output for the other person
                         const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
 
                         if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
                             const utterance = new SpeechSynthesisUtterance(translated || text);
-                            utterance.lang = targetLangRef.current; // Speaks the translation language chosen
+                            utterance.lang = targetLangRef.current;
                             window.speechSynthesis.speak(utterance);
                         }
                     });
@@ -1347,9 +1333,7 @@ function ChatApp({ user, onLogout }) {
                     debounceTimers.current[sender] = setTimeout(doTranslate, 800);
                 }
             } else if (!needsTranslation && isFinal && isTTSOnRef.current && text.trim().length > 0 && 'speechSynthesis' in window) {
-                // Speak the untranslated text if they happen to speak the same language
                 const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
-
                 if (shouldSpeak) {
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.lang = targetLangRef.current;
@@ -1387,14 +1371,12 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // Event: Subtitles
         ch.on('broadcast', { event: 'webrtc-subtitle' }, ({ payload }) => {
             if (payload.sender !== userEmail && processSubtitleRef.current) {
                 processSubtitleRef.current(payload);
             }
         });
 
-        // Event: Remote user turned transcribe ON
         ch.on('broadcast', { event: 'webrtc-transcribe-on' }, ({ payload }) => {
             if (payload.targetEmail === userEmail && inCallRef.current && !isTranscribingRef.current) {
                 setIsTranscribing(true);
@@ -1402,15 +1384,48 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // Event: Remote user turned transcribe OFF
         ch.on('broadcast', { event: 'webrtc-transcribe-off' }, ({ payload }) => {
             if (payload.targetEmail === userEmail && inCallRef.current && isTranscribingRef.current) {
                 stopCC();
             }
         });
 
+        // ✨ HANDLE REAL-TIME LANGUAGE UPDATES FROM REMOTE PEER ✨
+        ch.on('broadcast', { event: 'webrtc-language-update' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail && inCallRef.current) {
+                // If caller says their target is Spanish, it means our spoken language should be Spanish.
+                const newSpoken = payload.targetLang;
+                const newTarget = payload.spokenLang;
+
+                setSpokenLang(newSpoken);
+                setTargetLang(newTarget);
+                spokenLangRef.current = newSpoken;
+                targetLangRef.current = newTarget;
+                saveUserSettings(newSpoken, newTarget);
+
+                if (isTranscribingRef.current) {
+                    stopCC();
+                    setTimeout(() => {
+                        startCC();
+                    }, 300);
+                }
+            }
+        });
+
         ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
+
+            // ✨ INITIALIZE LANGUAGE SYNC FROM CALLER ✨
+            if (payload.spokenLang && payload.targetLang) {
+                const newSpoken = payload.targetLang;
+                const newTarget = payload.spokenLang;
+                setSpokenLang(newSpoken);
+                setTargetLang(newTarget);
+                spokenLangRef.current = newSpoken;
+                targetLangRef.current = newTarget;
+                saveUserSettings(newSpoken, newTarget);
+            }
+
             if (peersRef.current[payload.sender]) {
                 try {
                     await peersRef.current[payload.sender].setRemoteDescription(new RTCSessionDescription(payload.offer));
@@ -1584,7 +1599,6 @@ function ChatApp({ user, onLogout }) {
     const dispMembers = members.filter(m => m.email?.toLowerCase() !== safeEmail);
     const dispContacts = savedContacts.filter(c => c.email && c.email.trim().toLowerCase() !== safeEmail);
 
-    // ✨ SORTING LOGIC: Alphabetically sorting Online, Members, and Contacts ✨
     const sortedOnlineUsers = [...onlineUsers].sort((a, b) => {
         const nameA = allKnown.find(k => k.email?.toLowerCase() === a.email?.toLowerCase())?.name || a.email.split('@')[0];
         const nameB = allKnown.find(k => k.email?.toLowerCase() === b.email?.toLowerCase())?.name || b.email.split('@')[0];
@@ -1603,7 +1617,6 @@ function ChatApp({ user, onLogout }) {
         return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
     });
 
-    // ✨ SEARCH FILTER LOGIC ✨
     const query = searchQuery.toLowerCase();
 
     const filteredOnlineUsers = sortedOnlineUsers.filter(u => {
@@ -1626,20 +1639,18 @@ function ChatApp({ user, onLogout }) {
     const memberCount = members.filter(m => m.email?.toLowerCase() !== safeEmail).length;
     const totalOnlineCount = onlineUsers.length + 1;
 
-    // ✨ HELPER: Gets a flag URL dynamically based on mobile number prefix
     const getFlagUrl = (mobileStr) => {
         if (!mobileStr) return '';
         const clean = mobileStr.replace(/[^0-9]/g, '');
         if (clean.startsWith('44')) return 'https://flagcdn.com/w20/gb.png';
         if (clean.startsWith('34')) return 'https://flagcdn.com/w20/es.png';
         if (clean.startsWith('1')) return 'https://flagcdn.com/w20/us.png';
-        return 'https://flagcdn.com/w20/un.png'; // Fallback to a UN flag if unknown
+        return 'https://flagcdn.com/w20/un.png';
     };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
 
-            {/* ✨ LOCAL TRANSLATOR OVERLAY ✨ */}
             {showLocalTranslator && (
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0b141a', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
 
@@ -1668,13 +1679,31 @@ function ChatApp({ user, onLogout }) {
 
                     <div style={{ padding: '20px', backgroundColor: '#202c33', borderTop: '1px solid #222d34' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                            <select value={spokenLang} onChange={(e) => { setSpokenLang(e.target.value); spokenLangRef.current = e.target.value; saveUserSettings(e.target.value, targetLang); if (isTranscribingRef.current) { stopCC(); setTimeout(startCC, 300); } }} style={{ padding: '10px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', flex: 1, maxWidth: '150px' }}>
+                            {/* ✨ SYNCHRONIZED DROPDOWN ✨ */}
+                            <select value={spokenLang} onChange={(e) => {
+                                const newVal = e.target.value;
+                                setSpokenLang(newVal);
+                                spokenLangRef.current = newVal;
+                                saveUserSettings(newVal, targetLang);
+                                broadcastLanguageChange(newVal, targetLang);
+                                if (isTranscribingRef.current) {
+                                    stopCC();
+                                    setTimeout(startCC, 300);
+                                }
+                            }} style={{ padding: '10px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', flex: 1, maxWidth: '150px' }}>
                                 <LanguageOptions />
                             </select>
 
                             <button onClick={swapLanguages} title="Swap Languages" style={{ background: '#00a884', color: '#111', border: 'none', borderRadius: '50%', width: '45px', height: '45px', cursor: 'pointer', fontSize: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' }}>⇄</button>
 
-                            <select value={targetLang} onChange={(e) => { setTargetLang(e.target.value); targetLangRef.current = e.target.value; saveUserSettings(spokenLang, e.target.value); }} style={{ padding: '10px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #00a884', flex: 1, maxWidth: '150px' }}>
+                            {/* ✨ SYNCHRONIZED DROPDOWN ✨ */}
+                            <select value={targetLang} onChange={(e) => {
+                                const newVal = e.target.value;
+                                setTargetLang(newVal);
+                                targetLangRef.current = newVal;
+                                saveUserSettings(spokenLang, newVal);
+                                broadcastLanguageChange(spokenLang, newVal);
+                            }} style={{ padding: '10px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #00a884', flex: 1, maxWidth: '150px' }}>
                                 <LanguageOptions />
                             </select>
                         </div>
@@ -1691,7 +1720,6 @@ function ChatApp({ user, onLogout }) {
                 </div>
             )}
 
-            {/* ✨ CHANGE MOBILE NUMBER MODAL ✨ */}
             {showMobileModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 4000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
@@ -1731,7 +1759,6 @@ function ChatApp({ user, onLogout }) {
                     <div style={{ width: isMobile ? '100%' : '30%', minWidth: 250, borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21', height: '100%', overflow: 'hidden' }}>
                         <div style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 
-                            {/* ✨ UPDATED PROFILE SECTION WITH FLAG AND MISSING NUMBER WARNING ✨ */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
                                     {displayName[0]?.toUpperCase()}
@@ -1758,7 +1785,6 @@ function ChatApp({ user, onLogout }) {
                             <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>Logout</button>
                         </div>
 
-                        {/* ACTIVE CALL BANNER FOR MOBILE */}
                         {isMobile && inVoiceCall && (
                             <div
                                 onClick={() => {
@@ -1772,7 +1798,6 @@ function ChatApp({ user, onLogout }) {
                             </div>
                         )}
 
-                        {/* ✨ PROMINENT BUTTONS IN SIDEBAR ✨ */}
                         <div style={{ padding: '15px', borderBottom: '1px solid #222d34', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <button
                                 onClick={() => setShowLocalTranslator(true)}
@@ -1788,7 +1813,6 @@ function ChatApp({ user, onLogout }) {
                             </button>
                         </div>
 
-                        {/* ✨ SEARCH BAR ✨ */}
                         <div style={{ padding: '10px 15px', borderBottom: '1px solid #222d34', backgroundColor: '#111b21' }}>
                             <input
                                 type="text"
@@ -1853,7 +1877,6 @@ function ChatApp({ user, onLogout }) {
                                         <b>{activeName}</b>
                                     </div>
 
-                                    {/* RESPONSIVE BUTTON CONTAINER */}
                                     <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                         <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                             {isMobile ? (isVonageCalling ? '📞...' : '📞') : (isVonageCalling ? '📞 Calling...' : '📞 Call Mobile')}
@@ -1896,23 +1919,29 @@ function ChatApp({ user, onLogout }) {
                                 {inVoiceCall && isTranscribing && (
                                     <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #334155' }}>
                                         <label>🗣️ My Language:
+                                            {/* ✨ SYNCHRONIZED DROPDOWN ✨ */}
                                             <select value={spokenLang} onChange={e => {
                                                 const newVal = e.target.value;
                                                 setSpokenLang(newVal);
+                                                spokenLangRef.current = newVal;
                                                 saveUserSettings(newVal, targetLang);
+                                                broadcastLanguageChange(newVal, targetLang);
                                                 if (isTranscribingRef.current) {
                                                     stopCC();
-                                                    startCC();
+                                                    setTimeout(startCC, 300);
                                                 }
                                             }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #38bdf8', cursor: 'pointer' }}>
                                                 <LanguageOptions />
                                             </select>
                                         </label>
                                         <label>🌐 Translate others to:
+                                            {/* ✨ SYNCHRONIZED DROPDOWN ✨ */}
                                             <select value={targetLang} onChange={e => {
                                                 const newVal = e.target.value;
                                                 setTargetLang(newVal);
+                                                targetLangRef.current = newVal;
                                                 saveUserSettings(spokenLang, newVal);
+                                                broadcastLanguageChange(spokenLang, newVal);
                                             }} style={{ marginLeft: '8px', padding: '4px', borderRadius: '4px', background: '#2a3942', color: 'white', border: '1px solid #00a884', cursor: 'pointer' }}>
                                                 <LanguageOptions />
                                             </select>
@@ -2015,11 +2044,9 @@ export default function App() {
     const [isSignupMode, setIsSignupMode] = useState(false);
     const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
 
-    // NEW FUNCTION to sync auth.users metadata to public.profiles
     const syncProfile = async (currentUser) => {
         if (!currentUser || !currentUser.email) return;
         try {
-            // Check if profile exists and what data it currently holds
             const { data, error } = await supabase
                 .from('profiles')
                 .select('email, name, mobile')
@@ -2030,14 +2057,12 @@ export default function App() {
             const metaMobile = currentUser.user_metadata?.mobile || '';
 
             if (!data && !error) {
-                // Fallback: Profile doesn't exist at all, create it
                 await supabase.from('profiles').insert([{
                     email: currentUser.email,
                     name: metaName,
                     mobile: metaMobile
                 }]);
             } else if (data && (!data.name || !data.mobile)) {
-                // Profile exists (email is there) but name or mobile is missing
                 await supabase.from('profiles')
                     .update({
                         name: data.name || metaName,
@@ -2063,7 +2088,6 @@ export default function App() {
                 syncProfile(session.user);
             }
 
-            // Intercept password recovery flow when they click the email link
             if (event === 'PASSWORD_RECOVERY') {
                 const newPassword = prompt("Please enter your new password (minimum 6 characters):");
                 if (newPassword && newPassword.length >= 6) {
