@@ -576,7 +576,7 @@ function ChatApp({ user, onLogout }) {
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
 
-    // ✨ UPDATED: Add External functionality for Email OR Mobile Number
+    // ✨ UPDATED: Add External functionality for Email OR Mobile Number WITH NAME PROMPT
     const handleImportContacts = async () => {
         if (isImporting) return;
         setIsImporting(true);
@@ -602,12 +602,22 @@ function ChatApp({ user, onLogout }) {
                 const input = prompt("Enter an email address OR a mobile number (include country code, e.g. 44 for UK) to send an invite:");
                 if (!input || !input.trim()) { setIsImporting(false); return; }
                 const trimmed = input.trim();
+
+                let contactName = "";
                 if (trimmed.includes('@')) {
-                    contactsToProcess = [{ name: trimmed.split('@')[0], email: trimmed, type: 'email' }];
+                    contactName = prompt("Enter a name for this contact:") || trimmed.split('@')[0];
+                    contactsToProcess = [{ name: contactName.trim(), email: trimmed, type: 'email' }];
                 } else {
                     const cleanNum = trimmed.replace(/[^0-9]/g, '');
                     if (cleanNum.length >= 5) {
-                        contactsToProcess = [{ name: cleanNum, email: cleanNum, type: 'tel' }];
+                        // For Mobile numbers, name is required
+                        contactName = prompt("Enter a name for this contact (Required):");
+                        if (!contactName || !contactName.trim()) {
+                            alert("A name is required when adding a mobile number.");
+                            setIsImporting(false);
+                            return;
+                        }
+                        contactsToProcess = [{ name: contactName.trim(), email: cleanNum, type: 'tel' }];
                     } else {
                         alert("Please enter a valid email address or mobile number.");
                         setIsImporting(false); return;
