@@ -595,6 +595,21 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // ✨ BROADCAST TTS TOGGLE TO REMOTE PEER ✨
+    const toggleTTS = () => {
+        const nextState = !isTTSOn;
+        setIsTTSOn(nextState);
+        if (inCallRef.current && channelRef.current) {
+            Object.keys(peersRef.current).forEach(peer => {
+                channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'webrtc-tts-sync',
+                    payload: { targetEmail: peer, sender: userEmail, isTTSOn: nextState }
+                });
+            });
+        }
+    };
+
     const handleImportContacts = async () => {
         if (isImporting) return;
         setIsImporting(true);
@@ -860,7 +875,8 @@ function ChatApp({ user, onLogout }) {
                     isAuto,
                     isTranscribing: isT,
                     spokenLang: spokenLangRef.current, // Sync language on call initiation
-                    targetLang: targetLangRef.current  // Sync language on call initiation
+                    targetLang: targetLangRef.current, // Sync language on call initiation
+                    isTTSOn: isTTSOnRef.current // Sync TTS state on call initiation
                 }
             });
             setInVoiceCall(true);
@@ -1390,10 +1406,8 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // ✨ HANDLE REAL-TIME LANGUAGE UPDATES FROM REMOTE PEER ✨
         ch.on('broadcast', { event: 'webrtc-language-update' }, ({ payload }) => {
             if (payload.targetEmail === userEmail && inCallRef.current) {
-                // If caller says their target is Spanish, it means our spoken language should be Spanish.
                 const newSpoken = payload.targetLang;
                 const newTarget = payload.spokenLang;
 
@@ -1412,10 +1426,16 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
+        // ✨ HANDLE REAL-TIME TTS SYNC FROM REMOTE PEER ✨
+        ch.on('broadcast', { event: 'webrtc-tts-sync' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail && inCallRef.current) {
+                setIsTTSOn(payload.isTTSOn);
+            }
+        });
+
         ch.on('broadcast', { event: 'webrtc-offer' }, async ({ payload }) => {
             if (payload.targetEmail !== userEmail) return;
 
-            // ✨ INITIALIZE LANGUAGE SYNC FROM CALLER ✨
             if (payload.spokenLang && payload.targetLang) {
                 const newSpoken = payload.targetLang;
                 const newTarget = payload.spokenLang;
@@ -1424,6 +1444,11 @@ function ChatApp({ user, onLogout }) {
                 spokenLangRef.current = newSpoken;
                 targetLangRef.current = newTarget;
                 saveUserSettings(newSpoken, newTarget);
+            }
+
+            // ✨ INITIALIZE TTS SYNC FROM CALLER ✨
+            if (payload.isTTSOn !== undefined) {
+                setIsTTSOn(payload.isTTSOn);
             }
 
             if (peersRef.current[payload.sender]) {
@@ -1679,7 +1704,6 @@ function ChatApp({ user, onLogout }) {
 
                     <div style={{ padding: '20px', backgroundColor: '#202c33', borderTop: '1px solid #222d34' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                            {/* ✨ SYNCHRONIZED DROPDOWN ✨ */}
                             <select value={spokenLang} onChange={(e) => {
                                 const newVal = e.target.value;
                                 setSpokenLang(newVal);
@@ -1696,7 +1720,6 @@ function ChatApp({ user, onLogout }) {
 
                             <button onClick={swapLanguages} title="Swap Languages" style={{ background: '#00a884', color: '#111', border: 'none', borderRadius: '50%', width: '45px', height: '45px', cursor: 'pointer', fontSize: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' }}>⇄</button>
 
-                            {/* ✨ SYNCHRONIZED DROPDOWN ✨ */}
                             <select value={targetLang} onChange={(e) => {
                                 const newVal = e.target.value;
                                 setTargetLang(newVal);
@@ -1712,7 +1735,8 @@ function ChatApp({ user, onLogout }) {
                             <button onClick={toggleTranscription} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTranscribing ? '#ef4444' : '#00a884', color: 'white', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
                                 {isTranscribing ? '⏹ Stop Listening' : '🎤 Start Listening'}
                             </button>
-                            <button onClick={() => setIsTTSOn(!isTTSOn)} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTTSOn ? '#005c4b' : 'transparent', color: isTTSOn ? 'white' : '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
+                            {/* ✨ SYNCHRONIZED TTS TOGGLE ✨ */}
+                            <button onClick={toggleTTS} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTTSOn ? '#005c4b' : 'transparent', color: isTTSOn ? 'white' : '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
                                 {isTTSOn ? '🔊 Speaker: ON' : '🔇 Speaker: OFF'}
                             </button>
                         </div>
@@ -1896,7 +1920,8 @@ function ChatApp({ user, onLogout }) {
                                                 <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                                     {isMobile ? (isTranscribing ? '💬 On' : '💬 Off') : (isTranscribing ? '💬 Transcribe On' : '💬 Transcribe Off')}
                                                 </button>
-                                                <button onClick={() => setIsTTSOn(!isTTSOn)} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                {/* ✨ SYNCHRONIZED TTS TOGGLE ✨ */}
+                                                <button onClick={toggleTTS} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                                     {isMobile ? (isTTSOn ? '🔊 On' : '🔇 Off') : (isTTSOn ? '🔊 Speak On' : '🔇 Speak Off')}
                                                 </button>
                                                 <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
@@ -1919,7 +1944,6 @@ function ChatApp({ user, onLogout }) {
                                 {inVoiceCall && isTranscribing && (
                                     <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #334155' }}>
                                         <label>🗣️ My Language:
-                                            {/* ✨ SYNCHRONIZED DROPDOWN ✨ */}
                                             <select value={spokenLang} onChange={e => {
                                                 const newVal = e.target.value;
                                                 setSpokenLang(newVal);
@@ -1935,7 +1959,6 @@ function ChatApp({ user, onLogout }) {
                                             </select>
                                         </label>
                                         <label>🌐 Translate others to:
-                                            {/* ✨ SYNCHRONIZED DROPDOWN ✨ */}
                                             <select value={targetLang} onChange={e => {
                                                 const newVal = e.target.value;
                                                 setTargetLang(newVal);
