@@ -1139,7 +1139,13 @@ function ChatApp({ user, onLogout }) {
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            let stream;
+            // 🛑 FIX: Reuse existing WebRTC audio stream if available to prevent mic lock/mute issues
+            if (localStreamRef.current && localStreamRef.current.getAudioTracks().length > 0) {
+                stream = new MediaStream([localStreamRef.current.getAudioTracks()[0]]);
+            } else {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
             ccMediaRecorderRef.current = new MediaRecorder(stream);
 
             const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?model=nova-3&language=${dgLang}&interim_results=true`, ['token', DEEPGRAM_API_KEY]);
@@ -1198,7 +1204,13 @@ function ChatApp({ user, onLogout }) {
 
         if (ccMediaRecorderRef.current && ccMediaRecorderRef.current.state !== 'inactive') {
             ccMediaRecorderRef.current.stop();
-            ccMediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+            ccMediaRecorderRef.current.stream.getTracks().forEach(track => {
+                // 🛑 FIX: Do not stop the track if it belongs to the active WebRTC call
+                const isMainTrack = localStreamRef.current?.getTracks().includes(track);
+                if (!isMainTrack) {
+                    track.stop();
+                }
+            });
         }
 
         if (deepgramSocketRef.current) {
@@ -1263,11 +1275,11 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ AUTO-START CC AND TTS IF SETTINGS EXIST
+    // ✨ AUTO-START CC IF SETTINGS EXIST (REMOVED AUTO TTS TO PREVENT MUTE)
     const autoStartedRef = useRef(false);
     useEffect(() => {
         if (inVoiceCall && hasSavedSettings && !autoStartedRef.current) {
-            setIsTTSOn(true);
+            // DO NOT auto-enable TTS here; it caused the incoming remote video to mute natively.
             if (!isTranscribingRef.current) {
                 // By forcing the state to true right away, we guarantee the UI updates immediately
                 setIsTranscribing(true);
