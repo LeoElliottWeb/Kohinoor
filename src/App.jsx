@@ -1586,7 +1586,7 @@ function ChatApp({ user, onLogout }) {
                             type="tel"
                             value={newMobile}
                             onChange={(e) => setNewMobile(e.target.value)}
-                            placeholder="For a UK number 44  then by your number"
+                            placeholder="For a UK number 44  then your number"
                             style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
                             autoFocus
                         />
