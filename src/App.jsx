@@ -1590,7 +1590,7 @@ function ChatApp({ user, onLogout }) {
                             type="tel"
                             value={newMobile}
                             onChange={(e) => setNewMobile(e.target.value)}
-                            placeholder="e.g., +447..."
+                            placeholder="e.g., For UK 447..."
                             style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
                             autoFocus
                         />
