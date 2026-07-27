@@ -1521,6 +1521,16 @@ function ChatApp({ user, onLogout }) {
     const memberCount = members.filter(m => m.email?.toLowerCase() !== safeEmail).length;
     const totalOnlineCount = onlineUsers.length + 1;
 
+    // ✨ HELPER: Gets a flag URL dynamically based on mobile number prefix
+    const getFlagUrl = (mobileStr) => {
+        if (!mobileStr) return '';
+        const clean = mobileStr.replace(/[^0-9]/g, '');
+        if (clean.startsWith('44')) return 'https://flagcdn.com/w20/gb.png';
+        if (clean.startsWith('34')) return 'https://flagcdn.com/w20/es.png';
+        if (clean.startsWith('1')) return 'https://flagcdn.com/w20/us.png';
+        return 'https://flagcdn.com/w20/un.png'; // Fallback to a UN flag if unknown
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
 
@@ -1615,13 +1625,31 @@ function ChatApp({ user, onLogout }) {
                 {showSidebar && (
                     <div style={{ width: isMobile ? '100%' : '30%', minWidth: 250, borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21', height: '100%', overflow: 'hidden' }}>
                         <div style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+                            {/* ✨ UPDATED PROFILE SECTION WITH FLAG AND MISSING NUMBER WARNING ✨ */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>{displayName[0]?.toUpperCase()}</div>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
+                                    {displayName[0]?.toUpperCase()}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                     <b style={{ color: '#00a884', fontSize: '16px' }}>{displayName}</b>
-                                    {currentUserMobile && <span style={{ color: '#8696a0', fontSize: '13px' }}>Mobile {currentUserMobile}</span>}
+                                    {currentUserMobile ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <img
+                                                src={getFlagUrl(currentUserMobile)}
+                                                alt="Country"
+                                                style={{ width: '16px', height: '12px', borderRadius: '2px' }}
+                                            />
+                                            <span style={{ color: '#8696a0', fontSize: '13px' }}>{currentUserMobile}</span>
+                                        </div>
+                                    ) : (
+                                        <span style={{ color: '#ef4444', fontSize: '12px' }}>
+                                            You need to add your mobile number. See change mobile number.
+                                        </span>
+                                    )}
                                 </div>
                             </div>
+
                             <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>Logout</button>
                         </div>
 
