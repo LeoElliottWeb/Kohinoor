@@ -105,10 +105,10 @@ const renderTextWithLinks = (text) => {
 function EmojiPicker({ onSelectEmoji, onClose }) {
     const emojiCategories = {
         '😊': ['😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '🥰', '😘', '😗', '😙', '😚', '🙂', '🤗', '🤩', '🤔', '🤨', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯', '😪', '😫', '😴', '😌', '😛', '😜', '😝', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞', '😟', '😤', '😢', '😭', '😦', '😧', '😨', '😩', '🤯', '😬', '😰', '😱', '🥵', '🥶', '😳', '🤪', '😵', '😡', '😠', '🤬'],
-        '❤️': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️'],
+        '❤️': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '️', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️'],
         '👍': ['👍', '👎', '👊', '✊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✌️', '🤟', '🤘', '👌', '🤌', '🤏', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤙', '💪', '🦾', '🖕', '✍️', '🙇', '💁', '🙋', '🧏', '🙆', '🙅', '🤷', '🤦', '🙎', '🙍', '💇', '💆', '🧖', '💅', '🤳', '💃', '🕺', '👯', '🕴️', '👨‍🦽', '👩‍🦽', '🧑‍🦽', '👨‍🦼', '👩‍🦼', '🧑‍🦼'],
-        '👋': ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦵', '🦿', '🦶', '👣', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '🫦'],
-        '🐱': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊'],
+        '👋': ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦵', '🦿', '🦶', '👣', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '舌', '👄', '🫦'],
+        '🐱': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', 'crab', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊'],
         '🍕': ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🫒', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫘', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪'],
         '🚗': ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🏍️', '🛵', '🚲', '🛴', '🛹', '🛼', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢'],
         '💡': ['💡', '🔦', '🕯️', '🧯', '🪔', '🧨', '💣', '🧲', '🧰', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🔩', '⚙️', '🧱', '⛓️', '🧪', '🧫', '🧬', '🔬', '🔭', '📡', '💉', '🩸', '💊', '🩹', '🩺', '🧹', '🧺', '🧻', '🪣', '🧼', '🫧', '🪥', '🧽', '🧴', '🪞', '🪟', '🚰', '🪠', '🪤', '🪣', '🧯'],
@@ -916,7 +916,7 @@ function ChatApp({ user, onLogout }) {
         }
 
         if (!targetMobile) {
-            targetMobile = prompt(`Could not automatically find a mobile number for ${emailToCall}.\n\nEnter their mobile number to call (including country code, e.g., for a UK number 44  followed by your number):`);
+            targetMobile = prompt(`Could not automatically find a mobile number for ${emailToCall}.\n\nEnter their mobile number to call (including country code, e.g., for a UK number 44 then your number):`);
             if (!targetMobile || !targetMobile.trim()) {
                 return;
             }
@@ -1297,6 +1297,7 @@ function ChatApp({ user, onLogout }) {
         }
     }, [inVoiceCall, hasSavedSettings]);
 
+    // ✨ CRITICAL FIX FOR REMOTE TARGET TRANSLATION ✨
     useEffect(() => {
         processSubtitleRef.current = async (payload) => {
             const { sender, text, lang, isFinal, clear } = payload;
@@ -1308,8 +1309,10 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
+            const translateToLang = sender === userEmail ? targetLangRef.current : spokenLangRef.current;
+
             const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
-            const targetBase = targetLangRef.current.startsWith('zh') ? targetLangRef.current : targetLangRef.current.split('-')[0];
+            const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
             const needsTranslation = (sourceBase !== targetBase);
 
             setSubtitles(prev => ({
@@ -1323,7 +1326,7 @@ function ChatApp({ user, onLogout }) {
 
             if (needsTranslation && text.trim().length > 0) {
                 const doTranslate = () => {
-                    translateText(text, lang, targetLangRef.current).then(translated => {
+                    translateText(text, lang, translateToLang).then(translated => {
                         setSubtitles(prev => {
                             if (prev[sender]) {
                                 return { ...prev, [sender]: { ...prev[sender], translated, isFinal } };
@@ -1335,7 +1338,7 @@ function ChatApp({ user, onLogout }) {
 
                         if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
                             const utterance = new SpeechSynthesisUtterance(translated || text);
-                            utterance.lang = targetLangRef.current;
+                            utterance.lang = translateToLang;
                             window.speechSynthesis.speak(utterance);
                         }
                     });
@@ -1352,7 +1355,7 @@ function ChatApp({ user, onLogout }) {
                 const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
                 if (shouldSpeak) {
                     const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = targetLangRef.current;
+                    utterance.lang = translateToLang;
                     window.speechSynthesis.speak(utterance);
                 }
             }
@@ -1753,7 +1756,7 @@ function ChatApp({ user, onLogout }) {
                             type="tel"
                             value={newMobile}
                             onChange={(e) => setNewMobile(e.target.value)}
-                            placeholder="For a UK number 44  then your number"
+                            placeholder="For a UK number 44 then your number"
                             style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
                             autoFocus
                         />
@@ -1958,7 +1961,7 @@ function ChatApp({ user, onLogout }) {
                                                 <LanguageOptions />
                                             </select>
                                         </label>
-                                        <label>🌐 Translate others to:
+                                        <label>🌐 Their Language:
                                             <select value={targetLang} onChange={e => {
                                                 const newVal = e.target.value;
                                                 setTargetLang(newVal);
