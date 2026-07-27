@@ -576,6 +576,7 @@ function ChatApp({ user, onLogout }) {
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
 
+    // ✨ UPDATED: Add External functionality for Email OR Mobile Number
     const handleImportContacts = async () => {
         if (isImporting) return;
         setIsImporting(true);
@@ -585,14 +586,33 @@ function ChatApp({ user, onLogout }) {
 
             if (supported) {
                 try {
-                    const contacts = await navigator.contacts.select(['name', 'email'], { multiple: true });
-                    contactsToProcess = contacts.filter(c => c.email && c.email.length > 0).map(c => ({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0] }));
+                    const contacts = await navigator.contacts.select(['name', 'email', 'tel'], { multiple: true });
+                    contacts.forEach(c => {
+                        if (c.email && c.email.length > 0) {
+                            contactsToProcess.push({ name: c.name?.[0] || c.email[0].split('@')[0], email: c.email[0].trim(), type: 'email' });
+                        } else if (c.tel && c.tel.length > 0) {
+                            const cleanNum = c.tel[0].replace(/[^0-9]/g, '');
+                            if (cleanNum.length >= 5) {
+                                contactsToProcess.push({ name: c.name?.[0] || cleanNum, email: cleanNum, type: 'tel' });
+                            }
+                        }
+                    });
                 } catch (err) { alert("Contact selection was cancelled."); setIsImporting(false); return; }
             } else {
-                const emailInput = prompt("Enter an email address to send an invite manually:");
-                if (emailInput && emailInput.trim().includes('@')) {
-                    contactsToProcess = [{ name: emailInput.split('@')[0], email: emailInput.trim() }];
-                } else { setIsImporting(false); return; }
+                const input = prompt("Enter an email address OR a mobile number (include country code, e.g. 44 for UK) to send an invite:");
+                if (!input || !input.trim()) { setIsImporting(false); return; }
+                const trimmed = input.trim();
+                if (trimmed.includes('@')) {
+                    contactsToProcess = [{ name: trimmed.split('@')[0], email: trimmed, type: 'email' }];
+                } else {
+                    const cleanNum = trimmed.replace(/[^0-9]/g, '');
+                    if (cleanNum.length >= 5) {
+                        contactsToProcess = [{ name: cleanNum, email: cleanNum, type: 'tel' }];
+                    } else {
+                        alert("Please enter a valid email address or mobile number.");
+                        setIsImporting(false); return;
+                    }
+                }
             }
 
             if (contactsToProcess.length === 0) { setIsImporting(false); return; }
@@ -600,13 +620,14 @@ function ChatApp({ user, onLogout }) {
             const contactsToAdd = [], contactsAlreadyExist = [];
 
             contactsToProcess.forEach(contact => {
-                if (existingEmails.has(contact.email.trim().toLowerCase())) contactsAlreadyExist.push(contact);
+                if (existingEmails.has(contact.email.toLowerCase())) contactsAlreadyExist.push(contact);
                 else contactsToAdd.push(contact);
             });
 
             if (contactsToAdd.length > 0) {
                 setSavedContacts(prev => {
-                    const merged = [...prev, ...contactsToAdd];
+                    const mapped = contactsToAdd.map(c => ({ name: c.name, email: c.email }));
+                    const merged = [...prev, ...mapped];
                     localStorage.setItem('totalRecallContacts', JSON.stringify(merged));
                     return merged;
                 });
@@ -617,10 +638,25 @@ function ChatApp({ user, onLogout }) {
                 let sentCount = 0;
                 for (const contact of allContactsToEmail) {
                     try {
-                        const { error } = await supabase.functions.invoke('send-email', {
-                            body: { to: contact.email, subject: `📱 ${displayName} wants to connect on TotalRecall!` }
-                        });
-                        if (!error) sentCount++;
+                        if (contact.type === 'email' || contact.email.includes('@')) {
+                            const { error } = await supabase.functions.invoke('send-email', {
+                                body: { to: contact.email, subject: `📱 ${displayName} wants to connect on TotalRecall!` }
+                            });
+                            if (!error) sentCount++;
+                        } else {
+                            // It is a mobile number. Call to invite and send SMS link to sign up.
+                            const joinLink = `${window.location.origin}`;
+                            // NOTE: Requires a 'vonage-invite' edge function on Supabase to handle the TTS call + SMS registration link.
+                            const { error } = await supabase.functions.invoke('vonage-invite', {
+                                body: {
+                                    to: contact.email,
+                                    inviterEmail: userEmail,
+                                    inviterName: displayName,
+                                    joinLink: joinLink
+                                }
+                            });
+                            if (!error) sentCount++;
+                        }
                     } catch (error) { console.error(error); }
                 }
                 alert(`Added ${contactsToAdd.length} contact(s). Sent ${sentCount} invite(s).`);
@@ -809,11 +845,20 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // ✨ UPDATED: triggerVonageCall to support direct mobile string selected from contacts list
     const triggerVonageCall = async (emailToCall) => {
         let targetMobile = null;
-        const member = membersRef.current.find(m => m.email?.toLowerCase() === emailToCall.toLowerCase());
-        if (member && member.mobile) {
-            targetMobile = member.mobile;
+
+        // Check if the "emailToCall" is actually a direct mobile number (no @ sign)
+        if (emailToCall && !emailToCall.includes('@') && /^\d+$/.test(emailToCall.replace(/[^0-9]/g, ''))) {
+            targetMobile = emailToCall.replace(/[^0-9]/g, '');
+        }
+
+        if (!targetMobile) {
+            const member = membersRef.current.find(m => m.email?.toLowerCase() === emailToCall.toLowerCase());
+            if (member && member.mobile) {
+                targetMobile = member.mobile;
+            }
         }
 
         if (!targetMobile) {
@@ -1718,7 +1763,7 @@ function ChatApp({ user, onLogout }) {
                             {isContactsExpanded && dispContacts.map(c => (
                                 <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
-                                    <div style={{ flexGrow: 1 }}><div>{c.name || c.email.split('@')[0]}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
+                                    <div style={{ flexGrow: 1 }}><div>{c.name || (c.email.includes('@') ? c.email.split('@')[0] : c.email)}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
                                     <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}>❌</button>
                                 </div>
                             ))}
