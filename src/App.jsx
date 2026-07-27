@@ -1871,11 +1871,53 @@ export default function App() {
     const [isSignupMode, setIsSignupMode] = useState(false);
     const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
 
+    // NEW FUNCTION to sync auth.users metadata to public.profiles
+    const syncProfile = async (currentUser) => {
+        if (!currentUser || !currentUser.email) return;
+        try {
+            // Check if profile exists and what data it currently holds
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('email, name, mobile')
+                .eq('email', currentUser.email)
+                .maybeSingle();
+
+            const metaName = currentUser.user_metadata?.name || currentUser.email.split('@')[0];
+            const metaMobile = currentUser.user_metadata?.mobile || '';
+
+            if (!data && !error) {
+                // Fallback: Profile doesn't exist at all, create it
+                await supabase.from('profiles').insert([{
+                    email: currentUser.email,
+                    name: metaName,
+                    mobile: metaMobile
+                }]);
+            } else if (data && (!data.name || !data.mobile)) {
+                // Profile exists (email is there) but name or mobile is missing
+                await supabase.from('profiles')
+                    .update({
+                        name: data.name || metaName,
+                        mobile: data.mobile || metaMobile
+                    })
+                    .eq('email', currentUser.email);
+            }
+        } catch (err) {
+            console.error("Error syncing profile:", err);
+        }
+    };
+
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null));
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUser(session?.user || null);
+            if (session?.user) syncProfile(session.user);
+        });
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setUser(session?.user || null);
+
+            if (session?.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+                syncProfile(session.user);
+            }
 
             // Intercept password recovery flow when they click the email link
             if (event === 'PASSWORD_RECOVERY') {
