@@ -3,6 +3,12 @@ import { supabase } from './supabaseClient';
 import './App.css';
 
 // ==========================================
+// 🚀 TRANSLATION CACHE & GLOBALS
+// ==========================================
+const translationCache = new Map();
+const lastTranslationTime = {};
+
+// ==========================================
 // 🎵 SIMPLE BELL RINGER
 // ==========================================
 class RingerManager {
@@ -1176,18 +1182,28 @@ function ChatApp({ user, onLogout }) {
         const targetBase = targetLang.startsWith('zh') ? targetLang : targetLang.split('-')[0];
         if (sourceBase === targetBase) return text;
 
+        const cacheKey = `${sourceBase}-${targetBase}-${text.trim()}`;
+        if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
+
         try {
-            const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceBase}&tl=${targetBase}&dt=t&q=${encodeURIComponent(text)}`);
+            const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceBase}&tl=${targetBase}&dt=t&q=${encodeURIComponent(text.trim())}`);
             if (!res.ok) throw new Error('Google Translation API failed');
             const data = await res.json();
-            return data[0].map(item => item[0]).join('');
+            const translated = data[0].map(item => item[0]).join('');
+            translationCache.set(cacheKey, translated);
+            return translated;
         } catch (e) {
             console.error("Google Translation API error, attempting fallback:", e);
             try {
-                const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceBase}|${targetBase}`);
+                const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.trim())}&langpair=${sourceBase}|${targetBase}`);
                 const data2 = await res2.json();
                 if (data2.responseData?.translatedText) {
-                    return data2.responseData.translatedText;
+                    const t = data2.responseData.translatedText;
+                    // Prevent Mymemory limit warnings from appearing as translations
+                    if (!t.includes("MYMEMORY WARNING") && !t.includes("PLEASE SELECT TWO DISTINCT LANGUAGES")) {
+                        translationCache.set(cacheKey, t);
+                        return t;
+                    }
                 }
             } catch (fallbackErr) {
                 console.error("Fallback Translation API failed:", fallbackErr);
@@ -1234,7 +1250,8 @@ function ChatApp({ user, onLogout }) {
 
             ccMediaRecorderRef.current = new MediaRecorder(stream);
 
-            const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?model=nova-3&language=${dgLang}&interim_results=true&keepalive=true`, ['token', DEEPGRAM_API_KEY]);
+            let keepAliveInterval;
+            const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?model=nova-3&language=${dgLang}&interim_results=true`, ['token', DEEPGRAM_API_KEY]);
             deepgramSocketRef.current = socket;
 
             socket.onopen = () => {
@@ -1244,6 +1261,13 @@ function ChatApp({ user, onLogout }) {
                     }
                 });
                 ccMediaRecorderRef.current.start(250);
+
+                // 🛠️ FIX: Deepgram KeepAlive to stop it dropping when recipient is silent
+                keepAliveInterval = setInterval(() => {
+                    if (socket.readyState === 1) {
+                        socket.send(JSON.stringify({ type: 'KeepAlive' }));
+                    }
+                }, 5000);
             };
 
             socket.onmessage = (message) => {
@@ -1270,8 +1294,9 @@ function ChatApp({ user, onLogout }) {
             };
 
             socket.onclose = () => {
+                if (keepAliveInterval) clearInterval(keepAliveInterval);
+                // 🛠️ FIX: Auto-reconnect if it dropped unexpectedly
                 if (isTranscribingRef.current) {
-                    // Deepgram disconnected but user didn't hit stop. Auto-reconnect seamlessly.
                     setTimeout(() => {
                         if (isTranscribingRef.current) startCC(true);
                     }, 1000);
@@ -1387,9 +1412,9 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            // ALWAYS translate text to the opposite person's language so everyone sees what the other understands.
-            // If it's me speaking -> translate to targetLang
-            // If it's them speaking -> translate to my spokenLang
+            // 🛠️ FIX: ALWAYS translate text to the opposite person's language.
+            // When YOU speak, you translate it to their language so you can see what they receive.
+            // When THEY speak, you translate it to your language so you understand them.
             const translateToLang = sender === userEmail ? targetLangRef.current : spokenLangRef.current;
             const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
             const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
@@ -1415,7 +1440,6 @@ function ChatApp({ user, onLogout }) {
                         });
 
                         const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
-
                         if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
                             const utterance = new SpeechSynthesisUtterance(translated || text);
                             utterance.lang = translateToLang;
@@ -1424,12 +1448,25 @@ function ChatApp({ user, onLogout }) {
                     });
                 };
 
+                const now = Date.now();
+                const lastTime = lastTranslationTime[sender] || 0;
+
+                // 🛠️ FIX: Smarter throttling logic
                 if (isFinal) {
                     clearTimeout(debounceTimers.current[sender]);
                     doTranslate();
+                    lastTranslationTime[sender] = now;
                 } else {
+                    // Update interim translations at most every 1.5 seconds to prevent rate limits
+                    if (now - lastTime > 1500) {
+                        doTranslate();
+                        lastTranslationTime[sender] = now;
+                    }
                     clearTimeout(debounceTimers.current[sender]);
-                    debounceTimers.current[sender] = setTimeout(doTranslate, 800);
+                    debounceTimers.current[sender] = setTimeout(() => {
+                        doTranslate();
+                        lastTranslationTime[sender] = Date.now();
+                    }, 800);
                 }
             } else if (!needsTranslation && isFinal && isTTSOnRef.current && text.trim().length > 0 && 'speechSynthesis' in window) {
                 const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
