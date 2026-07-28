@@ -1220,7 +1220,8 @@ function ChatApp({ user, onLogout }) {
             }
             ccMediaRecorderRef.current = new MediaRecorder(stream);
 
-            const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?model=nova-3&language=${dgLang}&interim_results=true`, ['token', DEEPGRAM_API_KEY]);
+            // 🛠️ FIX: Added keepalive=true to prevent dropping transcription
+            const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?model=nova-3&language=${dgLang}&interim_results=true&keepalive=true`, ['token', DEEPGRAM_API_KEY]);
             deepgramSocketRef.current = socket;
 
             socket.onopen = () => {
@@ -1256,9 +1257,13 @@ function ChatApp({ user, onLogout }) {
             };
 
             socket.onclose = () => {
+                // 🛠️ FIX: Auto-reconnect if it dropped unexpectedly
                 if (isTranscribingRef.current) {
                     setIsTranscribing(false);
                     isTranscribingRef.current = false;
+                    setTimeout(() => {
+                        startCC();
+                    }, 1500);
                 }
             };
 
@@ -1368,31 +1373,13 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            // FIX: Differentiate between Local Translate Mode and Remote Calls
-            let translateToLang;
-            let needsTranslation = false;
-
-            if (isLocalTranslateModeRef.current) {
-                // In local mode (same device), translate the sender's text to the target language
-                translateToLang = sender === userEmail ? targetLangRef.current : spokenLangRef.current;
-                const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
-                const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
-                needsTranslation = (sourceBase !== targetBase);
-            } else {
-                // In a remote call over the network
-                if (sender === userEmail) {
-                    // When YOU speak, you don't need your own words translated on your own screen.
-                    // The remote recipient will handle translating your text on their side.
-                    needsTranslation = false;
-                    translateToLang = lang;
-                } else {
-                    // When the REMOTE person speaks, translate their words into YOUR chosen language.
-                    translateToLang = spokenLangRef.current;
-                    const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
-                    const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
-                    needsTranslation = (sourceBase !== targetBase);
-                }
-            }
+            // 🛠️ FIX: Now correctly handles showing the user their OWN translation 
+            // When YOU speak, you translate it to their language so you can see what they receive.
+            // When THEY speak, you translate it to your language so you understand them.
+            const translateToLang = sender === userEmail ? targetLangRef.current : spokenLangRef.current;
+            const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
+            const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
+            const needsTranslation = (sourceBase !== targetBase);
 
             setSubtitles(prev => ({
                 ...prev,
@@ -1413,6 +1400,8 @@ function ChatApp({ user, onLogout }) {
                             return prev;
                         });
 
+                        // 🛠️ FIX: Only speak YOUR words aloud if in Local Translate Mode. 
+                        // ALWAYS speak THEIR words aloud (if TTS is on).
                         const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
 
                         if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
