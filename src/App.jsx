@@ -842,7 +842,13 @@ function ChatApp({ user, onLogout }) {
         };
 
         pc.ontrack = (event) => {
-            if (event.streams && event.streams.length > 0) setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
+            if (event.streams && event.streams.length > 0) {
+                setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
+            } else {
+                // Safely handle audio-only tracks where streams array might be empty
+                const stream = new MediaStream([event.track]);
+                setRemoteStreams(prev => ({ ...prev, [email]: stream }));
+            }
         };
         return pc;
     };
@@ -1191,8 +1197,8 @@ function ChatApp({ user, onLogout }) {
     };
 
     // ✨ DEEPGRAM LIVE AUDIO STREAMING ✨
-    const startCC = async () => {
-        if (isTranscribingRef.current) return;
+    const startCC = async (isReconnect = false) => {
+        if (isTranscribingRef.current && !isReconnect) return;
 
         const DEEPGRAM_API_KEY = '6fad18b20b8cb263a38d87b7e4d4045d71acad96';
 
@@ -1201,8 +1207,10 @@ function ChatApp({ user, onLogout }) {
             return;
         }
 
-        setIsTranscribing(true);
-        isTranscribingRef.current = true;
+        if (!isReconnect) {
+            setIsTranscribing(true);
+            isTranscribingRef.current = true;
+        }
 
         const langMap = {
             'en-US': 'en', 'es-ES': 'es', 'fr-FR': 'fr', 'de-DE': 'de', 'it-IT': 'it',
@@ -1218,9 +1226,14 @@ function ChatApp({ user, onLogout }) {
             } else {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             }
+
+            // Clean up old recorder if this is a reconnect
+            if (ccMediaRecorderRef.current && ccMediaRecorderRef.current.state !== 'inactive') {
+                try { ccMediaRecorderRef.current.stop(); } catch (e) { }
+            }
+
             ccMediaRecorderRef.current = new MediaRecorder(stream);
 
-            // 🛠️ FIX: Added keepalive=true to prevent dropping transcription
             const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?model=nova-3&language=${dgLang}&interim_results=true&keepalive=true`, ['token', DEEPGRAM_API_KEY]);
             deepgramSocketRef.current = socket;
 
@@ -1257,20 +1270,20 @@ function ChatApp({ user, onLogout }) {
             };
 
             socket.onclose = () => {
-                // 🛠️ FIX: Auto-reconnect if it dropped unexpectedly
                 if (isTranscribingRef.current) {
-                    setIsTranscribing(false);
-                    isTranscribingRef.current = false;
+                    // Deepgram disconnected but user didn't hit stop. Auto-reconnect seamlessly.
                     setTimeout(() => {
-                        startCC();
-                    }, 1500);
+                        if (isTranscribingRef.current) startCC(true);
+                    }, 1000);
                 }
             };
 
         } catch (err) {
             console.error("Microphone access denied or error:", err);
-            setIsTranscribing(false);
-            isTranscribingRef.current = false;
+            if (!isReconnect) {
+                setIsTranscribing(false);
+                isTranscribingRef.current = false;
+            }
         }
     };
 
@@ -1279,7 +1292,8 @@ function ChatApp({ user, onLogout }) {
         isTranscribingRef.current = false;
 
         if (ccMediaRecorderRef.current && ccMediaRecorderRef.current.state !== 'inactive') {
-            ccMediaRecorderRef.current.stop();
+            try { ccMediaRecorderRef.current.stop(); } catch (e) { }
+            // Stop tracks only if they were newly created (not the main call track)
             ccMediaRecorderRef.current.stream.getTracks().forEach(track => {
                 const isMainTrack = localStreamRef.current?.getTracks().includes(track);
                 if (!isMainTrack) {
@@ -1361,7 +1375,7 @@ function ChatApp({ user, onLogout }) {
         }
     }, [inVoiceCall, hasSavedSettings]);
 
-    // ✨ CRITICAL FIX FOR REMOTE TARGET TRANSLATION ✨
+    // ✨ CRITICAL FIX FOR TARGET TRANSLATION & DISPLAY ✨
     useEffect(() => {
         processSubtitleRef.current = async (payload) => {
             const { sender, text, lang, isFinal, clear } = payload;
@@ -1373,9 +1387,9 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            // 🛠️ FIX: Now correctly handles showing the user their OWN translation 
-            // When YOU speak, you translate it to their language so you can see what they receive.
-            // When THEY speak, you translate it to your language so you understand them.
+            // ALWAYS translate text to the opposite person's language so everyone sees what the other understands.
+            // If it's me speaking -> translate to targetLang
+            // If it's them speaking -> translate to my spokenLang
             const translateToLang = sender === userEmail ? targetLangRef.current : spokenLangRef.current;
             const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
             const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
@@ -1400,8 +1414,6 @@ function ChatApp({ user, onLogout }) {
                             return prev;
                         });
 
-                        // 🛠️ FIX: Only speak YOUR words aloud if in Local Translate Mode. 
-                        // ALWAYS speak THEIR words aloud (if TTS is on).
                         const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
 
                         if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
