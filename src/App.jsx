@@ -282,6 +282,9 @@ function SubtitleOverlay({ subtitle }) {
 // ==========================================
 function LocalVideo({ stream, subtitle }) {
     const videoRef = useRef(null);
+    const containerRef = useRef(null);
+    const [isFullScreen, setIsFullScreen] = useState(false);
+
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
@@ -290,10 +293,37 @@ function LocalVideo({ stream, subtitle }) {
         videoEl.play().catch(() => { });
         return () => { if (videoEl) videoEl.srcObject = null; };
     }, [stream]);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullScreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+        };
+    }, []);
+
+    const toggleFullScreen = () => {
+        const elem = containerRef.current;
+        if (!isFullScreen) {
+            if (elem.requestFullscreen) elem.requestFullscreen().catch(e => console.log(e));
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+    };
+
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
+        <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: isFullScreen ? '0' : '8px', overflow: 'hidden' }}>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: isFullScreen ? 'contain' : 'cover', backgroundColor: '#000' }} />
             <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff', zIndex: 10 }}>You</span>
+            <button onClick={toggleFullScreen} title="Toggle Full Screen" style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: 16, color: '#fff', zIndex: 10, cursor: 'pointer' }}>
+                {isFullScreen ? '⤡' : '⤢'}
+            </button>
             <SubtitleOverlay subtitle={subtitle} />
         </div>
     );
@@ -304,6 +334,9 @@ function LocalVideo({ stream, subtitle }) {
 // ==========================================
 function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn }) {
     const videoRef = useRef(null);
+    const containerRef = useRef(null);
+    const [isFullScreen, setIsFullScreen] = useState(false);
+
     useEffect(() => {
         const videoEl = videoRef.current;
         if (!videoEl || !stream) return;
@@ -318,13 +351,39 @@ function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn }) {
         }
     }, [isTTSOn]);
 
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullScreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+        };
+    }, []);
+
+    const toggleFullScreen = () => {
+        const elem = containerRef.current;
+        if (!isFullScreen) {
+            if (elem.requestFullscreen) elem.requestFullscreen().catch(e => console.log(e));
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+    };
+
     const safeEmail = email?.trim().toLowerCase();
     const contactName = allKnownUsers.find(c => c.email?.trim().toLowerCase() === safeEmail)?.name || email.split('@')[0];
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '8px', overflow: 'hidden' }}>
-            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }} />
+        <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#111', borderRadius: isFullScreen ? '0' : '8px', overflow: 'hidden' }}>
+            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: isFullScreen ? 'contain' : 'cover', backgroundColor: '#000' }} />
             <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: 13, color: '#fff', zIndex: 10 }}>{contactName}</span>
+            <button onClick={toggleFullScreen} title="Toggle Full Screen" style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: 16, color: '#fff', zIndex: 10, cursor: 'pointer' }}>
+                {isFullScreen ? '⤡' : '⤢'}
+            </button>
             <SubtitleOverlay subtitle={subtitle} />
         </div>
     );
@@ -1309,11 +1368,31 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            const translateToLang = sender === userEmail ? targetLangRef.current : spokenLangRef.current;
+            // FIX: Differentiate between Local Translate Mode and Remote Calls
+            let translateToLang;
+            let needsTranslation = false;
 
-            const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
-            const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
-            const needsTranslation = (sourceBase !== targetBase);
+            if (isLocalTranslateModeRef.current) {
+                // In local mode (same device), translate the sender's text to the target language
+                translateToLang = sender === userEmail ? targetLangRef.current : spokenLangRef.current;
+                const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
+                const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
+                needsTranslation = (sourceBase !== targetBase);
+            } else {
+                // In a remote call over the network
+                if (sender === userEmail) {
+                    // When YOU speak, you don't need your own words translated on your own screen.
+                    // The remote recipient will handle translating your text on their side.
+                    needsTranslation = false;
+                    translateToLang = lang;
+                } else {
+                    // When the REMOTE person speaks, translate their words into YOUR chosen language.
+                    translateToLang = spokenLangRef.current;
+                    const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
+                    const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
+                    needsTranslation = (sourceBase !== targetBase);
+                }
+            }
 
             setSubtitles(prev => ({
                 ...prev,
