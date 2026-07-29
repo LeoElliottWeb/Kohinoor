@@ -61,6 +61,10 @@ class RingerManager {
         if (this.oscillator) { try { this.oscillator.stop(); } catch (e) { } this.oscillator = null; }
         this.gainNode = null;
         this.timeoutCallback = null;
+
+        if (this.audioContext && this.audioContext.state !== 'closed') {
+            try { this.audioContext.suspend(); } catch (e) { }
+        }
     }
 
     isActive() { return this.isRinging; }
@@ -421,6 +425,7 @@ const LanguageOptions = () => (
 function ChatApp({ user, onLogout }) {
     const userEmail = user?.email || '';
     const displayName = userEmail.split('@')[0];
+    const isCapitalOlondra = userEmail.split('@')[0].toLowerCase() === 'capitalolondra';
 
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [members, setMembers] = useState([]);
@@ -813,7 +818,17 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    const getMedia = async () => navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: { echoCancellation: true, noiseSuppression: true } });
+    const getMedia = async () => {
+        try {
+            return await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+                audio: true
+            });
+        } catch (err) {
+            console.warn("Video+Audio request failed. Falling back to Audio only...", err);
+            return await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+    };
 
     const broadcastMeshState = () => {
         if (!inCallRef.current || !channelRef.current) return;
@@ -855,13 +870,21 @@ function ChatApp({ user, onLogout }) {
         };
 
         pc.ontrack = (event) => {
-            if (event.streams && event.streams.length > 0) {
-                setRemoteStreams(prev => ({ ...prev, [email]: event.streams[0] }));
-            } else {
-                // Safely handle audio-only tracks where streams array might be empty
-                const stream = new MediaStream([event.track]);
-                setRemoteStreams(prev => ({ ...prev, [email]: stream }));
-            }
+            setRemoteStreams(prev => {
+                const existingStream = prev[email];
+                if (existingStream) {
+                    if (!existingStream.getTracks().find(t => t.id === event.track.id)) {
+                        existingStream.addTrack(event.track);
+                    }
+                    return { ...prev };
+                }
+                if (event.streams && event.streams.length > 0) {
+                    return { ...prev, [email]: event.streams[0] };
+                } else {
+                    const newStream = new MediaStream([event.track]);
+                    return { ...prev, [email]: newStream };
+                }
+            });
         };
         return pc;
     };
@@ -2105,20 +2128,27 @@ function ChatApp({ user, onLogout }) {
                                     <span>{allKnown.find(k => k.email?.toLowerCase() === u.email?.toLowerCase())?.name || u.email.split('@')[0]}</span>
                                 </div>
                             ))}
-                            <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({filteredMembers.length})</span>
-                                <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
-                            </div>
-                            {isMembersExpanded && filteredMembers.map(c => {
-                                const isContact = savedContacts.some(sc => sc.email?.trim().toLowerCase() === c.email?.trim().toLowerCase());
-                                return (
-                                    <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
-                                        <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
-                                        <div style={{ flexGrow: 1 }}>{c.name?.trim() || c.email.split('@')[0]}</div>
-                                        {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title="Add to contacts">➕</button>}
+
+                            {/* ✨ FIX: Render Members only if the user is capitalolondra ✨ */}
+                            {isCapitalOlondra && (
+                                <>
+                                    <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
+                                        <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({filteredMembers.length})</span>
+                                        <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
                                     </div>
-                                );
-                            })}
+                                    {isMembersExpanded && filteredMembers.map(c => {
+                                        const isContact = savedContacts.some(sc => sc.email?.trim().toLowerCase() === c.email?.trim().toLowerCase());
+                                        return (
+                                            <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
+                                                <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
+                                                <div style={{ flexGrow: 1 }}>{c.name?.trim() || c.email.split('@')[0]}</div>
+                                                {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title="Add to contacts">➕</button>}
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
+
                             <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
                                 <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({filteredContacts.length})</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2289,7 +2319,11 @@ function ChatApp({ user, onLogout }) {
             {/* FOOTER */}
             <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
                 <span>© NoirSoft Ltd</span>
-                <div style={{ display: 'flex', gap: '20px' }}><span>👥 Members: {memberCount}</span><span>🟢 Online: {totalOnlineCount}</span></div>
+                <div style={{ display: 'flex', gap: '20px' }}>
+                    {/* ✨ FIX: Render Member count in footer only if the user is capitalolondra ✨ */}
+                    {isCapitalOlondra && <span>👥 Members: {memberCount}</span>}
+                    <span>🟢 Online: {totalOnlineCount}</span>
+                </div>
             </div>
         </div>
     );
