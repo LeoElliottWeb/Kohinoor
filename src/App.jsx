@@ -444,6 +444,13 @@ function ChatApp({ user, onLogout }) {
     const [isVonageCalling, setIsVonageCalling] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+    // Call Transcript State
+    const [callTranscript, setCallTranscript] = useState([]);
+    const [showTranscriptModal, setShowTranscriptModal] = useState(false);
+    const [isSendingTranscript, setIsSendingTranscript] = useState(false);
+    const callTranscriptRef = useRef([]);
+    useEffect(() => { callTranscriptRef.current = callTranscript; }, [callTranscript]);
+
     // Modal & Current Mobile States
     const [currentUserMobile, setCurrentUserMobile] = useState(user?.user_metadata?.mobile || '');
     const [showMobileModal, setShowMobileModal] = useState(false);
@@ -920,12 +927,20 @@ function ChatApp({ user, onLogout }) {
         }, 2000);
 
         setInVoiceCall(false);
+
+        // Show Transcript Modal if transcript exists
+        if (callTranscriptRef.current.length > 0) {
+            setShowTranscriptModal(true);
+        }
+
         setTimeout(() => { isEndingRef.current = false; }, 1000);
     };
 
     const startWebRTCCall = async (email, isAuto = false) => {
         if (!channelRef.current) return;
         inCallRef.current = true;
+        setCallTranscript([]);
+        setShowTranscriptModal(false);
         if (!isAuto) setIsCallingOut(true);
 
         try {
@@ -1041,6 +1056,8 @@ function ChatApp({ user, onLogout }) {
     };
 
     const autoAcceptCall = async (call) => {
+        setCallTranscript([]);
+        setShowTranscriptModal(false);
         try {
             if (!localStreamRef.current) { const s = await getMedia(); localStreamRef.current = s; setLocalStream(s); }
             const pc = createPC(call.sender);
@@ -1071,6 +1088,8 @@ function ChatApp({ user, onLogout }) {
         if (Date.now() - lastActionRef.current < 2000) return;
         lastActionRef.current = Date.now();
         inCallRef.current = true;
+        setCallTranscript([]);
+        setShowTranscriptModal(false);
         if (ringer.isActive()) ringer.stop();
         setIncomingCall(null);
 
@@ -1439,6 +1458,15 @@ function ChatApp({ user, onLogout }) {
                             return prev;
                         });
 
+                        // Call Transcript Integration
+                        if (isFinal) {
+                            setCallTranscript(prev => {
+                                const isDup = prev.length > 0 && prev[prev.length - 1].original === text && prev[prev.length - 1].sender === sender;
+                                if (isDup) return prev;
+                                return [...prev, { sender, original: text, translated, time: new Date().toLocaleTimeString() }];
+                            });
+                        }
+
                         const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
                         if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
                             const utterance = new SpeechSynthesisUtterance(translated || text);
@@ -1468,12 +1496,21 @@ function ChatApp({ user, onLogout }) {
                         lastTranslationTime[sender] = Date.now();
                     }, 800);
                 }
-            } else if (!needsTranslation && isFinal && isTTSOnRef.current && text.trim().length > 0 && 'speechSynthesis' in window) {
-                const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
-                if (shouldSpeak) {
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = translateToLang;
-                    window.speechSynthesis.speak(utterance);
+            } else if (!needsTranslation && isFinal && text.trim().length > 0) {
+                // Call Transcript Integration for same language
+                setCallTranscript(prev => {
+                    const isDup = prev.length > 0 && prev[prev.length - 1].original === text && prev[prev.length - 1].sender === sender;
+                    if (isDup) return prev;
+                    return [...prev, { sender, original: text, translated: text, time: new Date().toLocaleTimeString() }];
+                });
+
+                if (isTTSOnRef.current && 'speechSynthesis' in window) {
+                    const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
+                    if (shouldSpeak) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = translateToLang;
+                        window.speechSynthesis.speak(utterance);
+                    }
                 }
             }
 
@@ -1795,6 +1832,96 @@ function ChatApp({ user, onLogout }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
+
+            {/* ✨ TRANSCRIPT MODAL ✨ */}
+            {showTranscriptModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 5000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '500px', maxWidth: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>📝 Call Transcript</h3>
+                        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '15px', backgroundColor: '#111b21', padding: '15px', borderRadius: '8px' }}>
+                            {callTranscript.map((entry, idx) => (
+                                <div key={idx} style={{ marginBottom: '10px' }}>
+                                    <div style={{ fontSize: '12px', color: '#8696a0' }}>{entry.time} - {entry.sender === userEmail ? 'You' : entry.sender.split('@')[0]}</div>
+                                    <div style={{ color: '#e9edef', fontWeight: 'bold' }}>{entry.original}</div>
+                                    {entry.original !== entry.translated && (
+                                        <div style={{ color: '#38bdf8', fontStyle: 'italic', fontSize: '14px' }}>{entry.translated}</div>
+                                    )}
+                                </div>
+                            ))}
+                            {callTranscript.length === 0 && (
+                                <div style={{ color: '#8696a0', textAlign: 'center', marginTop: '20px' }}>No transcription recorded during this call.</div>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button
+                                disabled={isSendingTranscript}
+                                onClick={async () => {
+                                    setIsSendingTranscript(true);
+                                    try {
+                                        const emailText = callTranscript.map(e => `[${e.time}] ${e.sender === userEmail ? 'You' : e.sender.split('@')[0]}:\nOriginal: ${e.original}\nTranslated: ${e.translated}\n`).join('\n');
+
+                                        // Generate clean HTML
+                                        const htmlLines = callTranscript.map(e => {
+                                            const isYou = e.sender === userEmail;
+                                            const senderName = isYou ? 'You' : e.sender.split('@')[0];
+                                            const headerColor = isYou ? '#00a884' : '#38bdf8';
+                                            const bgColor = isYou ? '#f0fdf4' : '#f0f9ff';
+                                            let itemHtml = `<div style="margin-bottom: 16px; background-color: ${bgColor}; padding: 12px; border-radius: 8px;">`;
+                                            itemHtml += `<div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">${e.time} - <strong style="color: ${headerColor};">${senderName}</strong></div>`;
+                                            itemHtml += `<div style="color: #1e293b; font-weight: 600; font-size: 15px; margin-bottom: ${e.original !== e.translated ? '6px' : '0'};">${e.original}</div>`;
+                                            if (e.original !== e.translated) {
+                                                itemHtml += `<div style="color: #475569; font-style: italic; font-size: 14px; padding-top: 6px; border-top: 1px solid rgba(0,0,0,0.05);">${e.translated}</div>`;
+                                            }
+                                            itemHtml += `</div>`;
+                                            return itemHtml;
+                                        }).join('');
+
+                                        const emptyState = callTranscript.length === 0 ? '<p style="color: #64748b; text-align: center;">No transcript data available.</p>' : '';
+                                        const currentYear = new Date().getFullYear();
+                                        const currentDate = new Date().toLocaleDateString();
+
+                                        const emailHtml = `
+                                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f7f6; padding: 20px; border-radius: 12px;">
+                                                <div style="background-color: #00a884; color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
+                                                    <h2 style="margin: 0;">TotalRecall Call Transcript</h2>
+                                                    <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Recorded on ${currentDate}</p>
+                                                </div>
+                                                <div style="background-color: white; padding: 20px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                                                    ${htmlLines}
+                                                    ${emptyState}
+                                                </div>
+                                                <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
+                                                    © ${currentYear} NoirSoft Ltd - TotalRecall
+                                                </div>
+                                            </div>
+                                        `;
+
+                                        const { error } = await supabase.functions.invoke('send-email', {
+                                            body: {
+                                                to: userEmail,
+                                                subject: 'TotalRecall Call Transcript',
+                                                text: emailText,
+                                                html: emailHtml
+                                            }
+                                        });
+                                        if (error) throw error;
+                                        alert('Transcript sent successfully!');
+                                        setShowTranscriptModal(false);
+                                        setCallTranscript([]);
+                                    } catch (err) {
+                                        alert('Failed to send transcript: ' + err.message);
+                                    } finally {
+                                        setIsSendingTranscript(false);
+                                    }
+                                }}
+                                style={{ padding: '10px 16px', borderRadius: '6px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: isSendingTranscript ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: isSendingTranscript ? 0.7 : 1 }}>
+                                {isSendingTranscript ? '⏳ Sending...' : '📧 Send via Email'}
+                            </button>
+                            <button onClick={() => { setShowTranscriptModal(false); setCallTranscript([]); }} style={{ padding: '10px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold' }}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showLocalTranslator && (
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0b141a', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
