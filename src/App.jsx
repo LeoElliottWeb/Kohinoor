@@ -481,6 +481,11 @@ function ChatApp({ user, onLogout }) {
     const [newMobile, setNewMobile] = useState('');
     const [isUpdatingMobile, setIsUpdatingMobile] = useState(false);
 
+    // Edit Contact Mobile States (For capitalolondra only)
+    const [editingContact, setEditingContact] = useState(null);
+    const [editMobileValue, setEditMobileValue] = useState('');
+    const [isSavingContactMobile, setIsSavingContactMobile] = useState(false);
+
     // CC, Translation & TTS States
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [spokenLang, setSpokenLang] = useState('en-US');
@@ -2080,6 +2085,60 @@ function ChatApp({ user, onLogout }) {
                 </div>
             )}
 
+            {/* ✨ EDIT CONTACT MOBILE MODAL (capitalolondra ONLY) ✨ */}
+            {editingContact && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 6000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>✏️ Edit Contact Mobile</h3>
+                        <p style={{ color: '#8696a0', fontSize: '13px', marginBottom: '20px' }}>Editing mobile for: <br /><b>{editingContact.email}</b></p>
+                        <input
+                            type="tel"
+                            value={editMobileValue}
+                            onChange={(e) => setEditMobileValue(e.target.value)}
+                            placeholder="Mobile number (include country code)"
+                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
+                            autoFocus
+                        />
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setEditingContact(null)} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                            <button onClick={async () => {
+                                setIsSavingContactMobile(true);
+                                try {
+                                    if (editingContact.type === 'member' || editingContact.email.includes('@')) {
+                                        const { error } = await supabase
+                                            .from('profiles')
+                                            .update({ mobile: editMobileValue.trim() })
+                                            .eq('email', editingContact.email);
+                                        if (error) throw error;
+                                        alert('Mobile number updated in database.');
+                                    } else {
+                                        const newMobileStr = editMobileValue.trim().replace(/[^0-9]/g, '');
+                                        setSavedContacts(prev => {
+                                            const updated = prev.map(c =>
+                                                c.email === editingContact.email ? { ...c, email: newMobileStr } : c
+                                            );
+                                            localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
+                                            return updated;
+                                        });
+                                        if (selectedContact === editingContact.email) {
+                                            setSelectedContact(newMobileStr);
+                                        }
+                                        alert('Local contact mobile updated.');
+                                    }
+                                    setEditingContact(null);
+                                } catch (err) {
+                                    alert('Failed to update: ' + err.message);
+                                } finally {
+                                    setIsSavingContactMobile(false);
+                                }
+                            }} disabled={isSavingContactMobile} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: isSavingContactMobile ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                                {isSavingContactMobile ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                 {incomingCall && (
                     <div style={{ position: 'fixed', top: 20, right: 20, backgroundColor: '#202c33', padding: 20, borderRadius: 8, zIndex: 1000, border: '1px solid #00a884', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
@@ -2184,7 +2243,17 @@ function ChatApp({ user, onLogout }) {
                                             <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
                                                 <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                                 <div style={{ flexGrow: 1 }}>{c.name?.trim() || c.email.split('@')[0]}</div>
-                                                {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title="Add to contacts">➕</button>}
+                                                {isCapitalOlondra && (
+                                                    <button onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingContact({ email: c.email, type: 'member' });
+                                                        setEditMobileValue('');
+                                                        supabase.from('profiles').select('mobile').eq('email', c.email).maybeSingle().then(({ data }) => {
+                                                            if (data?.mobile) setEditMobileValue(data.mobile);
+                                                        });
+                                                    }} style={{ background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
+                                                )}
+                                                {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title="Add to contacts">➕</button>}
                                             </div>
                                         );
                                     })}
@@ -2202,7 +2271,21 @@ function ChatApp({ user, onLogout }) {
                                 <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                     <div style={{ flexGrow: 1 }}><div>{c.name || (c.email.includes('@') ? c.email.split('@')[0] : c.email)}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
-                                    <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}>❌</button>
+                                    {isCapitalOlondra && (
+                                        <button onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingContact({ email: c.email, type: 'contact' });
+                                            if (c.email.includes('@')) {
+                                                setEditMobileValue('');
+                                                supabase.from('profiles').select('mobile').eq('email', c.email).maybeSingle().then(({ data }) => {
+                                                    if (data?.mobile) setEditMobileValue(data.mobile);
+                                                });
+                                            } else {
+                                                setEditMobileValue(c.email);
+                                            }
+                                        }} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
+                                    )}
+                                    <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}>❌</button>
                                 </div>
                             ))}
                         </div>
