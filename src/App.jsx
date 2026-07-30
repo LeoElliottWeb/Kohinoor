@@ -465,8 +465,13 @@ function ChatApp({ user, onLogout }) {
     const [chatInput, setChatInput] = useState('');
     const [previewUrl, setPreviewUrl] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
-    const [isVonageCalling, setIsVonageCalling] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+    // ✨ Vonage Call State
+    const [vonageCallModal, setVonageCallModal] = useState(null);
+    const [vonageMobileInput, setVonageMobileInput] = useState('');
+    const [vonageCustomMessage, setVonageCustomMessage] = useState('');
+    const [isVonageCalling, setIsVonageCalling] = useState(false);
 
     // Call Transcript State
     const [callTranscript, setCallTranscript] = useState([]);
@@ -485,6 +490,7 @@ function ChatApp({ user, onLogout }) {
     const [editingContact, setEditingContact] = useState(null);
     const [editMobileValue, setEditMobileValue] = useState('');
     const [isSavingContactMobile, setIsSavingContactMobile] = useState(false);
+    const [isFetchingContactMobile, setIsFetchingContactMobile] = useState(false);
 
     // CC, Translation & TTS States
     const [isTranscribing, setIsTranscribing] = useState(false);
@@ -665,7 +671,10 @@ function ChatApp({ user, onLogout }) {
     }, [incomingCall, isCallingOut]);
 
     useEffect(() => {
-        supabase.from('auth').select('email, name').then(({ data }) => { if (data) setMembers(data); });
+        supabase.from('auth').select('email, name').then(({ data, error }) => {
+            if (error) console.error("Error loading auth members:", error);
+            if (data) setMembers(data);
+        });
 
         const stored = localStorage.getItem('totalRecallContacts');
         if (stored) try { setSavedContacts(JSON.parse(stored)); } catch (e) { }
@@ -834,21 +843,70 @@ function ChatApp({ user, onLogout }) {
         }
         setIsUpdatingMobile(true);
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ mobile: newMobile.trim() })
-                .eq('email', userEmail);
+            const trimmedMobile = newMobile.trim();
 
-            if (error) throw error;
+            // 1. Always update auth metadata first (bypasses RLS)
+            await supabase.auth.updateUser({ data: { mobile: trimmedMobile } });
+
+            // 2. Try to update existing profile
+            const { data: updateData, error: updateError } = await supabase
+                .from('profiles')
+                .update({ mobile: trimmedMobile })
+                .eq('email', userEmail)
+                .select();
+
+            if (updateError) throw updateError;
+
+            // 3. If 0 rows updated, the profile row does not exist yet. We must insert it.
+            if (!updateData || updateData.length === 0) {
+                const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert([{ email: userEmail, mobile: trimmedMobile, name: displayName }]);
+                if (insertError) throw insertError;
+            }
 
             alert("Mobile number updated successfully!");
-            setCurrentUserMobile(newMobile.trim());
+            setCurrentUserMobile(trimmedMobile);
             setShowMobileModal(false);
             setNewMobile('');
         } catch (err) {
-            alert("Failed to update mobile number: " + err.message);
+            if (err.message.includes('permission denied') || err.code === '42501') {
+                alert("Notice: Mobile number saved to your account successfully, but it was blocked from saving to the public 'profiles' directory due to database security policies (RLS). You may want to check your Supabase dashboard.");
+                setCurrentUserMobile(newMobile.trim());
+                setShowMobileModal(false);
+                setNewMobile('');
+            } else {
+                alert("Failed to update mobile number: " + err.message);
+            }
         } finally {
             setIsUpdatingMobile(false);
+        }
+    };
+
+    const handleEditContactMobileClick = (e, emailToEdit, contactType) => {
+        e.stopPropagation();
+        setEditingContact({ email: emailToEdit, type: contactType });
+
+        if (!emailToEdit.includes('@') && contactType === 'contact') {
+            setEditMobileValue(emailToEdit);
+            setIsFetchingContactMobile(false);
+        } else {
+            setEditMobileValue('');
+            setIsFetchingContactMobile(true);
+
+            const fetchMobile = async () => {
+                let foundMobile = '';
+                try {
+                    const { data: pData } = await supabase.from('profiles').select('mobile').eq('email', emailToEdit).maybeSingle();
+                    if (pData?.mobile) foundMobile = pData.mobile;
+                } catch (error) {
+                    console.error("Error fetching mobile:", error);
+                }
+
+                setEditMobileValue(foundMobile);
+                setIsFetchingContactMobile(false);
+            };
+            fetchMobile();
         }
     };
 
@@ -1030,18 +1088,12 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    const triggerVonageCall = async (emailToCall) => {
+    // ✨ NEW: Prepare Vonage call via Modal instead of just firing it
+    const prepareVonageCall = async (emailToCall) => {
         let targetMobile = null;
 
         if (emailToCall && !emailToCall.includes('@') && /^\d+$/.test(emailToCall.replace(/[^0-9]/g, ''))) {
             targetMobile = emailToCall.replace(/[^0-9]/g, '');
-        }
-
-        if (!targetMobile) {
-            const member = membersRef.current.find(m => m.email?.toLowerCase() === emailToCall.toLowerCase());
-            if (member && member.mobile) {
-                targetMobile = member.mobile;
-            }
         }
 
         if (!targetMobile) {
@@ -1051,21 +1103,14 @@ function ChatApp({ user, onLogout }) {
             } catch (e) { }
         }
 
-        if (!targetMobile) {
-            try {
-                const { data: authData } = await supabase.from('auth').select('mobile').eq('email', emailToCall).maybeSingle();
-                if (authData?.mobile) targetMobile = authData.mobile;
-            } catch (e) { }
-        }
+        setVonageMobileInput(targetMobile || '');
+        setVonageCustomMessage(`Hi, ${displayName} is calling you on TotalRecall. Please join the chat.`);
+        setVonageCallModal({ email: emailToCall });
+    };
 
-        if (!targetMobile) {
-            targetMobile = prompt(`Could not automatically find a mobile number for ${emailToCall}.\n\nEnter their mobile number to call (including country code, e.g., for a UK number 44 then your number):`);
-            if (!targetMobile || !targetMobile.trim()) {
-                return;
-            }
-        }
-
-        const cleanNumber = targetMobile.replace(/[^0-9]/g, '');
+    // ✨ Execute the Vonage Call after Modal confirmation
+    const executeVonageCall = async () => {
+        const cleanNumber = vonageMobileInput.replace(/[^0-9]/g, '');
         if (!cleanNumber || cleanNumber.length < 5) {
             alert("Please provide a valid phone number.");
             return;
@@ -1074,8 +1119,20 @@ function ChatApp({ user, onLogout }) {
         setIsVonageCalling(true);
         try {
             const joinLink = `${window.location.origin}/?call_from=${encodeURIComponent(userEmail)}`;
+
+            // ✨ FIX: Passing the custom message in multiple standard fields to ensure 
+            // the Supabase Edge Function successfully retrieves the text.
+            const customTxt = vonageCustomMessage.trim();
             const { data, error } = await supabase.functions.invoke('vonage-call', {
-                body: { to: cleanNumber, callerEmail: userEmail, joinLink: joinLink }
+                body: {
+                    to: cleanNumber,
+                    callerEmail: userEmail,
+                    callerName: displayName,
+                    joinLink: joinLink,
+                    message: customTxt,         // Standard property 1
+                    text: customTxt,            // Standard property 2
+                    customMessage: customTxt    // Standard property 3
+                }
             });
 
             if (error) throw new Error(error.message);
@@ -1083,8 +1140,9 @@ function ChatApp({ user, onLogout }) {
             alert(`Call alerting and SMS invite sent to ${cleanNumber}. They will join this chat window shortly.`);
 
             if (!inCallRef.current) {
-                startWebRTCCall(emailToCall, true);
+                startWebRTCCall(vonageCallModal.email, true);
             }
+            setVonageCallModal(null);
         } catch (err) {
             console.error("Mobile call initiation failed:", err);
             alert(`Call failed. Details: ${err.message}`);
@@ -1101,7 +1159,7 @@ function ChatApp({ user, onLogout }) {
             const isOnline = onlineUsersRef.current.some(u => u.email?.toLowerCase() === email.toLowerCase());
 
             if (!isOnline) {
-                await triggerVonageCall(email);
+                await prepareVonageCall(email);
                 return;
             }
         }
@@ -1109,7 +1167,7 @@ function ChatApp({ user, onLogout }) {
     };
 
     const handleVonageMobileCallUI = () => {
-        if (selectedContact) triggerVonageCall(selectedContact);
+        if (selectedContact) prepareVonageCall(selectedContact);
     };
 
     const autoAcceptCall = async (call) => {
@@ -2192,6 +2250,43 @@ function ChatApp({ user, onLogout }) {
                 </div>
             )}
 
+            {/* ✨ NEW: VONAGE CALL MODAL (FOR OFFLINE USERS) ✨ */}
+            {vonageCallModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 6000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '350px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>📞 Call Offline User</h3>
+                        <p style={{ color: '#8696a0', fontSize: '13px', marginBottom: '20px' }}>
+                            This user is currently offline. We can call their mobile to invite them to the chat.
+                        </p>
+
+                        <label style={{ display: 'block', color: '#e9edef', fontSize: '13px', marginBottom: '5px', fontWeight: 'bold' }}>Mobile Number:</label>
+                        <input
+                            type="tel"
+                            value={vonageMobileInput}
+                            onChange={(e) => setVonageMobileInput(e.target.value)}
+                            placeholder="Include country code (e.g. 44...)"
+                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '15px' }}
+                        />
+
+                        <label style={{ display: 'block', color: '#e9edef', fontSize: '13px', marginBottom: '5px', fontWeight: 'bold' }}>Spoken Message (Text-to-Speech):</label>
+                        <textarea
+                            value={vonageCustomMessage}
+                            onChange={(e) => setVonageCustomMessage(e.target.value)}
+                            placeholder="Message to be spoken when they pick up..."
+                            rows={3}
+                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px', resize: 'none', fontFamily: 'inherit' }}
+                        />
+
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setVonageCallModal(null)} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                            <button onClick={executeVonageCall} disabled={isVonageCalling} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                                {isVonageCalling ? 'Calling...' : 'Call Now'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showMobileModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 4000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
@@ -2221,12 +2316,16 @@ function ChatApp({ user, onLogout }) {
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                         <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>✏️ Edit Contact Mobile</h3>
                         <p style={{ color: '#8696a0', fontSize: '13px', marginBottom: '20px' }}>Editing mobile for: <br /><b>{editingContact.email}</b></p>
+
+                        {isFetchingContactMobile && <p style={{ color: '#00a884', fontSize: '12px', marginTop: '-15px', marginBottom: '15px' }}>Fetching current number...</p>}
+
                         <input
                             type="tel"
-                            value={editMobileValue}
+                            value={isFetchingContactMobile ? 'Loading...' : editMobileValue}
                             onChange={(e) => setEditMobileValue(e.target.value)}
                             placeholder="Mobile number (include country code)"
-                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: 'white', boxSizing: 'border-box', marginBottom: '20px' }}
+                            disabled={isFetchingContactMobile}
+                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #2a3942', backgroundColor: '#111b21', color: isFetchingContactMobile ? '#8696a0' : 'white', boxSizing: 'border-box', marginBottom: '20px' }}
                             autoFocus
                         />
                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
@@ -2235,11 +2334,67 @@ function ChatApp({ user, onLogout }) {
                                 setIsSavingContactMobile(true);
                                 try {
                                     if (editingContact.type === 'member' || editingContact.email.includes('@')) {
-                                        const { error } = await supabase
+                                        const trimmedMobile = editMobileValue.trim();
+
+                                        // 1. Try to update existing profile
+                                        const { data: updateData, error: updateError } = await supabase
                                             .from('profiles')
-                                            .update({ mobile: editMobileValue.trim() })
-                                            .eq('email', editingContact.email);
-                                        if (error) throw error;
+                                            .update({ mobile: trimmedMobile })
+                                            .eq('email', editingContact.email)
+                                            .select();
+
+                                        if (updateError) {
+                                            // Handle RLS Permission Denied for other users
+                                            if (updateError.message.includes('permission denied') || updateError.code === '42501') {
+                                                const cleanMobile = trimmedMobile.replace(/[^0-9]/g, '');
+                                                setSavedContacts(prev => {
+                                                    const exists = prev.find(c => c.email === editingContact.email);
+                                                    const updated = exists
+                                                        ? prev.map(c => c.email === editingContact.email ? { ...c, email: cleanMobile } : c)
+                                                        : [...prev, { name: editingContact.email.split('@')[0], email: cleanMobile }];
+                                                    localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
+                                                    return updated;
+                                                });
+
+                                                alert(`Database 'profiles' table permissions (RLS) blocked the save.\n\nThe mobile number has been saved to your Local Contacts instead so you can call them now.\n\nTo fix the database globally, an admin must add an UPDATE policy to the 'profiles' table in Supabase.`);
+                                                setEditingContact(null);
+                                                return;
+                                            } else {
+                                                throw updateError;
+                                            }
+                                        }
+
+                                        // 2. If no rows were updated, profile doesn't exist yet, try to insert it
+                                        if (!updateData || updateData.length === 0) {
+                                            const { error: insertError } = await supabase
+                                                .from('profiles')
+                                                .insert([{ email: editingContact.email, mobile: trimmedMobile }]);
+
+                                            if (insertError) {
+                                                if (insertError.message.includes('permission denied') || insertError.code === '42501') {
+                                                    const cleanMobile = trimmedMobile.replace(/[^0-9]/g, '');
+                                                    setSavedContacts(prev => {
+                                                        const exists = prev.find(c => c.email === editingContact.email);
+                                                        const updated = exists
+                                                            ? prev.map(c => c.email === editingContact.email ? { ...c, email: cleanMobile } : c)
+                                                            : [...prev, { name: editingContact.email.split('@')[0], email: cleanMobile }];
+                                                        localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
+                                                        return updated;
+                                                    });
+                                                    alert(`Database 'profiles' table permissions (RLS) blocked the save.\n\nThe mobile number has been saved to your Local Contacts instead so you can call them now.\n\nTo fix the database globally, an admin must add an UPDATE policy to the 'profiles' table in Supabase.`);
+                                                    setEditingContact(null);
+                                                    return;
+                                                } else {
+                                                    throw insertError;
+                                                }
+                                            }
+                                        }
+
+                                        // 3. Update local members state so UI reflects changes immediately
+                                        setMembers(prev => prev.map(m =>
+                                            m.email === editingContact.email ? { ...m, mobile: trimmedMobile } : m
+                                        ));
+
                                         alert('Mobile number updated in database.');
                                     } else {
                                         const newMobileStr = editMobileValue.trim().replace(/[^0-9]/g, '');
@@ -2261,7 +2416,7 @@ function ChatApp({ user, onLogout }) {
                                 } finally {
                                     setIsSavingContactMobile(false);
                                 }
-                            }} disabled={isSavingContactMobile} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: isSavingContactMobile ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                            }} disabled={isSavingContactMobile || isFetchingContactMobile} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: (isSavingContactMobile || isFetchingContactMobile) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                                 {isSavingContactMobile ? 'Saving...' : 'Save'}
                             </button>
                         </div>
@@ -2332,7 +2487,10 @@ function ChatApp({ user, onLogout }) {
                                 🗣️ Open Local Translator
                             </button>
                             <button
-                                onClick={() => setShowMobileModal(true)}
+                                onClick={() => {
+                                    setNewMobile(currentUserMobile || '');
+                                    setShowMobileModal(true);
+                                }}
                                 style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: '#2a3942', color: '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                             >
                                 📱 Change Mobile Number
@@ -2374,14 +2532,7 @@ function ChatApp({ user, onLogout }) {
                                                 <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                                 <div style={{ flexGrow: 1 }}>{c.name?.trim() || c.email.split('@')[0]}</div>
                                                 {isCapitalOlondra && (
-                                                    <button onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditingContact({ email: c.email, type: 'member' });
-                                                        setEditMobileValue('');
-                                                        supabase.from('profiles').select('mobile').eq('email', c.email).maybeSingle().then(({ data }) => {
-                                                            if (data?.mobile) setEditMobileValue(data.mobile);
-                                                        });
-                                                    }} style={{ background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
+                                                    <button onClick={(e) => handleEditContactMobileClick(e, c.email, 'member')} style={{ background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
                                                 )}
                                                 {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title="Add to contacts">➕</button>}
                                             </div>
@@ -2402,18 +2553,7 @@ function ChatApp({ user, onLogout }) {
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                     <div style={{ flexGrow: 1 }}><div>{c.name || (c.email.includes('@') ? c.email.split('@')[0] : c.email)}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
                                     {isCapitalOlondra && (
-                                        <button onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingContact({ email: c.email, type: 'contact' });
-                                            if (c.email.includes('@')) {
-                                                setEditMobileValue('');
-                                                supabase.from('profiles').select('mobile').eq('email', c.email).maybeSingle().then(({ data }) => {
-                                                    if (data?.mobile) setEditMobileValue(data.mobile);
-                                                });
-                                            } else {
-                                                setEditMobileValue(c.email);
-                                            }
-                                        }} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
+                                        <button onClick={(e) => handleEditContactMobileClick(e, c.email, 'contact')} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
                                     )}
                                     <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}>❌</button>
                                 </div>
