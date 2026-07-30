@@ -494,6 +494,7 @@ function ChatApp({ user, onLogout }) {
 
     // ✨ Local Translate Mode State
     const [showLocalTranslator, setShowLocalTranslator] = useState(false);
+    const [isSendingLocalTranscript, setIsSendingLocalTranscript] = useState(false);
     const isLocalTranslateModeRef = useRef(false);
     useEffect(() => { isLocalTranslateModeRef.current = showLocalTranslator; }, [showLocalTranslator]);
 
@@ -528,7 +529,7 @@ function ChatApp({ user, onLogout }) {
     const pendingCandidatesRef = useRef({});
     const localStreamRef = useRef(null);
 
-    // Translation & Deepgram Refs
+    // Translation, Scrolling, & Deepgram Refs
     const deepgramSocketRef = useRef(null);
     const ccMediaRecorderRef = useRef(null);
     const isTranscribingRef = useRef(false);
@@ -536,6 +537,15 @@ function ChatApp({ user, onLogout }) {
     const targetLangRef = useRef('es-ES');
     const processSubtitleRef = useRef(null);
     const debounceTimers = useRef({});
+
+    // ✨ Local Translator Scroll Ref
+    const localTranslatorScrollRef = useRef(null);
+
+    useEffect(() => {
+        if (localTranslatorScrollRef.current) {
+            localTranslatorScrollRef.current.scrollTop = localTranslatorScrollRef.current.scrollHeight;
+        }
+    }, [callTranscript, subtitles, showLocalTranslator]);
 
     useEffect(() => { isTranscribingRef.current = isTranscribing; }, [isTranscribing]);
     useEffect(() => { spokenLangRef.current = spokenLang; }, [spokenLang]);
@@ -1819,6 +1829,68 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
+    // ✨ HANDLE SEND LOCAL TRANSCRIPT
+    const handleSendLocalTranscript = async () => {
+        if (callTranscript.length === 0) return;
+        const targetEmail = prompt("Enter the email address to send the translation history to:");
+        if (!targetEmail || !targetEmail.includes('@')) {
+            if (targetEmail !== null) alert("Please enter a valid email address.");
+            return;
+        }
+
+        setIsSendingLocalTranscript(true);
+        try {
+            const emailText = callTranscript.map(e => `[${e.time}]\nSpoken (${spokenLang}): ${e.original}\nTranslated (${targetLang}): ${e.translated}\n`).join('\n');
+
+            const htmlLines = callTranscript.map(e => {
+                let itemHtml = `<div style="margin-bottom: 16px; background-color: #f0fdf4; padding: 12px; border-radius: 8px; border-left: 4px solid #00a884;">`;
+                itemHtml += `<div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">${e.time}</div>`;
+                itemHtml += `<div style="color: #64748b; font-size: 11px; margin-bottom: 2px; text-transform: uppercase;">Spoken (${spokenLang})</div>`;
+                itemHtml += `<div style="color: #1e293b; font-weight: 600; font-size: 15px; margin-bottom: ${e.original !== e.translated ? '6px' : '0'};">${e.original}</div>`;
+                if (e.original !== e.translated) {
+                    itemHtml += `<div style="color: #64748b; font-size: 11px; margin-bottom: 2px; text-transform: uppercase; padding-top: 6px; border-top: 1px solid rgba(0,0,0,0.05);">Translated (${targetLang})</div>`;
+                    itemHtml += `<div style="color: #0369a1; font-weight: bold; font-size: 16px;">${e.translated}</div>`;
+                }
+                itemHtml += `</div>`;
+                return itemHtml;
+            }).join('');
+
+            const currentYear = new Date().getFullYear();
+            const currentDate = new Date().toLocaleDateString();
+
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f7f6; padding: 20px; border-radius: 12px;">
+                    <div style="background-color: #00a884; color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
+                        <h2 style="margin: 0;">TotalRecall Local Translation History</h2>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Recorded on ${currentDate}</p>
+                    </div>
+                    <div style="background-color: white; padding: 20px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                        ${htmlLines}
+                    </div>
+                    <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
+                        © ${currentYear} NoirSoft Ltd - TotalRecall
+                    </div>
+                </div>
+            `;
+
+            const { error } = await supabase.functions.invoke('send-email', {
+                body: {
+                    to: targetEmail,
+                    subject: 'TotalRecall Translation History',
+                    text: emailText,
+                    html: emailHtml
+                }
+            });
+
+            if (error) throw error;
+            alert('Translation history sent successfully!');
+        } catch (err) {
+            alert('Failed to send history: ' + err.message);
+        } finally {
+            setIsSendingLocalTranscript(false);
+        }
+    };
+
     const showSidebar = !isMobile || !selectedContact;
     const showChat = !isMobile || !!selectedContact;
     const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(e); } };
@@ -1989,36 +2061,94 @@ function ChatApp({ user, onLogout }) {
                 </div>
             )}
 
-            {/* ✨ LOCAL TRANSLATOR MODAL (POLISHED) ✨ */}
+            {/* ✨ LOCAL TRANSLATOR MODAL (POLISHED WITH HISTORY AND EMAIL OPTION) ✨ */}
             {showLocalTranslator && (
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0b141a', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
 
-                    <div style={{ padding: '15px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222d34' }}>
+                    <div style={{ padding: '15px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222d34', flexWrap: 'wrap', gap: '10px' }}>
                         <h3 style={{ margin: 0, color: '#00a884', display: 'flex', alignItems: 'center', gap: '10px' }}>
                             🗣️ Offline Local Translator
                         </h3>
-                        <button onClick={() => { setShowLocalTranslator(false); if (!inCallRef.current) stopCC(); }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '24px', cursor: 'pointer' }}>✖</button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            {callTranscript.length > 0 && (
+                                <>
+                                    <button
+                                        onClick={handleSendLocalTranscript}
+                                        disabled={isSendingLocalTranscript}
+                                        style={{ background: 'none', border: '1px solid #38bdf8', color: '#38bdf8', borderRadius: '4px', padding: '6px 12px', fontSize: '13px', cursor: isSendingLocalTranscript ? 'not-allowed' : 'pointer', opacity: isSendingLocalTranscript ? 0.5 : 1, fontWeight: 'bold' }}
+                                    >
+                                        {isSendingLocalTranscript ? '⏳ Sending...' : '📧 Email History'}
+                                    </button>
+                                    <button
+                                        onClick={() => setCallTranscript([])}
+                                        style={{ background: 'none', border: '1px solid #8696a0', color: '#8696a0', borderRadius: '4px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer' }}
+                                    >
+                                        Clear History
+                                    </button>
+                                </>
+                            )}
+                            <button onClick={() => { setShowLocalTranslator(false); if (!inCallRef.current) stopCC(); }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '24px', cursor: 'pointer', marginLeft: '10px' }}>✖</button>
+                        </div>
                     </div>
 
-                    <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
-                        <div style={{ flex: 1, backgroundColor: '#111b21', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #222d34' }}>
-                            <span style={{ color: '#8696a0', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>They hear ({targetLang})</span>
-                            <div style={{ fontSize: '32px', color: '#38bdf8', fontWeight: 'bold', textAlign: 'center' }}>
-                                {subtitles[userEmail]?.translated || "..."}
+                    <div ref={localTranslatorScrollRef} style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', backgroundColor: '#0b141a' }}>
+                        {callTranscript.length === 0 && !subtitles[userEmail]?.original && (
+                            <div style={{ margin: 'auto', color: '#8696a0', textAlign: 'center', fontStyle: 'italic' }}>
+                                Start speaking to see the translation history...
                             </div>
-                        </div>
+                        )}
 
-                        <div style={{ flex: 1, backgroundColor: '#111b21', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #222d34' }}>
-                            <span style={{ color: '#8696a0', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>You say ({spokenLang})</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                {isTranscribing && !subtitles[userEmail]?.original && (
-                                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ef4444', animation: 'pulse 1.5s infinite' }} />
-                                )}
-                                <div style={{ fontSize: '24px', color: '#aebac1', textAlign: 'center', fontStyle: 'italic' }}>
-                                    {subtitles[userEmail]?.original || "Listening..."}
+                        {callTranscript.map((entry, idx) => (
+                            <div key={idx} style={{
+                                backgroundColor: '#202c33',
+                                padding: '16px',
+                                borderRadius: '12px',
+                                borderLeft: `4px solid #00a884`,
+                                display: 'flex', flexDirection: 'column', gap: '8px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#8696a0' }}>
+                                    <span style={{ fontWeight: 'bold', color: '#00a884' }}>{entry.time}</span>
                                 </div>
+                                <div>
+                                    <div style={{ color: '#8696a0', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Spoken ({spokenLang})</div>
+                                    <div style={{ color: '#e9edef', fontSize: '16px' }}>{entry.original}</div>
+                                </div>
+                                {entry.original !== entry.translated && (
+                                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div style={{ color: '#8696a0', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Translated ({targetLang})</div>
+                                        <div style={{ color: '#38bdf8', fontSize: '18px', fontWeight: 'bold' }}>{entry.translated}</div>
+                                    </div>
+                                )}
                             </div>
-                        </div>
+                        ))}
+
+                        {/* LIVE INTERIM TEXT */}
+                        {subtitles[userEmail]?.original && (
+                            <div style={{
+                                backgroundColor: '#111b21',
+                                padding: '16px',
+                                borderRadius: '12px',
+                                borderLeft: `4px solid #ef4444`,
+                                display: 'flex', flexDirection: 'column', gap: '8px',
+                                border: '1px dashed #2a3942'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#ef4444', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444', animation: 'pulse 1.5s infinite' }} />
+                                    Listening...
+                                </div>
+                                <div>
+                                    <div style={{ color: '#8696a0', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Spoken ({spokenLang})</div>
+                                    <div style={{ color: '#aebac1', fontSize: '16px', fontStyle: 'italic' }}>{subtitles[userEmail].original}</div>
+                                </div>
+                                {subtitles[userEmail].translated && subtitles[userEmail].translated !== subtitles[userEmail].original && subtitles[userEmail].translated !== '...' && (
+                                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div style={{ color: '#8696a0', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Translating ({targetLang})</div>
+                                        <div style={{ color: '#38bdf8', fontSize: '18px', fontWeight: 'bold', fontStyle: 'italic' }}>{subtitles[userEmail].translated}</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div style={{ padding: '20px', backgroundColor: '#202c33', borderTop: '1px solid #222d34' }}>
