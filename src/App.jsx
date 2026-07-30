@@ -259,29 +259,47 @@ function LinkPreview({ url, style = {} }) {
 }
 
 // ==========================================
-// 📝 SUBTITLE OVERLAY COMPONENT
+// 📝 SUBTITLE OVERLAY COMPONENT (POLISHED)
 // ==========================================
 function SubtitleOverlay({ subtitle }) {
-    if (!subtitle || !subtitle.original) return null;
+    if (!subtitle || (!subtitle.original && !subtitle.translated)) return null;
 
     const hasTranslation = subtitle.translated && subtitle.translated !== subtitle.original && subtitle.translated !== '...';
 
     return (
-        <div style={{ position: 'absolute', bottom: '20px', left: '0', right: '0', display: 'flex', justifyContent: 'center', zIndex: 20, pointerEvents: 'none', padding: '0 5%' }}>
-            <div style={{ display: 'inline-block', backgroundColor: 'rgba(0,0,0,0.75)', padding: '8px 16px', borderRadius: '8px', maxWidth: '100%', wordWrap: 'break-word', textShadow: '1px 1px 2px black', textAlign: 'center' }}>
+        <div style={{
+            position: 'absolute', bottom: '30px', left: '0', right: '0',
+            display: 'flex', justifyContent: 'center', zIndex: 20,
+            pointerEvents: 'none', padding: '0 5%',
+            animation: 'slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+            <div style={{
+                display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)',
+                padding: '12px 24px', borderRadius: '12px', maxWidth: '90%',
+                wordWrap: 'break-word', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                border: '1px solid rgba(255,255,255,0.1)'
+            }}>
                 {hasTranslation && (
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#38bdf8', marginBottom: '4px' }}>
+                    <div style={{
+                        fontSize: '20px', fontWeight: 'bold', color: '#38bdf8',
+                        marginBottom: subtitle.original ? '6px' : '0',
+                        textShadow: '0px 2px 4px rgba(0,0,0,0.8)', textAlign: 'center', lineHeight: '1.3'
+                    }}>
                         {subtitle.translated}
                     </div>
                 )}
-                <div style={{
-                    fontSize: hasTranslation ? '13px' : '18px',
-                    fontWeight: hasTranslation ? 'normal' : 'bold',
-                    color: hasTranslation ? '#aebac1' : 'white',
-                    fontStyle: hasTranslation ? 'italic' : 'normal'
-                }}>
-                    {subtitle.original}
-                </div>
+                {subtitle.original && (
+                    <div style={{
+                        fontSize: hasTranslation ? '14px' : '20px',
+                        fontWeight: hasTranslation ? 'normal' : 'bold',
+                        color: hasTranslation ? '#aebac1' : '#ffffff',
+                        fontStyle: hasTranslation ? 'italic' : 'normal',
+                        textShadow: '0px 2px 4px rgba(0,0,0,0.8)', textAlign: 'center', lineHeight: '1.3'
+                    }}>
+                        {subtitle.original}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -416,6 +434,7 @@ const LanguageOptions = () => (
         <option value="el-GR">Greek</option>
         <option value="ru-RU">Russian</option>
         <option value="yo-NG">Yoruba</option>
+        <option value="pl-PL">Polish</option>
     </>
 );
 
@@ -1273,7 +1292,7 @@ function ChatApp({ user, onLogout }) {
         const langMap = {
             'en-US': 'en', 'es-ES': 'es', 'fr-FR': 'fr', 'de-DE': 'de', 'it-IT': 'it',
             'zh-CN': 'zh', 'ja-JP': 'ja', 'pt-PT': 'pt', 'pt-BR': 'pt', 'el-GR': 'el',
-            'ru-RU': 'ru', 'yo-NG': 'yo'
+            'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl' // ✨ ADDED POLISH TO DEEPGRAM MAP
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
@@ -1856,28 +1875,47 @@ function ChatApp({ user, onLogout }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
 
-            {/* ✨ TRANSCRIPT MODAL ✨ */}
+            {/* ✨ TRANSCRIPT MODAL (POLISHED) ✨ */}
             {showTranscriptModal && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 5000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '500px', maxWidth: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>📝 Call Transcript</h3>
-                        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '15px', backgroundColor: '#111b21', padding: '15px', borderRadius: '8px' }}>
-                            {callTranscript.map((entry, idx) => (
-                                <div key={idx} style={{ marginBottom: '10px' }}>
-                                    <div style={{ fontSize: '12px', color: '#8696a0' }}>{entry.time} - {entry.sender === userEmail ? 'You' : entry.sender.split('@')[0]}</div>
-                                    <div style={{ color: '#e9edef', fontWeight: 'bold' }}>{entry.original}</div>
-                                    {entry.original !== entry.translated && (
-                                        <div style={{ color: '#38bdf8', fontStyle: 'italic', fontSize: '14px' }}>{entry.translated}</div>
-                                    )}
-                                </div>
-                            ))}
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 5000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '16px', width: '550px', maxWidth: '90%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', border: '1px solid #2a3942', boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
+                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            📝 Call Transcript
+                        </h3>
+                        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', backgroundColor: '#111b21', padding: '15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            {callTranscript.map((entry, idx) => {
+                                const isYou = entry.sender === userEmail;
+                                return (
+                                    <div key={idx} style={{
+                                        marginBottom: '12px',
+                                        padding: '12px 16px',
+                                        borderRadius: '8px',
+                                        backgroundColor: isYou ? '#005c4b20' : '#2a394250',
+                                        borderLeft: `4px solid ${isYou ? '#00a884' : '#38bdf8'}`,
+                                        display: 'flex', flexDirection: 'column', gap: '4px'
+                                    }}>
+                                        <div style={{ fontSize: '12px', color: '#8696a0', display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ fontWeight: 'bold', color: isYou ? '#00a884' : '#38bdf8' }}>
+                                                {isYou ? 'You' : entry.sender.split('@')[0]}
+                                            </span>
+                                            <span>{entry.time}</span>
+                                        </div>
+                                        <div style={{ color: '#e9edef', fontWeight: 'bold', fontSize: '15px' }}>{entry.original}</div>
+                                        {entry.original !== entry.translated && (
+                                            <div style={{ color: '#8696a0', fontStyle: 'italic', fontSize: '14px', marginTop: '2px' }}>{entry.translated}</div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                             {callTranscript.length === 0 && (
-                                <div style={{ color: '#8696a0', textAlign: 'center', marginTop: '20px' }}>No transcription recorded during this call.</div>
+                                <div style={{ color: '#8696a0', textAlign: 'center', marginTop: '40px', fontStyle: 'italic' }}>
+                                    No transcription was recorded during this call.
+                                </div>
                             )}
                         </div>
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                             <button
-                                disabled={isSendingTranscript}
+                                disabled={isSendingTranscript || callTranscript.length === 0}
                                 onClick={async () => {
                                     setIsSendingTranscript(true);
                                     try {
@@ -1889,7 +1927,7 @@ function ChatApp({ user, onLogout }) {
                                             const senderName = isYou ? 'You' : e.sender.split('@')[0];
                                             const headerColor = isYou ? '#00a884' : '#38bdf8';
                                             const bgColor = isYou ? '#f0fdf4' : '#f0f9ff';
-                                            let itemHtml = `<div style="margin-bottom: 16px; background-color: ${bgColor}; padding: 12px; border-radius: 8px;">`;
+                                            let itemHtml = `<div style="margin-bottom: 16px; background-color: ${bgColor}; padding: 12px; border-radius: 8px; border-left: 4px solid ${headerColor};">`;
                                             itemHtml += `<div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">${e.time} - <strong style="color: ${headerColor};">${senderName}</strong></div>`;
                                             itemHtml += `<div style="color: #1e293b; font-weight: 600; font-size: 15px; margin-bottom: ${e.original !== e.translated ? '6px' : '0'};">${e.original}</div>`;
                                             if (e.original !== e.translated) {
@@ -1937,15 +1975,16 @@ function ChatApp({ user, onLogout }) {
                                         setIsSendingTranscript(false);
                                     }
                                 }}
-                                style={{ padding: '10px 16px', borderRadius: '6px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: isSendingTranscript ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: isSendingTranscript ? 0.7 : 1 }}>
+                                style={{ padding: '10px 18px', borderRadius: '8px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: (isSendingTranscript || callTranscript.length === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: (isSendingTranscript || callTranscript.length === 0) ? 0.5 : 1, transition: '0.2s' }}>
                                 {isSendingTranscript ? '⏳ Sending...' : '📧 Send via Email'}
                             </button>
-                            <button onClick={() => { setShowTranscriptModal(false); setCallTranscript([]); }} style={{ padding: '10px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold' }}>Close</button>
+                            <button onClick={() => { setShowTranscriptModal(false); setCallTranscript([]); }} style={{ padding: '10px 18px', borderRadius: '8px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>Dismiss</button>
                         </div>
                     </div>
                 </div>
             )}
 
+            {/* ✨ LOCAL TRANSLATOR MODAL (POLISHED) ✨ */}
             {showLocalTranslator && (
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0b141a', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
 
@@ -1966,8 +2005,13 @@ function ChatApp({ user, onLogout }) {
 
                         <div style={{ flex: 1, backgroundColor: '#111b21', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid #222d34' }}>
                             <span style={{ color: '#8696a0', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>You say ({spokenLang})</span>
-                            <div style={{ fontSize: '24px', color: '#aebac1', textAlign: 'center', fontStyle: 'italic' }}>
-                                {subtitles[userEmail]?.original || "Listening..."}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                {isTranscribing && !subtitles[userEmail]?.original && (
+                                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ef4444', animation: 'pulse 1.5s infinite' }} />
+                                )}
+                                <div style={{ fontSize: '24px', color: '#aebac1', textAlign: 'center', fontStyle: 'italic' }}>
+                                    {subtitles[userEmail]?.original || "Listening..."}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2002,11 +2046,10 @@ function ChatApp({ user, onLogout }) {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '15px' }}>
-                            <button onClick={toggleTranscription} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTranscribing ? '#ef4444' : '#00a884', color: 'white', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
+                            <button onClick={toggleTranscription} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTranscribing ? '#ef4444' : '#00a884', color: 'white', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', transition: 'background-color 0.2s' }}>
                                 {isTranscribing ? '⏹ Stop Listening' : '🎤 Start Listening'}
                             </button>
-                            {/* ✨ SYNCHRONIZED TTS TOGGLE ✨ */}
-                            <button onClick={toggleTTS} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTTSOn ? '#005c4b' : 'transparent', color: isTTSOn ? 'white' : '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
+                            <button onClick={toggleTTS} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTTSOn ? '#005c4b' : 'transparent', color: isTTSOn ? 'white' : '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', transition: 'all 0.2s' }}>
                                 {isTTSOn ? '🔊 Speaker: ON' : '🔇 Speaker: OFF'}
                             </button>
                         </div>
@@ -2129,7 +2172,6 @@ function ChatApp({ user, onLogout }) {
                                 </div>
                             ))}
 
-                            {/* ✨ FIX: Render Members only if the user is capitalolondra ✨ */}
                             {isCapitalOlondra && (
                                 <>
                                     <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
@@ -2320,7 +2362,6 @@ function ChatApp({ user, onLogout }) {
             <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
                 <span>© NoirSoft Ltd</span>
                 <div style={{ display: 'flex', gap: '20px' }}>
-                    {/* ✨ FIX: Render Member count in footer only if the user is capitalolondra ✨ */}
                     {isCapitalOlondra && <span>👥 Members: {memberCount}</span>}
                     <span>🟢 Online: {totalOnlineCount}</span>
                 </div>
@@ -2330,7 +2371,13 @@ function ChatApp({ user, onLogout }) {
 }
 
 const styleSheet = document.createElement("style");
-styleSheet.textContent = `@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }`;
+styleSheet.textContent = `
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+    @keyframes slideUpFade { 
+        from { opacity: 0; transform: translateY(15px); } 
+        to { opacity: 1; transform: translateY(0); } 
+    }
+`;
 document.head.appendChild(styleSheet);
 
 // ==========================================
