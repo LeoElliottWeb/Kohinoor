@@ -13,7 +13,7 @@ const lastTranslationTime = {};
 // ==========================================
 const uiDict = {
     'en': {
-        search: "🔍 Search users...", online: "Online", members: "Members", contacts: "Contacts",
+        search: "🔍 Search users...", online: "Online", members: "Registered Users", contacts: "Saved Contacts",
         logout: "Logout", openTranslator: "🗣️ Open Local Translator", changeMobile: "📱 Change Mobile Number",
         addExternal: "+ Add External", selectContact: "Select a contact to start chatting",
         faceToFace: "Talking face-to-face with someone?", messagePlaceholder: "Message or paste image/link...",
@@ -26,7 +26,7 @@ const uiDict = {
         checkEmail: "✅ Check your email"
     },
     'es': {
-        search: "🔍 Buscar usuarios...", online: "En línea", members: "Miembros", contacts: "Contactos",
+        search: "🔍 Buscar usuarios...", online: "En línea", members: "Usuarios Registrados", contacts: "Contactos Guardados",
         logout: "Cerrar sesión", openTranslator: "🗣️ Traductor Local", changeMobile: "📱 Cambiar Móvil",
         addExternal: "+ Añadir Externo", selectContact: "Selecciona un contacto para chatear",
         faceToFace: "¿Hablando cara a cara?", messagePlaceholder: "Mensaje o pegar imagen/enlace...",
@@ -39,7 +39,7 @@ const uiDict = {
         checkEmail: "✅ Revisa tu correo"
     },
     'fr': {
-        search: "🔍 Rechercher...", online: "En ligne", members: "Membres", contacts: "Contacts",
+        search: "🔍 Rechercher...", online: "En ligne", members: "Utilisateurs Inscrits", contacts: "Contacts Enregistrés",
         logout: "Déconnexion", openTranslator: "🗣️ Traducteur Local", changeMobile: "📱 Changer de Mobile",
         addExternal: "+ Ajouter Externe", selectContact: "Sélectionnez un contact pour discuter",
         faceToFace: "Vous parlez face à face ?", messagePlaceholder: "Message ou coller image/lien...",
@@ -52,7 +52,7 @@ const uiDict = {
         checkEmail: "✅ Vérifiez vos e-mails"
     },
     'de': {
-        search: "🔍 Suchen...", online: "Online", members: "Mitglieder", contacts: "Kontakte",
+        search: "🔍 Suchen...", online: "Online", members: "Registrierte Nutzer", contacts: "Gespeicherte Kontakte",
         logout: "Abmelden", openTranslator: "🗣️ Lokaler Übersetzer", changeMobile: "📱 Handynummer ändern",
         addExternal: "+ Extern Hinzufügen", selectContact: "Wählen Sie einen Kontakt zum Chatten",
         faceToFace: "Sprechen Sie von Angesicht zu Angesicht?", messagePlaceholder: "Nachricht oder Bild/Link einfügen...",
@@ -65,7 +65,7 @@ const uiDict = {
         checkEmail: "✅ E-Mails prüfen"
     },
     'it': {
-        search: "🔍 Cerca utenti...", online: "In linea", members: "Membri", contacts: "Contatti",
+        search: "🔍 Cerca utenti...", online: "In linea", members: "Utenti Registrati", contacts: "Contatti Salvati",
         logout: "Esci", openTranslator: "🗣️ Traduttore Locale", changeMobile: "📱 Cambia Cellulare",
         addExternal: "+ Aggiungi Esterno", selectContact: "Seleziona un contatto per chattare",
         faceToFace: "Stai parlando faccia a faccia?", messagePlaceholder: "Messaggio o incolla immagine/link...",
@@ -78,7 +78,7 @@ const uiDict = {
         checkEmail: "✅ Controlla la tua email"
     },
     'pt': {
-        search: "🔍 Pesquisar...", online: "Online", members: "Membros", contacts: "Contatos",
+        search: "🔍 Pesquisar...", online: "Online", members: "Usuários Registrados", contacts: "Contatos Salvos",
         logout: "Sair", openTranslator: "🗣️ Tradutor Local", changeMobile: "📱 Mudar Número",
         addExternal: "+ Adicionar Externo", selectContact: "Selecione um contato para conversar",
         faceToFace: "Conversando cara a cara?", messagePlaceholder: "Mensagem ou colar imagem/link...",
@@ -91,7 +91,7 @@ const uiDict = {
         checkEmail: "✅ Verifique seu e-mail"
     },
     'zh': {
-        search: "🔍 搜索...", online: "在线", members: "成员", contacts: "联系人",
+        search: "🔍 搜索...", online: "在线", members: "注册用户", contacts: "保存的联系人",
         logout: "登出", openTranslator: "🗣️ 本地翻译器", changeMobile: "📱 更改手机号",
         addExternal: "+ 添加外部", selectContact: "选择联系人开始聊天",
         faceToFace: "面对面交谈？", messagePlaceholder: "留言或粘贴图像/链接...",
@@ -104,7 +104,7 @@ const uiDict = {
         checkEmail: "✅ 检查您的电子邮件"
     },
     'ru': {
-        search: "🔍 Поиск...", online: "В сети", members: "Участники", contacts: "Контакты",
+        search: "🔍 Поиск...", online: "В сети", members: "Зарегистрированные пользователи", contacts: "Сохраненные контакты",
         logout: "Выйти", openTranslator: "🗣️ Локальный переводчик", changeMobile: "📱 Изменить номер",
         addExternal: "+ Добавить контакт", selectContact: "Выберите контакт для общения",
         faceToFace: "Говорите лицом к лицу?", messagePlaceholder: "Сообщение или ссылка...",
@@ -127,7 +127,7 @@ const t = (key, langCode) => {
 };
 
 // ==========================================
-// 🎵 SIMPLE BELL RINGER
+// 🎵 SIMPLE BELL RINGER & UNLOCKER
 // ==========================================
 class RingerManager {
     constructor() {
@@ -139,12 +139,23 @@ class RingerManager {
         this.timeoutCallback = null;
     }
 
+    unlock() {
+        if (!this.audioContext) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                this.audioContext = new AudioContext();
+            }
+        }
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+    }
+
     playBell() {
         try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            if (!this.audioContext || this.audioContext.state === 'closed') this.audioContext = new AudioContext();
-            if (this.audioContext.state === 'suspended') this.audioContext.resume();
+            this.unlock();
+            if (!this.audioContext) return;
+
             this.oscillator = this.audioContext.createOscillator();
             this.gainNode = this.audioContext.createGain();
             this.oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
@@ -155,7 +166,7 @@ class RingerManager {
             this.gainNode.connect(this.audioContext.destination);
             this.oscillator.start(this.audioContext.currentTime);
             this.oscillator.stop(this.audioContext.currentTime + 0.8);
-        } catch (e) { }
+        } catch (e) { console.error('Audio play failed', e); }
     }
 
     start(type, onTimeout) {
@@ -589,6 +600,9 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     const [isImporting, setIsImporting] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+    // ✨ In-App Custom Notification State
+    const [inAppNotif, setInAppNotif] = useState(null);
+
     // ✨ Vonage Call State
     const [vonageCallModal, setVonageCallModal] = useState(null);
     const [vonageMobileInput, setVonageMobileInput] = useState('');
@@ -673,6 +687,56 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
     // ✨ Local Translator Scroll Ref
     const localTranslatorScrollRef = useRef(null);
+
+    // ✨ Desktop Notification Status & Request
+    const [notifPermission, setNotifPermission] = useState('default');
+
+    useEffect(() => {
+        if ('Notification' in window) {
+            setNotifPermission(Notification.permission);
+        }
+    }, []);
+
+    const requestNotificationPermission = async () => {
+        if (!('Notification' in window)) {
+            alert('This browser does not support desktop notifications.');
+            return;
+        }
+        try {
+            const permission = await Notification.requestPermission();
+            setNotifPermission(permission);
+            if (permission === 'granted') {
+                new Notification('Notifications enabled!', { body: 'You will now receive alerts for new messages.' });
+            }
+        } catch (error) {
+            console.error('Error requesting notification permission:', error);
+        }
+    };
+
+    // Unlock audio context globally on first interaction so bell can play
+    useEffect(() => {
+        const unlockAudio = () => {
+            ringer.unlock();
+            document.removeEventListener('click', unlockAudio);
+        };
+        document.addEventListener('click', unlockAudio);
+        return () => document.removeEventListener('click', unlockAudio);
+    }, []);
+
+    const notifyUser = (title, body) => {
+        if (!('Notification' in window)) return;
+        if (Notification.permission === 'granted') {
+            try {
+                const notification = new Notification(title, { body });
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+            } catch (e) {
+                console.error('Native notification failed', e);
+            }
+        }
+    };
 
     useEffect(() => {
         if (localTranslatorScrollRef.current) {
@@ -1797,9 +1861,44 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             setOnlineUsers(users);
         });
 
+        // ✨ UPDATED ALERTS & NOTIFICATION LOGIC
         ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, p => {
-            if ((p.new.sender_email === selectedContactRef.current && p.new.receiver_email === userEmail) ||
-                (p.new.sender_email === userEmail && p.new.receiver_email === selectedContactRef.current)) {
+            const isForMe = p.new.receiver_email?.toLowerCase() === userEmail.toLowerCase();
+            const isFromMe = p.new.sender_email?.toLowerCase() === userEmail.toLowerCase();
+
+            const selectedEmail = selectedContactRef.current?.toLowerCase() || '';
+            const isFromSelected = p.new.sender_email?.toLowerCase() === selectedEmail;
+            const isToSelected = p.new.receiver_email?.toLowerCase() === selectedEmail;
+
+            if (isForMe && !isFromMe) {
+                // Play notification bell
+                ringer.playBell();
+
+                const isHidden = document.hidden || document.visibilityState === 'hidden';
+
+                if (isHidden || !isFromSelected) {
+                    const senderName = p.new.sender_email.split('@')[0];
+                    let msgPreview = p.new.text || '';
+                    if (msgPreview.startsWith('[VOICE]')) msgPreview = '🎤 Voice message';
+                    if (msgPreview.startsWith('[IMAGE]')) msgPreview = '📷 Image';
+
+                    // Trigger Native
+                    notifyUser(`New message from ${senderName}`, msgPreview);
+
+                    // ✨ Trigger In-App Custom Toast (Ensures it works even if Native blocks)
+                    setInAppNotif({ email: p.new.sender_email, sender: senderName, text: msgPreview });
+                    setTimeout(() => setInAppNotif(null), 5000); // Auto hide after 5 seconds
+
+                    // Flash document title
+                    const originalTitle = "TotalRecall";
+                    document.title = `💬 New Message!`;
+                    setTimeout(() => {
+                        document.title = originalTitle;
+                    }, 4000);
+                }
+            }
+
+            if ((isFromSelected && isForMe) || (isFromMe && isToSelected)) {
                 setChatMessages(prev => prev.find(m => m.id === p.new.id) ? prev : [...prev, p.new]);
             }
         });
@@ -2200,6 +2299,25 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
 
+            {/* ✨ CUSTOM IN-APP NOTIFICATION TOAST ✨ */}
+            {inAppNotif && (
+                <div
+                    onClick={() => {
+                        setSelectedContact(inAppNotif.email);
+                        setInAppNotif(null);
+                    }}
+                    style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', backgroundColor: '#202c33', padding: '15px 20px', borderRadius: '12px', zIndex: 9999, border: '1px solid #00a884', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', animation: 'slideDown 0.3s ease-out' }}
+                >
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
+                        {inAppNotif.sender[0]?.toUpperCase()}
+                    </div>
+                    <div>
+                        <div style={{ color: '#00a884', fontWeight: 'bold', marginBottom: '4px' }}>New message from {inAppNotif.sender}</div>
+                        <div style={{ color: '#e9edef', fontSize: '14px', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inAppNotif.text}</div>
+                    </div>
+                </div>
+            )}
+
             {showTranscriptModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 5000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '16px', width: '550px', maxWidth: '90%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', border: '1px solid #2a3942', boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
@@ -2574,8 +2692,8 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                                 setSavedContacts(prev => {
                                                     const exists = prev.find(c => c.email === editingContact.email);
                                                     const updated = exists
-                                                        ? prev.map(c => c.email === editingContact.email ? { ...c, email: cleanMobile } : c)
-                                                        : [...prev, { name: editingContact.email.split('@')[0], email: cleanMobile }];
+                                                        ? prev.map(c => c.email === editingContact.email ? { ...c, mobile: cleanMobile } : c)
+                                                        : [...prev, { name: editingContact.email.split('@')[0], email: editingContact.email, mobile: cleanMobile }];
                                                     localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
                                                     return updated;
                                                 });
@@ -2599,8 +2717,8 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                                     setSavedContacts(prev => {
                                                         const exists = prev.find(c => c.email === editingContact.email);
                                                         const updated = exists
-                                                            ? prev.map(c => c.email === editingContact.email ? { ...c, email: cleanMobile } : c)
-                                                            : [...prev, { name: editingContact.email.split('@')[0], email: cleanMobile }];
+                                                            ? prev.map(c => c.email === editingContact.email ? { ...c, mobile: cleanMobile } : c)
+                                                            : [...prev, { name: editingContact.email.split('@')[0], email: editingContact.email, mobile: cleanMobile }];
                                                         localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
                                                         return updated;
                                                     });
@@ -2622,7 +2740,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                         const newMobileStr = editMobileValue.trim().replace(/[^0-9]/g, '');
                                         setSavedContacts(prev => {
                                             const updated = prev.map(c =>
-                                                c.email === editingContact.email ? { ...c, email: newMobileStr } : c
+                                                c.email === editingContact.email ? { ...c, email: newMobileStr, mobile: newMobileStr } : c
                                             );
                                             localStorage.setItem('totalRecallContacts', JSON.stringify(updated));
                                             return updated;
@@ -2659,9 +2777,19 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                 )}
 
                 {showSidebar && (
-                    <div style={{ width: isMobile ? '100%' : '30%', minWidth: 250, borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21', height: '100%', overflow: 'hidden' }}>
-                        <div style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ width: isMobile ? '100%' : '30%', minWidth: '250px', flexShrink: 0, borderRight: '1px solid #222d34', display: 'flex', flexDirection: 'column', backgroundColor: '#111b21', height: '100%', overflow: 'hidden' }}>
 
+                        {/* Desktop Notifications Banner */}
+                        {notifPermission === 'default' && (
+                            <div
+                                onClick={requestNotificationPermission}
+                                style={{ padding: '10px 15px', backgroundColor: '#005c4b', color: 'white', textAlign: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', borderBottom: '1px solid #222d34' }}
+                            >
+                                🔔 Click here to enable browser notifications
+                            </div>
+                        )}
+
+                        <div style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#111', fontWeight: 'bold' }}>
                                     {displayName[0]?.toUpperCase()}
@@ -2741,7 +2869,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                     placeholder={t('search', uiLanguage)}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #2a3942', backgroundColor: '#202c33', color: 'white', boxSizing: 'border-box', outline: 'none' }}
+                                    style={{ flex: 1, minWidth: 0, padding: '10px', borderRadius: '8px', border: '1px solid #2a3942', backgroundColor: '#202c33', color: 'white', boxSizing: 'border-box', outline: 'none' }}
                                 />
                                 <input
                                     type="text"
@@ -2749,7 +2877,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                     value={jumpLetter}
                                     onChange={handleJumpLetter}
                                     maxLength={1}
-                                    style={{ width: '50px', padding: '10px', borderRadius: '8px', border: '1px solid #00a884', backgroundColor: '#202c33', color: '#00a884', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold', outline: 'none' }}
+                                    style={{ width: '50px', minWidth: '50px', flexShrink: 0, padding: '10px', borderRadius: '8px', border: '1px solid #00a884', backgroundColor: '#202c33', color: '#00a884', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold', outline: 'none', boxSizing: 'border-box' }}
                                 />
                             </div>
                         </div>
@@ -2769,7 +2897,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                             {isCapitalOlondra && (
                                 <>
                                     <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
-                                        <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>{t('members', uiLanguage)} ({filteredMembers.length})</span>
+                                        <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>{isCapitalOlondra ? 'Registered Users' : t('members', uiLanguage)} ({filteredMembers.length})</span>
                                         <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
                                     </div>
                                     {isMembersExpanded && filteredMembers.map(c => {
@@ -2975,6 +3103,10 @@ styleSheet.textContent = `
         from { opacity: 0; transform: translateY(15px); } 
         to { opacity: 1; transform: translateY(0); } 
     }
+    @keyframes slideDown { 
+        from { transform: translate(-50%, -20px); opacity: 0; } 
+        to { transform: translate(-50%, 0); opacity: 1; } 
+    }
 `;
 document.head.appendChild(styleSheet);
 
@@ -3028,28 +3160,45 @@ export default function App() {
     };
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user || null);
-            if (session?.user) syncProfile(session.user);
-        });
+        const checkSession = async () => {
+            try {
+                const { data, error } = await supabase.auth.getSession();
+                if (error) {
+                    console.error("Session error caught:", error.message);
+                    await supabase.auth.signOut();
+                    setUser(null);
+                } else if (data?.session?.user) {
+                    setUser(data.session.user);
+                    syncProfile(data.session.user);
+                }
+            } catch (err) {
+                console.error("Unexpected session error:", err);
+                await supabase.auth.signOut();
+                setUser(null);
+            }
+        };
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            setUser(session?.user || null);
+        checkSession();
 
-            if (session?.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
-                syncProfile(session.user);
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_OUT') {
+                setUser(null);
+            } else if (session?.user) {
+                setUser(session.user);
+                if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                    syncProfile(session.user);
+                }
             }
 
             if (event === 'PASSWORD_RECOVERY') {
                 const newPassword = prompt("Please enter your new password (minimum 6 characters):");
                 if (newPassword && newPassword.length >= 6) {
-                    supabase.auth.updateUser({ password: newPassword }).then(({ error }) => {
-                        if (error) {
-                            alert("Failed to update password: " + error.message);
-                        } else {
-                            alert("Password updated successfully!");
-                        }
-                    });
+                    const { error } = await supabase.auth.updateUser({ password: newPassword });
+                    if (error) {
+                        alert("Failed to update password: " + error.message);
+                    } else {
+                        alert("Password updated successfully!");
+                    }
                 } else {
                     alert("Password update cancelled or invalid. Please try resetting again if needed.");
                 }
