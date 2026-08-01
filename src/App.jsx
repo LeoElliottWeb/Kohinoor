@@ -9,6 +9,124 @@ const translationCache = new Map();
 const lastTranslationTime = {};
 
 // ==========================================
+// 🌍 UI TRANSLATION DICTIONARY
+// ==========================================
+const uiDict = {
+    'en': {
+        search: "🔍 Search users...", online: "Online", members: "Members", contacts: "Contacts",
+        logout: "Logout", openTranslator: "🗣️ Open Local Translator", changeMobile: "📱 Change Mobile Number",
+        addExternal: "+ Add External", selectContact: "Select a contact to start chatting",
+        faceToFace: "Talking face-to-face with someone?", messagePlaceholder: "Message or paste image/link...",
+        recording: "Recording audio...", callMobile: "📞 Call Mobile", call: "📹 Call", add: "➕ Add",
+        end: "🔴 End", uiLang: "🌐 UI Language", activeCall: "📞 Active Call - Tap to Return",
+        login: "Log In", signup: "Sign Up", forgotPwd: "Forgot Password?", createAcc: "Create Account",
+        backLogin: "Back to Login", email: "Email", password: "Password (min 6 characters)", mobile: "Mobile Number (Mandatory)",
+        sendReset: "Send Reset Link", loading: "Loading...", sending: "Sending...",
+        resetMsg: "Enter your email address and we'll send you a link to reset your password.",
+        checkEmail: "✅ Check your email"
+    },
+    'es': {
+        search: "🔍 Buscar usuarios...", online: "En línea", members: "Miembros", contacts: "Contactos",
+        logout: "Cerrar sesión", openTranslator: "🗣️ Traductor Local", changeMobile: "📱 Cambiar Móvil",
+        addExternal: "+ Añadir Externo", selectContact: "Selecciona un contacto para chatear",
+        faceToFace: "¿Hablando cara a cara?", messagePlaceholder: "Mensaje o pegar imagen/enlace...",
+        recording: "Grabando audio...", callMobile: "📞 Llamar Móvil", call: "📹 Llamar", add: "➕ Añadir",
+        end: "🔴 Fin", uiLang: "🌐 Idioma de UI", activeCall: "📞 Llamada Activa - Volver",
+        login: "Iniciar sesión", signup: "Registrarse", forgotPwd: "¿Contraseña olvidada?", createAcc: "Crear Cuenta",
+        backLogin: "Volver al Login", email: "Correo electrónico", password: "Contraseña (min 6 caracteres)", mobile: "Número de Móvil (Obligatorio)",
+        sendReset: "Enviar enlace", loading: "Cargando...", sending: "Enviando...",
+        resetMsg: "Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.",
+        checkEmail: "✅ Revisa tu correo"
+    },
+    'fr': {
+        search: "🔍 Rechercher...", online: "En ligne", members: "Membres", contacts: "Contacts",
+        logout: "Déconnexion", openTranslator: "🗣️ Traducteur Local", changeMobile: "📱 Changer de Mobile",
+        addExternal: "+ Ajouter Externe", selectContact: "Sélectionnez un contact pour discuter",
+        faceToFace: "Vous parlez face à face ?", messagePlaceholder: "Message ou coller image/lien...",
+        recording: "Enregistrement audio...", callMobile: "📞 Appeler Mobile", call: "📹 Appeler", add: "➕ Ajouter",
+        end: "🔴 Fin", uiLang: "🌐 Langue de l'interface", activeCall: "📞 Appel en cours - Retour",
+        login: "Connexion", signup: "S'inscrire", forgotPwd: "Mot de passe oublié ?", createAcc: "Créer un compte",
+        backLogin: "Retour", email: "E-mail", password: "Mot de passe (min 6 caractères)", mobile: "Numéro de Mobile (Obligatoire)",
+        sendReset: "Envoyer le lien", loading: "Chargement...", sending: "Envoi...",
+        resetMsg: "Entrez votre e-mail et nous vous enverrons un lien pour réinitialiser votre mot de passe.",
+        checkEmail: "✅ Vérifiez vos e-mails"
+    },
+    'de': {
+        search: "🔍 Suchen...", online: "Online", members: "Mitglieder", contacts: "Kontakte",
+        logout: "Abmelden", openTranslator: "🗣️ Lokaler Übersetzer", changeMobile: "📱 Handynummer ändern",
+        addExternal: "+ Extern Hinzufügen", selectContact: "Wählen Sie einen Kontakt zum Chatten",
+        faceToFace: "Sprechen Sie von Angesicht zu Angesicht?", messagePlaceholder: "Nachricht oder Bild/Link einfügen...",
+        recording: "Audio aufnehmen...", callMobile: "📞 Handy anrufen", call: "📹 Anrufen", add: "➕ Hinzufügen",
+        end: "🔴 Beenden", uiLang: "🌐 UI-Sprache", activeCall: "📞 Aktiver Anruf - Zurück",
+        login: "Anmelden", signup: "Registrieren", forgotPwd: "Passwort vergessen?", createAcc: "Konto erstellen",
+        backLogin: "Zurück zum Login", email: "E-Mail", password: "Passwort (min 6 Zeichen)", mobile: "Handynummer (Pflichtfeld)",
+        sendReset: "Link senden", loading: "Wird geladen...", sending: "Senden...",
+        resetMsg: "Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen.",
+        checkEmail: "✅ E-Mails prüfen"
+    },
+    'it': {
+        search: "🔍 Cerca utenti...", online: "In linea", members: "Membri", contacts: "Contatti",
+        logout: "Esci", openTranslator: "🗣️ Traduttore Locale", changeMobile: "📱 Cambia Cellulare",
+        addExternal: "+ Aggiungi Esterno", selectContact: "Seleziona un contatto per chattare",
+        faceToFace: "Stai parlando faccia a faccia?", messagePlaceholder: "Messaggio o incolla immagine/link...",
+        recording: "Registrazione audio...", callMobile: "📞 Chiama Cellulare", call: "📹 Chiama", add: "➕ Aggiungi",
+        end: "🔴 Fine", uiLang: "🌐 Lingua interfaccia", activeCall: "📞 Chiamata Attiva - Indietro",
+        login: "Accedi", signup: "Registrati", forgotPwd: "Password dimenticata?", createAcc: "Crea Account",
+        backLogin: "Torna al Login", email: "Email", password: "Password (min 6 caratteri)", mobile: "Numero di cellulare (Obbligatorio)",
+        sendReset: "Invia Link", loading: "Caricamento...", sending: "Invio...",
+        resetMsg: "Inserisci la tua email e ti invieremo un link per reimpostare la password.",
+        checkEmail: "✅ Controlla la tua email"
+    },
+    'pt': {
+        search: "🔍 Pesquisar...", online: "Online", members: "Membros", contacts: "Contatos",
+        logout: "Sair", openTranslator: "🗣️ Tradutor Local", changeMobile: "📱 Mudar Número",
+        addExternal: "+ Adicionar Externo", selectContact: "Selecione um contato para conversar",
+        faceToFace: "Conversando cara a cara?", messagePlaceholder: "Mensagem ou colar imagem/link...",
+        recording: "Gravando áudio...", callMobile: "📞 Ligar Móvel", call: "📹 Ligar", add: "➕ Adicionar",
+        end: "🔴 Fim", uiLang: "🌐 Idioma da Interface", activeCall: "📞 Chamada Ativa - Voltar",
+        login: "Entrar", signup: "Inscrever-se", forgotPwd: "Esqueceu a senha?", createAcc: "Criar Conta",
+        backLogin: "Voltar", email: "E-mail", password: "Senha (min 6 caracteres)", mobile: "Número de Celular (Obrigatório)",
+        sendReset: "Enviar Link", loading: "Carregando...", sending: "Enviando...",
+        resetMsg: "Digite seu e-mail e enviaremos um link para redefinir sua senha.",
+        checkEmail: "✅ Verifique seu e-mail"
+    },
+    'zh': {
+        search: "🔍 搜索...", online: "在线", members: "成员", contacts: "联系人",
+        logout: "登出", openTranslator: "🗣️ 本地翻译器", changeMobile: "📱 更改手机号",
+        addExternal: "+ 添加外部", selectContact: "选择联系人开始聊天",
+        faceToFace: "面对面交谈？", messagePlaceholder: "留言或粘贴图像/链接...",
+        recording: "录音中...", callMobile: "📞 拨打手机", call: "📹 通话", add: "➕ 添加",
+        end: "🔴 结束", uiLang: "🌐 界面语言", activeCall: "📞 通话中 - 点击返回",
+        login: "登录", signup: "注册", forgotPwd: "忘记密码？", createAcc: "创建账户",
+        backLogin: "返回登录", email: "电子邮件", password: "密码（最少6个字符）", mobile: "手机号码（必填）",
+        sendReset: "发送重置链接", loading: "加载中...", sending: "发送中...",
+        resetMsg: "输入您的电子邮件，我们将向您发送重置密码的链接。",
+        checkEmail: "✅ 检查您的电子邮件"
+    },
+    'ru': {
+        search: "🔍 Поиск...", online: "В сети", members: "Участники", contacts: "Контакты",
+        logout: "Выйти", openTranslator: "🗣️ Локальный переводчик", changeMobile: "📱 Изменить номер",
+        addExternal: "+ Добавить контакт", selectContact: "Выберите контакт для общения",
+        faceToFace: "Говорите лицом к лицу?", messagePlaceholder: "Сообщение или ссылка...",
+        recording: "Запись аудио...", callMobile: "📞 Позвонить", call: "📹 Звонок", add: "➕ Добавить",
+        end: "🔴 Завершить", uiLang: "🌐 Язык интерфейса", activeCall: "📞 Активный звонок - Вернуться",
+        login: "Войти", signup: "Регистрация", forgotPwd: "Забыли пароль?", createAcc: "Создать аккаунт",
+        backLogin: "Назад", email: "Эл. почта", password: "Пароль (минимум 6 символов)", mobile: "Мобильный номер (Обязательно)",
+        sendReset: "Отправить ссылку", loading: "Загрузка...", sending: "Отправка...",
+        resetMsg: "Введите свой адрес электронной почты, и мы отправим ссылку для сброса.",
+        checkEmail: "✅ Проверьте почту"
+    }
+};
+
+const getBaseLang = (code) => (code ? code.split('-')[0] : 'en');
+const t = (key, langCode) => {
+    const base = getBaseLang(langCode);
+    if (uiDict[base] && uiDict[base][key]) return uiDict[base][key];
+    if (uiDict['en'] && uiDict['en'][key]) return uiDict['en'][key];
+    return key;
+};
+
+// ==========================================
 // 🎵 SIMPLE BELL RINGER
 // ==========================================
 class RingerManager {
@@ -441,7 +559,7 @@ const LanguageOptions = () => (
 // ==========================================
 // 🛡️ MAIN CHAT COMPONENT
 // ==========================================
-function ChatApp({ user, onLogout }) {
+function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     const userEmail = user?.email || '';
     const displayName = userEmail.split('@')[0];
     const isCapitalOlondra = userEmail.split('@')[0].toLowerCase() === 'capitalolondra';
@@ -676,7 +794,7 @@ function ChatApp({ user, onLogout }) {
         }
     }, [incomingCall, isCallingOut]);
 
-    // ✨ Generate AI Summary Handler (FIXED ERROR EXTRACTION)
+    // ✨ Generate AI Summary Handler
     const handleGenerateSummary = async () => {
         if (callTranscript.length === 0) return;
         setIsSummarizing(true);
@@ -854,7 +972,7 @@ function ChatApp({ user, onLogout }) {
                         }
                     } catch (error) { console.error(error); }
                 }
-                alert(`Added ${contactsToAdd.length} contact(s). Sent ${sentCount} invite(s).`);
+                alert(`${t('add', uiLanguage)} ${contactsToAdd.length}. Sent ${sentCount} invite(s).`);
             } else alert("All contacts already in list.");
         } finally { setIsImporting(false); }
     };
@@ -902,7 +1020,7 @@ function ChatApp({ user, onLogout }) {
             setNewMobile('');
         } catch (err) {
             if (err.message.includes('permission denied') || err.code === '42501') {
-                alert("Notice: Mobile number saved to your account successfully, but it was blocked from saving to the public 'profiles' directory due to database security policies (RLS). You may want to check your Supabase dashboard.");
+                alert("Notice: Mobile number saved to your account successfully, but it was blocked from saving to the public 'profiles' directory due to database security policies (RLS).");
                 setCurrentUserMobile(newMobile.trim());
                 setShowMobileModal(false);
                 setNewMobile('');
@@ -1379,10 +1497,10 @@ function ChatApp({ user, onLogout }) {
                 const res2 = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.trim())}&langpair=${sourceBase}|${targetBase}`);
                 const data2 = await res2.json();
                 if (data2.responseData?.translatedText) {
-                    const t = data2.responseData.translatedText;
-                    if (!t.includes("MYMEMORY WARNING") && !t.includes("PLEASE SELECT TWO DISTINCT LANGUAGES")) {
-                        translationCache.set(cacheKey, t);
-                        return t;
+                    const tText = data2.responseData.translatedText;
+                    if (!tText.includes("MYMEMORY WARNING") && !tText.includes("PLEASE SELECT TWO DISTINCT LANGUAGES")) {
+                        translationCache.set(cacheKey, tText);
+                        return tText;
                     }
                 }
             } catch (fallbackErr) {
@@ -2222,7 +2340,7 @@ function ChatApp({ user, onLogout }) {
 
                     <div style={{ padding: '15px 20px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222d34', flexWrap: 'wrap', gap: '10px' }}>
                         <h3 style={{ margin: 0, color: '#00a884', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            🗣️ Offline Local Translator
+                            {t('openTranslator', uiLanguage)}
                         </h3>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                             {callTranscript.length > 0 && (
@@ -2399,7 +2517,7 @@ function ChatApp({ user, onLogout }) {
             {showMobileModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 4000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>📱 Change Mobile Number</h3>
+                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px' }}>{t('changeMobile', uiLanguage)}</h3>
                         <p style={{ color: '#8696a0', fontSize: '13px', marginBottom: '20px' }}>Enter your new mobile number below to update your profile.</p>
                         <input
                             type="tel"
@@ -2567,7 +2685,7 @@ function ChatApp({ user, onLogout }) {
                                 </div>
                             </div>
 
-                            <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>Logout</button>
+                            <button onClick={onLogout} style={{ background: 'none', border: 'none', color: '#aebac1', cursor: 'pointer' }}>{t('logout', uiLanguage)}</button>
                         </div>
 
                         {isMobile && inVoiceCall && (
@@ -2579,7 +2697,7 @@ function ChatApp({ user, onLogout }) {
                                 }}
                                 style={{ padding: 15, backgroundColor: '#005c4b', color: 'white', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold', borderBottom: '1px solid #222d34' }}
                             >
-                                📞 Active Call - Tap to Return
+                                {t('activeCall', uiLanguage)}
                             </div>
                         )}
 
@@ -2588,7 +2706,7 @@ function ChatApp({ user, onLogout }) {
                                 onClick={() => setShowLocalTranslator(true)}
                                 style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
                             >
-                                🗣️ Open Local Translator
+                                {t('openTranslator', uiLanguage)}
                             </button>
                             <button
                                 onClick={() => {
@@ -2597,31 +2715,48 @@ function ChatApp({ user, onLogout }) {
                                 }}
                                 style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: '#2a3942', color: '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                             >
-                                📱 Change Mobile Number
+                                {t('changeMobile', uiLanguage)}
                             </button>
                         </div>
 
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #222d34', backgroundColor: '#111b21', display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                placeholder="🔍 Search users..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #2a3942', backgroundColor: '#202c33', color: 'white', boxSizing: 'border-box', outline: 'none' }}
-                            />
-                            <input
-                                type="text"
-                                placeholder="A-Z"
-                                value={jumpLetter}
-                                onChange={handleJumpLetter}
-                                maxLength={1}
-                                style={{ width: '50px', padding: '10px', borderRadius: '8px', border: '1px solid #00a884', backgroundColor: '#202c33', color: '#00a884', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold', outline: 'none' }}
-                            />
+                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #222d34', backgroundColor: '#111b21', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: '#2a3942', border: '1px solid #00a884', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+                                <span style={{ color: '#00a884', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {t('uiLang', uiLanguage)}
+                                </span>
+                                <select
+                                    value={uiLanguage}
+                                    onChange={(e) => {
+                                        setUiLanguage(e.target.value);
+                                        localStorage.setItem('ui_language', e.target.value);
+                                    }}
+                                    style={{ padding: '4px', borderRadius: '4px', background: '#111b21', color: 'white', border: '1px solid #38bdf8', cursor: 'pointer', maxWidth: '120px', fontSize: '12px' }}
+                                >
+                                    <LanguageOptions />
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <input
+                                    type="text"
+                                    placeholder={t('search', uiLanguage)}
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #2a3942', backgroundColor: '#202c33', color: 'white', boxSizing: 'border-box', outline: 'none' }}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="A-Z"
+                                    value={jumpLetter}
+                                    onChange={handleJumpLetter}
+                                    maxLength={1}
+                                    style={{ width: '50px', padding: '10px', borderRadius: '8px', border: '1px solid #00a884', backgroundColor: '#202c33', color: '#00a884', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold', outline: 'none' }}
+                                />
+                            </div>
                         </div>
 
                         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
                             <div onClick={() => setIsOnlineExpanded(!isOnlineExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34' }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Online ({filteredOnlineUsers.length})</span>
+                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>{t('online', uiLanguage)} ({filteredOnlineUsers.length})</span>
                                 <span style={{ color: '#8696a0' }}>{isOnlineExpanded ? '▼' : '▶'}</span>
                             </div>
                             {isOnlineExpanded && filteredOnlineUsers.map(u => (
@@ -2634,7 +2769,7 @@ function ChatApp({ user, onLogout }) {
                             {isCapitalOlondra && (
                                 <>
                                     <div onClick={() => setIsMembersExpanded(!isMembersExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
-                                        <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Members ({filteredMembers.length})</span>
+                                        <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>{t('members', uiLanguage)} ({filteredMembers.length})</span>
                                         <span style={{ color: '#8696a0' }}>{isMembersExpanded ? '▼' : '▶'}</span>
                                     </div>
                                     {isMembersExpanded && filteredMembers.map(c => {
@@ -2646,7 +2781,7 @@ function ChatApp({ user, onLogout }) {
                                                 {isCapitalOlondra && (
                                                     <button onClick={(e) => handleEditContactMobileClick(e, c.email, 'member')} style={{ background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
                                                 )}
-                                                {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title="Add to contacts">➕</button>}
+                                                {!isContact && <button onClick={(e) => { e.stopPropagation(); setSavedContacts(prev => { const updated = [...prev, { name: c.name?.trim() || c.email.split('@')[0], email: c.email }]; localStorage.setItem('totalRecallContacts', JSON.stringify(updated)); return updated; }); }} style={{ background: 'none', border: 'none', color: '#00a884', cursor: 'pointer', fontSize: '14px', padding: '5px' }} title={t('addExternal', uiLanguage)}>➕</button>}
                                             </div>
                                         );
                                     })}
@@ -2654,9 +2789,9 @@ function ChatApp({ user, onLogout }) {
                             )}
 
                             <div onClick={() => setIsContactsExpanded(!isContactsExpanded)} style={{ padding: '10px 15px', backgroundColor: '#202c33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid #222d34', marginTop: 10 }}>
-                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>Contacts ({filteredContacts.length})</span>
+                                <span style={{ color: '#8696a0', fontSize: 12, textTransform: 'uppercase', fontWeight: 'bold' }}>{t('contacts', uiLanguage)} ({filteredContacts.length})</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <button onClick={(e) => { e.stopPropagation(); handleImportContacts(); }} disabled={isImporting} style={{ backgroundColor: isImporting ? '#1a2a33' : '#2a3942', color: isImporting ? '#666' : '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: isImporting ? 'not-allowed' : 'pointer', fontSize: '11px' }}>{isImporting ? '⏳ Importing...' : '+ Add External'}</button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleImportContacts(); }} disabled={isImporting} style={{ backgroundColor: isImporting ? '#1a2a33' : '#2a3942', color: isImporting ? '#666' : '#00a884', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: isImporting ? 'not-allowed' : 'pointer', fontSize: '11px' }}>{isImporting ? '⏳...' : t('addExternal', uiLanguage)}</button>
                                     <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
                                 </div>
                             </div>
@@ -2687,37 +2822,37 @@ function ChatApp({ user, onLogout }) {
 
                                     <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                         <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                            {isMobile ? (isVonageCalling ? '📞...' : '📞') : (isVonageCalling ? '📞 Calling...' : '📞 Call Mobile')}
+                                            {isMobile ? (isVonageCalling ? '📞...' : '📞') : (isVonageCalling ? '📞...' : t('callMobile', uiLanguage))}
                                         </button>
 
                                         {!inVoiceCall ? (
                                             <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                {isMobile ? '📹' : '📹 Call'}
+                                                {isMobile ? '📹' : t('call', uiLanguage)}
                                             </button>
                                         ) : (
                                             <>
                                                 {!activeCallEmails.includes(selectedContact) && (
                                                     <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                        {isMobile ? '➕' : '➕ Add'}
+                                                        {isMobile ? '➕' : t('add', uiLanguage)}
                                                     </button>
                                                 )}
                                                 <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isTranscribing ? '💬 On' : '💬 Off') : (isTranscribing ? '💬 Transcribe On' : '💬 Transcribe Off')}
+                                                    {isMobile ? (isTranscribing ? '💬 On' : '💬 Off') : (isTranscribing ? '💬 On' : '💬 Off')}
                                                 </button>
                                                 <button onClick={toggleTTS} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isTTSOn ? '🔊 On' : '🔇 Off') : (isTTSOn ? '🔊 Speak On' : '🔇 Speak Off')}
+                                                    {isMobile ? (isTTSOn ? '🔊 On' : '🔇 Off') : (isTTSOn ? '🔊 On' : '🔇 Off')}
                                                 </button>
                                                 <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isMuted ? '🔇' : '🎙️') : (isMuted ? '🔇 Unmute' : '🎙️ Mute')}
+                                                    {isMobile ? (isMuted ? '🔇' : '🎙️') : (isMuted ? '🔇 Mute' : '🎙️ Mute')}
                                                 </button>
                                                 <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isVideoOff ? '📷' : '📸') : (isVideoOff ? '📷 Camera On' : '📸 Camera Off')}
+                                                    {isMobile ? (isVideoOff ? '📷' : '📸') : (isVideoOff ? '📷 Off' : '📸 Off')}
                                                 </button>
                                                 <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isScreenSharing ? '💻 Stop' : '💻 Share') : (isScreenSharing ? '💻 Stop Share' : '💻 Share')}
+                                                    {isMobile ? (isScreenSharing ? '💻 Stop' : '💻 Share') : (isScreenSharing ? '💻 Stop' : '💻 Share')}
                                                 </button>
                                                 <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? '🔴' : '🔴 End'}
+                                                    {isMobile ? '🔴' : t('end', uiLanguage)}
                                                 </button>
                                             </>
                                         )}
@@ -2799,22 +2934,22 @@ function ChatApp({ user, onLogout }) {
                                                 <LinkPreview url={previewUrl} style={{ marginTop: 0 }} />
                                             </div>
                                         )}
-                                        <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} onPaste={handlePaste} placeholder={isRecording ? "Recording audio..." : "Message or paste image/link..."} disabled={isRecording} rows={1} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'Segoe UI, sans-serif' }} />
+                                        <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={handleKey} onPaste={handlePaste} placeholder={isRecording ? t('recording', uiLanguage) : t('messagePlaceholder', uiLanguage)} disabled={isRecording} rows={1} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'Segoe UI, sans-serif' }} />
                                     </div>
                                     <button type="submit" disabled={!chatInput.trim() && !isRecording} style={{ backgroundColor: chatInput.trim() ? '#00a884' : '#333', border: 'none', borderRadius: '50%', width: 40, height: 40, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#111', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>➤</button>
                                 </form>
                             </>
                         ) : (
-                            <div style={{ display: 'flex', flexGrow: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#8696a0', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexGrow: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#8696a0', textAlign: 'center', padding: '20px' }}>
                                 <div>
                                     <h2 style={{ color: 'white', marginBottom: '10px' }}>TotalRecall</h2>
-                                    <p>Select a contact to start chatting</p>
+                                    <p>{t('selectContact', uiLanguage)}</p>
                                 </div>
                                 <div style={{ margin: '30px 0', width: '40px', height: '1px', backgroundColor: '#222d34' }}></div>
                                 <div>
-                                    <p style={{ fontSize: '13px', marginBottom: '15px' }}>Talking face-to-face with someone?</p>
+                                    <p style={{ fontSize: '13px', marginBottom: '15px' }}>{t('faceToFace', uiLanguage)}</p>
                                     <button onClick={() => setShowLocalTranslator(true)} style={{ padding: '12px 24px', borderRadius: '24px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0, 168, 132, 0.3)' }}>
-                                        🗣️ Open Local Translator
+                                        {t('openTranslator', uiLanguage)}
                                     </button>
                                 </div>
                             </div>
@@ -2825,8 +2960,8 @@ function ChatApp({ user, onLogout }) {
             <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
                 <span>© NoirSoft Ltd</span>
                 <div style={{ display: 'flex', gap: '20px' }}>
-                    {isCapitalOlondra && <span>👥 Members: {memberCount}</span>}
-                    <span>🟢 Online: {totalOnlineCount}</span>
+                    {isCapitalOlondra && <span>👥 {t('members', uiLanguage)}: {memberCount}</span>}
+                    <span>🟢 {t('online', uiLanguage)}: {totalOnlineCount}</span>
                 </div>
             </div>
         </div>
@@ -2857,6 +2992,9 @@ export default function App() {
     const [error, setError] = useState('');
     const [isSignupMode, setIsSignupMode] = useState(false);
     const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
+
+    // ✨ UI Language State for entire app
+    const [uiLanguage, setUiLanguage] = useState(() => localStorage.getItem('ui_language') || 'en-US');
 
     const syncProfile = async (currentUser) => {
         if (!currentUser || !currentUser.email) return;
@@ -2936,7 +3074,7 @@ export default function App() {
                     redirectTo: window.location.origin,
                 });
                 if (error) throw new Error(error.message);
-                setConfirmMessage("We've sent you a password reset link.");
+                setConfirmMessage(t('checkEmail', uiLanguage) + " - we've sent you a password reset link.");
                 setShowConfirm(true);
             } catch (err) {
                 setError(err.message);
@@ -3001,54 +3139,69 @@ export default function App() {
         } catch (err) { setError(err.message); } finally { setLoading(false); }
     };
 
-    if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} />;
+    if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} uiLanguage={uiLanguage} setUiLanguage={setUiLanguage} />;
 
     return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI' }}>
-            <div style={{ backgroundColor: '#202c33', padding: 40, borderRadius: 8, width: 350, maxWidth: '90%', textAlign: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI', position: 'relative' }}>
+
+            {/* Top Right UI Language Selector */}
+            <div style={{ position: 'absolute', top: 20, right: 20 }}>
+                <select
+                    value={uiLanguage}
+                    onChange={(e) => {
+                        setUiLanguage(e.target.value);
+                        localStorage.setItem('ui_language', e.target.value);
+                    }}
+                    style={{ padding: '8px 12px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #00a884', outline: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                    <LanguageOptions />
+                </select>
+            </div>
+
+            <div style={{ backgroundColor: '#202c33', padding: 40, borderRadius: 8, width: 350, maxWidth: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                 <h2 style={{ color: '#00a884', marginBottom: 30 }}>TotalRecall</h2>
                 {error && <div style={{ backgroundColor: '#dc2626', color: 'white', padding: 10, borderRadius: 4, marginBottom: 15, wordWrap: 'break-word' }}>{error}</div>}
 
                 {showConfirm ? (
                     <div>
-                        <h3>✅ Check your email</h3>
+                        <h3>{t('checkEmail', uiLanguage)}</h3>
                         <p style={{ color: '#8696a0', marginBottom: 20 }}>{confirmMessage}</p>
-                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); setIsForgotPasswordMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>Back to Login</button>
+                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); setIsForgotPasswordMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>{t('backLogin', uiLanguage)}</button>
                     </div>
                 ) : isForgotPasswordMode ? (
                     <form onSubmit={e => e.preventDefault()}>
-                        <p style={{ color: '#8696a0', marginBottom: 15, fontSize: '14px' }}>Enter your email address and we'll send you a link to reset your password.</p>
-                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        <p style={{ color: '#8696a0', marginBottom: 15, fontSize: '14px' }}>{t('resetMsg', uiLanguage)}</p>
+                        <input type="email" placeholder={t('email', uiLanguage)} value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
 
                         <button onClick={e => auth(e, 'reset')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>
-                            {loading ? 'Sending...' : 'Send Reset Link'}
+                            {loading ? t('sending', uiLanguage) : t('sendReset', uiLanguage)}
                         </button>
                         <button onClick={() => { setIsForgotPasswordMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>
-                            Back to Login
+                            {t('backLogin', uiLanguage)}
                         </button>
                     </form>
                 ) : (
                     <form onSubmit={e => e.preventDefault()}>
-                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        <input type="email" placeholder={t('email', uiLanguage)} value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
 
                         {isSignupMode && (
-                            <input type="tel" placeholder="Mobile Number (Mandatory)" value={mobile} onChange={e => setMobile(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} required />
+                            <input type="tel" placeholder={t('mobile', uiLanguage)} value={mobile} onChange={e => setMobile(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} required />
                         )}
 
-                        <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        <input type="password" placeholder={t('password', uiLanguage)} value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
 
                         {!isSignupMode ? (
                             <>
-                                <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Log In'}</button>
-                                <button onClick={() => { setIsSignupMode(true); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Sign Up</button>
+                                <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? t('loading', uiLanguage) : t('login', uiLanguage)}</button>
+                                <button onClick={() => { setIsSignupMode(true); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>{t('signup', uiLanguage)}</button>
                                 <button onClick={() => { setIsForgotPasswordMode(true); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: 'none', fontSize: '13px', cursor: 'pointer', marginTop: '10px', textDecoration: 'underline' }} disabled={loading}>
-                                    Forgot Password?
+                                    {t('forgotPwd', uiLanguage)}
                                 </button>
                             </>
                         ) : (
                             <>
-                                <button onClick={e => auth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? 'Loading...' : 'Create Account'}</button>
-                                <button onClick={() => { setIsSignupMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>Back to Login</button>
+                                <button onClick={e => auth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? t('loading', uiLanguage) : t('createAcc', uiLanguage)}</button>
+                                <button onClick={() => { setIsSignupMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>{t('backLogin', uiLanguage)}</button>
                             </>
                         )}
                     </form>
