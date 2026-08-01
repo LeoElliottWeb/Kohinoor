@@ -451,6 +451,10 @@ function ChatApp({ user, onLogout }) {
     const [savedContacts, setSavedContacts] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
 
+    const [jumpLetter, setJumpLetter] = useState('');
+    const [highlightedEmail, setHighlightedEmail] = useState(null);
+    const highlightTimeoutRef = useRef(null);
+
     const onlineUsersRef = useRef([]);
     useEffect(() => { onlineUsersRef.current = onlineUsers; }, [onlineUsers]);
 
@@ -684,14 +688,11 @@ function ChatApp({ user, onLogout }) {
 
             if (error) {
                 let actualErrorMessage = error.message;
-                // Supabase Edge Function non-2xx responses hide the body in error.context
                 if (error.context && typeof error.context.json === 'function') {
                     try {
                         const errorBody = await error.context.json();
                         actualErrorMessage = errorBody.error || errorBody.message || actualErrorMessage;
-                    } catch (e) {
-                        // fallback if json parsing fails
-                    }
+                    } catch (e) { }
                 }
                 throw new Error(actualErrorMessage);
             }
@@ -2041,6 +2042,43 @@ function ChatApp({ user, onLogout }) {
         return 'https://flagcdn.com/w20/un.png';
     };
 
+    const handleJumpLetter = (e) => {
+        const val = e.target.value.toUpperCase();
+        if (val && !/^[A-Z]$/.test(val)) return;
+        setJumpLetter(val);
+        if (!val) {
+            setHighlightedEmail(null);
+            return;
+        }
+
+        const getOnlineName = (u) => allKnown.find(k => k.email?.toLowerCase() === u.email?.toLowerCase())?.name || u.email.split('@')[0];
+        const getMemberName = (c) => c.name?.trim() || c.email.split('@')[0];
+        const getContactName = (c) => c.name?.trim() || (c.email.includes('@') ? c.email.split('@')[0] : c.email);
+
+        let match = null;
+
+        if (isOnlineExpanded && !match) {
+            match = filteredOnlineUsers.find(u => getOnlineName(u).toUpperCase().startsWith(val));
+        }
+        if (isCapitalOlondra && isMembersExpanded && !match) {
+            match = filteredMembers.find(c => getMemberName(c).toUpperCase().startsWith(val));
+        }
+        if (isContactsExpanded && !match) {
+            match = filteredContacts.find(c => getContactName(c).toUpperCase().startsWith(val));
+        }
+
+        if (match) {
+            const el = document.getElementById(`contact-row-${match.email}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+                setHighlightedEmail(match.email);
+                highlightTimeoutRef.current = setTimeout(() => setHighlightedEmail(null), 1500);
+            }
+        }
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
 
@@ -2563,13 +2601,21 @@ function ChatApp({ user, onLogout }) {
                             </button>
                         </div>
 
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #222d34', backgroundColor: '#111b21' }}>
+                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #222d34', backgroundColor: '#111b21', display: 'flex', gap: '10px' }}>
                             <input
                                 type="text"
-                                placeholder="🔍 Search users and contacts..."
+                                placeholder="🔍 Search users..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #2a3942', backgroundColor: '#202c33', color: 'white', boxSizing: 'border-box', outline: 'none' }}
+                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #2a3942', backgroundColor: '#202c33', color: 'white', boxSizing: 'border-box', outline: 'none' }}
+                            />
+                            <input
+                                type="text"
+                                placeholder="A-Z"
+                                value={jumpLetter}
+                                onChange={handleJumpLetter}
+                                maxLength={1}
+                                style={{ width: '50px', padding: '10px', borderRadius: '8px', border: '1px solid #00a884', backgroundColor: '#202c33', color: '#00a884', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold', outline: 'none' }}
                             />
                         </div>
 
@@ -2579,7 +2625,7 @@ function ChatApp({ user, onLogout }) {
                                 <span style={{ color: '#8696a0' }}>{isOnlineExpanded ? '▼' : '▶'}</span>
                             </div>
                             {isOnlineExpanded && filteredOnlineUsers.map(u => (
-                                <div key={u.email} onClick={() => setSelectedContact(u.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === u.email ? '#2a3942' : 'transparent' }}>
+                                <div id={`contact-row-${u.email}`} key={u.email} onClick={() => setSelectedContact(u.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', transition: 'background-color 0.5s', backgroundColor: highlightedEmail === u.email ? 'rgba(0, 168, 132, 0.4)' : (selectedContact === u.email ? '#2a3942' : 'transparent') }}>
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{u.email[0]?.toUpperCase()}</div>
                                     <span>{allKnown.find(k => k.email?.toLowerCase() === u.email?.toLowerCase())?.name || u.email.split('@')[0]}</span>
                                 </div>
@@ -2594,7 +2640,7 @@ function ChatApp({ user, onLogout }) {
                                     {isMembersExpanded && filteredMembers.map(c => {
                                         const isContact = savedContacts.some(sc => sc.email?.trim().toLowerCase() === c.email?.trim().toLowerCase());
                                         return (
-                                            <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
+                                            <div id={`contact-row-${c.email}`} key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', transition: 'background-color 0.5s', backgroundColor: highlightedEmail === c.email ? 'rgba(0, 168, 132, 0.4)' : (selectedContact === c.email ? '#2a3942' : 'transparent') }}>
                                                 <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#00a884', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#111', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                                 <div style={{ flexGrow: 1 }}>{c.name?.trim() || c.email.split('@')[0]}</div>
                                                 {isCapitalOlondra && (
@@ -2615,7 +2661,7 @@ function ChatApp({ user, onLogout }) {
                                 </div>
                             </div>
                             {isContactsExpanded && filteredContacts.map(c => (
-                                <div key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', backgroundColor: selectedContact === c.email ? '#2a3942' : 'transparent' }}>
+                                <div id={`contact-row-${c.email}`} key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', transition: 'background-color 0.5s', backgroundColor: highlightedEmail === c.email ? 'rgba(0, 168, 132, 0.4)' : (selectedContact === c.email ? '#2a3942' : 'transparent') }}>
                                     <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
                                     <div style={{ flexGrow: 1 }}><div>{c.name || (c.email.includes('@') ? c.email.split('@')[0] : c.email)}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
                                     {isCapitalOlondra && (
