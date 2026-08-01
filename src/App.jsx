@@ -259,7 +259,7 @@ function LinkPreview({ url, style = {} }) {
 }
 
 // ==========================================
-// 📝 SUBTITLE OVERLAY COMPONENT (POLISHED)
+// 📝 SUBTITLE OVERLAY COMPONENT
 // ==========================================
 function SubtitleOverlay({ subtitle }) {
     if (!subtitle || (!subtitle.original && !subtitle.translated)) return null;
@@ -477,6 +477,11 @@ function ChatApp({ user, onLogout }) {
     const [callTranscript, setCallTranscript] = useState([]);
     const [showTranscriptModal, setShowTranscriptModal] = useState(false);
     const [isSendingTranscript, setIsSendingTranscript] = useState(false);
+
+    // ✨ AI Summary State
+    const [transcriptSummary, setTranscriptSummary] = useState('');
+    const [isSummarizing, setIsSummarizing] = useState(false);
+
     const callTranscriptRef = useRef([]);
     useEffect(() => { callTranscriptRef.current = callTranscript; }, [callTranscript]);
 
@@ -570,7 +575,6 @@ function ChatApp({ user, onLogout }) {
         const loadSettingsAndProfile = async () => {
             if (!userEmail) return;
 
-            // Load language settings
             const { data: settingsData } = await supabase
                 .from('user_settings')
                 .select('spoken_lang, target_lang')
@@ -583,7 +587,6 @@ function ChatApp({ user, onLogout }) {
                 setHasSavedSettings(true);
             }
 
-            // Load current mobile number
             try {
                 const { data: profileData } = await supabase
                     .from('profiles')
@@ -617,7 +620,6 @@ function ChatApp({ user, onLogout }) {
             setHasSavedSettings(true);
         }
     };
-    // ==========================================
 
     useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
     useEffect(() => {
@@ -670,6 +672,42 @@ function ChatApp({ user, onLogout }) {
         }
     }, [incomingCall, isCallingOut]);
 
+    // ✨ Generate AI Summary Handler (FIXED ERROR EXTRACTION)
+    const handleGenerateSummary = async () => {
+        if (callTranscript.length === 0) return;
+        setIsSummarizing(true);
+        try {
+            const textToSummarize = callTranscript.map(e => `[${e.time}] ${e.sender === userEmail ? 'You' : e.sender}: ${e.original} (Translated: ${e.translated})`).join('\n');
+            const { data, error } = await supabase.functions.invoke('ai-summary', {
+                body: { transcript: textToSummarize }
+            });
+
+            if (error) {
+                let actualErrorMessage = error.message;
+                // Supabase Edge Function non-2xx responses hide the body in error.context
+                if (error.context && typeof error.context.json === 'function') {
+                    try {
+                        const errorBody = await error.context.json();
+                        actualErrorMessage = errorBody.error || errorBody.message || actualErrorMessage;
+                    } catch (e) {
+                        // fallback if json parsing fails
+                    }
+                }
+                throw new Error(actualErrorMessage);
+            }
+
+            if (data && data.summary) {
+                setTranscriptSummary(data.summary);
+            } else {
+                throw new Error("No summary returned");
+            }
+        } catch (err) {
+            alert('Failed to generate summary: ' + err.message);
+        } finally {
+            setIsSummarizing(false);
+        }
+    };
+
     useEffect(() => {
         supabase.from('auth').select('email, name').then(({ data, error }) => {
             if (error) console.error("Error loading auth members:", error);
@@ -697,25 +735,18 @@ function ChatApp({ user, onLogout }) {
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
 
-    // ✨ BROADCAST LANGUAGE CHANGES TO REMOTE PEER ✨
     const broadcastLanguageChange = (newSpoken, newTarget) => {
         if (inCallRef.current && channelRef.current) {
             Object.keys(peersRef.current).forEach(peer => {
                 channelRef.current.send({
                     type: 'broadcast',
                     event: 'webrtc-language-update',
-                    payload: {
-                        targetEmail: peer,
-                        sender: userEmail,
-                        spokenLang: newSpoken,
-                        targetLang: newTarget
-                    }
+                    payload: { targetEmail: peer, sender: userEmail, spokenLang: newSpoken, targetLang: newTarget }
                 });
             });
         }
     };
 
-    // ✨ BROADCAST TTS TOGGLE TO REMOTE PEER ✨
     const toggleTTS = () => {
         const nextState = !isTTSOn;
         setIsTTSOn(nextState);
@@ -806,7 +837,10 @@ function ChatApp({ user, onLogout }) {
                             });
                             if (!error) sentCount++;
                         } else {
-                            const joinLink = `${window.location.origin}`;
+                            const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                                ? 'https://totalrecall.network'
+                                : window.location.origin;
+                            const joinLink = `${BASE_URL}`;
                             const { error } = await supabase.functions.invoke('vonage-invite', {
                                 body: {
                                     to: contact.email,
@@ -844,11 +878,8 @@ function ChatApp({ user, onLogout }) {
         setIsUpdatingMobile(true);
         try {
             const trimmedMobile = newMobile.trim();
-
-            // 1. Always update auth metadata first (bypasses RLS)
             await supabase.auth.updateUser({ data: { mobile: trimmedMobile } });
 
-            // 2. Try to update existing profile
             const { data: updateData, error: updateError } = await supabase
                 .from('profiles')
                 .update({ mobile: trimmedMobile })
@@ -857,7 +888,6 @@ function ChatApp({ user, onLogout }) {
 
             if (updateError) throw updateError;
 
-            // 3. If 0 rows updated, the profile row does not exist yet. We must insert it.
             if (!updateData || updateData.length === 0) {
                 const { error: insertError } = await supabase
                     .from('profiles')
@@ -1043,7 +1073,6 @@ function ChatApp({ user, onLogout }) {
 
         setInVoiceCall(false);
 
-        // Show Transcript Modal if transcript exists
         if (callTranscriptRef.current.length > 0) {
             setShowTranscriptModal(true);
         }
@@ -1055,6 +1084,7 @@ function ChatApp({ user, onLogout }) {
         if (!channelRef.current) return;
         inCallRef.current = true;
         setCallTranscript([]);
+        setTranscriptSummary('');
         setShowTranscriptModal(false);
         if (!isAuto) setIsCallingOut(true);
 
@@ -1075,9 +1105,9 @@ function ChatApp({ user, onLogout }) {
                     sender: userEmail,
                     isAuto,
                     isTranscribing: isT,
-                    spokenLang: spokenLangRef.current, // Sync language on call initiation
-                    targetLang: targetLangRef.current, // Sync language on call initiation
-                    isTTSOn: isTTSOnRef.current // Sync TTS state on call initiation
+                    spokenLang: spokenLangRef.current,
+                    targetLang: targetLangRef.current,
+                    isTTSOn: isTTSOnRef.current
                 }
             });
             setInVoiceCall(true);
@@ -1088,7 +1118,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ NEW: Prepare Vonage call via Modal instead of just firing it
     const prepareVonageCall = async (emailToCall) => {
         let targetMobile = null;
 
@@ -1108,7 +1137,6 @@ function ChatApp({ user, onLogout }) {
         setVonageCallModal({ email: emailToCall });
     };
 
-    // ✨ Execute the Vonage Call after Modal confirmation
     const executeVonageCall = async () => {
         const cleanNumber = vonageMobileInput.replace(/[^0-9]/g, '');
         if (!cleanNumber || cleanNumber.length < 5) {
@@ -1118,10 +1146,12 @@ function ChatApp({ user, onLogout }) {
 
         setIsVonageCalling(true);
         try {
-            const joinLink = `${window.location.origin}/?call_from=${encodeURIComponent(userEmail)}`;
+            const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'https://totalrecall.network'
+                : window.location.origin;
 
-            // ✨ FIX: Passing the custom message in multiple standard fields to ensure 
-            // the Supabase Edge Function successfully retrieves the text.
+            const joinLink = `${BASE_URL}/?call_from=${encodeURIComponent(userEmail)}`;
+
             const customTxt = vonageCustomMessage.trim();
             const { data, error } = await supabase.functions.invoke('vonage-call', {
                 body: {
@@ -1129,13 +1159,28 @@ function ChatApp({ user, onLogout }) {
                     callerEmail: userEmail,
                     callerName: displayName,
                     joinLink: joinLink,
-                    message: customTxt,         // Standard property 1
-                    text: customTxt,            // Standard property 2
-                    customMessage: customTxt    // Standard property 3
+                    message: customTxt,
+                    text: customTxt,
+                    customMessage: customTxt
                 }
             });
 
             if (error) throw new Error(error.message);
+
+            if (vonageCallModal && vonageCallModal.email && customTxt) {
+                const { data: msgData, error: msgError } = await supabase
+                    .from('messages')
+                    .insert([{
+                        sender_email: userEmail,
+                        receiver_email: vonageCallModal.email,
+                        text: customTxt
+                    }])
+                    .select();
+
+                if (!msgError && msgData?.length) {
+                    setChatMessages(prev => prev.find(m => m.id === msgData[0].id) ? prev : [...prev, msgData[0]]);
+                }
+            }
 
             alert(`Call alerting and SMS invite sent to ${cleanNumber}. They will join this chat window shortly.`);
 
@@ -1172,6 +1217,7 @@ function ChatApp({ user, onLogout }) {
 
     const autoAcceptCall = async (call) => {
         setCallTranscript([]);
+        setTranscriptSummary('');
         setShowTranscriptModal(false);
         try {
             if (!localStreamRef.current) { const s = await getMedia(); localStreamRef.current = s; setLocalStream(s); }
@@ -1204,6 +1250,7 @@ function ChatApp({ user, onLogout }) {
         lastActionRef.current = Date.now();
         inCallRef.current = true;
         setCallTranscript([]);
+        setTranscriptSummary('');
         setShowTranscriptModal(false);
         if (ringer.isActive()) ringer.stop();
         setIncomingCall(null);
@@ -1309,7 +1356,6 @@ function ChatApp({ user, onLogout }) {
         setIncomingCall(null);
     };
 
-    // ✨ TRANSLATION UTILITY ✨
     const translateText = async (text, sourceLang, targetLang) => {
         if (!text || !text.trim()) return text;
         const sourceBase = sourceLang.startsWith('zh') ? sourceLang : sourceLang.split('-')[0];
@@ -1333,7 +1379,6 @@ function ChatApp({ user, onLogout }) {
                 const data2 = await res2.json();
                 if (data2.responseData?.translatedText) {
                     const t = data2.responseData.translatedText;
-                    // Prevent Mymemory limit warnings from appearing as translations
                     if (!t.includes("MYMEMORY WARNING") && !t.includes("PLEASE SELECT TWO DISTINCT LANGUAGES")) {
                         translationCache.set(cacheKey, t);
                         return t;
@@ -1346,16 +1391,10 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ DEEPGRAM LIVE AUDIO STREAMING ✨
     const startCC = async (isReconnect = false) => {
         if (isTranscribingRef.current && !isReconnect) return;
 
         const DEEPGRAM_API_KEY = '6fad18b20b8cb263a38d87b7e4d4045d71acad96';
-
-        if (DEEPGRAM_API_KEY === 'YOUR_DEEPGRAM_API_KEY') {
-            alert("Please insert your Deepgram API Key into the code to use transcription.");
-            return;
-        }
 
         if (!isReconnect) {
             setIsTranscribing(true);
@@ -1365,7 +1404,7 @@ function ChatApp({ user, onLogout }) {
         const langMap = {
             'en-US': 'en', 'es-ES': 'es', 'fr-FR': 'fr', 'de-DE': 'de', 'it-IT': 'it',
             'zh-CN': 'zh', 'ja-JP': 'ja', 'pt-PT': 'pt', 'pt-BR': 'pt', 'el-GR': 'el',
-            'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl' // ✨ ADDED POLISH TO DEEPGRAM MAP
+            'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
@@ -1377,7 +1416,6 @@ function ChatApp({ user, onLogout }) {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             }
 
-            // Clean up old recorder if this is a reconnect
             if (ccMediaRecorderRef.current && ccMediaRecorderRef.current.state !== 'inactive') {
                 try { ccMediaRecorderRef.current.stop(); } catch (e) { }
             }
@@ -1396,7 +1434,6 @@ function ChatApp({ user, onLogout }) {
                 });
                 ccMediaRecorderRef.current.start(250);
 
-                // 🛠️ FIX: Deepgram KeepAlive to stop it dropping when recipient is silent
                 keepAliveInterval = setInterval(() => {
                     if (socket.readyState === 1) {
                         socket.send(JSON.stringify({ type: 'KeepAlive' }));
@@ -1429,7 +1466,6 @@ function ChatApp({ user, onLogout }) {
 
             socket.onclose = () => {
                 if (keepAliveInterval) clearInterval(keepAliveInterval);
-                // 🛠️ FIX: Auto-reconnect if it dropped unexpectedly
                 if (isTranscribingRef.current) {
                     setTimeout(() => {
                         if (isTranscribingRef.current) startCC(true);
@@ -1452,7 +1488,6 @@ function ChatApp({ user, onLogout }) {
 
         if (ccMediaRecorderRef.current && ccMediaRecorderRef.current.state !== 'inactive') {
             try { ccMediaRecorderRef.current.stop(); } catch (e) { }
-            // Stop tracks only if they were newly created (not the main call track)
             ccMediaRecorderRef.current.stream.getTracks().forEach(track => {
                 const isMainTrack = localStreamRef.current?.getTracks().includes(track);
                 if (!isMainTrack) {
@@ -1502,7 +1537,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ LANGUAGE SWAP UTILITY FOR LOCAL TRANSLATOR ✨
     const swapLanguages = () => {
         const newSpoken = targetLang;
         const newTarget = spokenLang;
@@ -1534,7 +1568,6 @@ function ChatApp({ user, onLogout }) {
         }
     }, [inVoiceCall, hasSavedSettings]);
 
-    // ✨ CRITICAL FIX FOR TARGET TRANSLATION & DISPLAY ✨
     useEffect(() => {
         processSubtitleRef.current = async (payload) => {
             const { sender, text, lang, isFinal, clear } = payload;
@@ -1546,9 +1579,6 @@ function ChatApp({ user, onLogout }) {
                 return;
             }
 
-            // 🛠️ FIX: ALWAYS translate text to the opposite person's language.
-            // When YOU speak, you translate it to their language so you can see what they receive.
-            // When THEY speak, you translate it to your language so you understand them.
             const translateToLang = sender === userEmail ? targetLangRef.current : spokenLangRef.current;
             const sourceBase = lang.startsWith('zh') ? lang : lang.split('-')[0];
             const targetBase = translateToLang.startsWith('zh') ? translateToLang : translateToLang.split('-')[0];
@@ -1573,7 +1603,6 @@ function ChatApp({ user, onLogout }) {
                             return prev;
                         });
 
-                        // Call Transcript Integration
                         if (isFinal) {
                             setCallTranscript(prev => {
                                 const isDup = prev.length > 0 && prev[prev.length - 1].original === text && prev[prev.length - 1].sender === sender;
@@ -1594,13 +1623,11 @@ function ChatApp({ user, onLogout }) {
                 const now = Date.now();
                 const lastTime = lastTranslationTime[sender] || 0;
 
-                // 🛠️ FIX: Smarter throttling logic
                 if (isFinal) {
                     clearTimeout(debounceTimers.current[sender]);
                     doTranslate();
                     lastTranslationTime[sender] = now;
                 } else {
-                    // Update interim translations at most every 1.5 seconds to prevent rate limits
                     if (now - lastTime > 1500) {
                         doTranslate();
                         lastTranslationTime[sender] = now;
@@ -1612,7 +1639,6 @@ function ChatApp({ user, onLogout }) {
                     }, 800);
                 }
             } else if (!needsTranslation && isFinal && text.trim().length > 0) {
-                // Call Transcript Integration for same language
                 setCallTranscript(prev => {
                     const isDup = prev.length > 0 && prev[prev.length - 1].original === text && prev[prev.length - 1].sender === sender;
                     if (isDup) return prev;
@@ -1698,7 +1724,6 @@ function ChatApp({ user, onLogout }) {
             }
         });
 
-        // ✨ HANDLE REAL-TIME TTS SYNC FROM REMOTE PEER ✨
         ch.on('broadcast', { event: 'webrtc-tts-sync' }, ({ payload }) => {
             if (payload.targetEmail === userEmail && inCallRef.current) {
                 setIsTTSOn(payload.isTTSOn);
@@ -1718,7 +1743,6 @@ function ChatApp({ user, onLogout }) {
                 saveUserSettings(newSpoken, newTarget);
             }
 
-            // ✨ INITIALIZE TTS SYNC FROM CALLER ✨
             if (payload.isTTSOn !== undefined) {
                 setIsTTSOn(payload.isTTSOn);
             }
@@ -1887,7 +1911,6 @@ function ChatApp({ user, onLogout }) {
         }
     };
 
-    // ✨ HANDLE SEND LOCAL TRANSCRIPT
     const handleSendLocalTranscript = async () => {
         if (callTranscript.length === 0) return;
         const targetEmail = prompt("Enter the email address to send the translation history to:");
@@ -1898,9 +1921,20 @@ function ChatApp({ user, onLogout }) {
 
         setIsSendingLocalTranscript(true);
         try {
-            const emailText = callTranscript.map(e => `[${e.time}]\nSpoken (${spokenLang}): ${e.original}\nTranslated (${targetLang}): ${e.translated}\n`).join('\n');
+            let emailText = transcriptSummary ? `✨ AI Summary:\n${transcriptSummary}\n\n---\n\n` : '';
+            emailText += callTranscript.map(e => `[${e.time}]\nSpoken (${spokenLang}): ${e.original}\nTranslated (${targetLang}): ${e.translated}\n`).join('\n');
 
-            const htmlLines = callTranscript.map(e => {
+            let htmlLines = '';
+            if (transcriptSummary) {
+                htmlLines += `
+                <div style="background-color: #005c4b20; border-left: 4px solid #00a884; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
+                    <h3 style="color: #00a884; margin-top: 0; margin-bottom: 8px;">✨ AI Summary</h3>
+                    <p style="color: #1e293b; line-height: 1.5; margin: 0; font-size: 15px;">${transcriptSummary}</p>
+                </div>
+                `;
+            }
+
+            htmlLines += callTranscript.map(e => {
                 let itemHtml = `<div style="margin-bottom: 16px; background-color: #f0fdf4; padding: 12px; border-radius: 8px; border-left: 4px solid #00a884;">`;
                 itemHtml += `<div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">${e.time}</div>`;
                 itemHtml += `<div style="color: #64748b; font-size: 11px; margin-bottom: 2px; text-transform: uppercase;">Spoken (${spokenLang})</div>`;
@@ -2010,14 +2044,29 @@ function ChatApp({ user, onLogout }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: '#111b21', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', overflow: 'hidden', position: 'relative' }}>
 
-            {/* ✨ TRANSCRIPT MODAL (POLISHED) ✨ */}
             {showTranscriptModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 5000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '16px', width: '550px', maxWidth: '90%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', border: '1px solid #2a3942', boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
-                        <h3 style={{ color: '#00a884', marginTop: 0, marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            📝 Call Transcript
-                        </h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 style={{ color: '#00a884', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                📝 Call Transcript
+                            </h3>
+                            <button
+                                onClick={handleGenerateSummary}
+                                disabled={isSummarizing || callTranscript.length === 0}
+                                style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: '#2a3942', color: '#00a884', border: '1px solid #00a884', cursor: (isSummarizing || callTranscript.length === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+                            >
+                                {isSummarizing ? '✨ Summarizing...' : '✨ AI Summary'}
+                            </button>
+                        </div>
                         <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', backgroundColor: '#111b21', padding: '15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            {transcriptSummary && (
+                                <div style={{ backgroundColor: '#005c4b30', borderLeft: '4px solid #00a884', padding: '12px', marginBottom: '15px', borderRadius: '8px' }}>
+                                    <h4 style={{ color: '#00a884', margin: '0 0 8px 0' }}>✨ Summary</h4>
+                                    <p style={{ color: '#e9edef', margin: 0, fontSize: '14px', lineHeight: '1.5' }}>{transcriptSummary}</p>
+                                </div>
+                            )}
+
                             {callTranscript.map((entry, idx) => {
                                 const isYou = entry.sender === userEmail;
                                 return (
@@ -2054,10 +2103,20 @@ function ChatApp({ user, onLogout }) {
                                 onClick={async () => {
                                     setIsSendingTranscript(true);
                                     try {
-                                        const emailText = callTranscript.map(e => `[${e.time}] ${e.sender === userEmail ? 'You' : e.sender.split('@')[0]}:\nOriginal: ${e.original}\nTranslated: ${e.translated}\n`).join('\n');
+                                        let emailText = transcriptSummary ? `✨ AI Summary:\n${transcriptSummary}\n\n---\n\n` : '';
+                                        emailText += callTranscript.map(e => `[${e.time}] ${e.sender === userEmail ? 'You' : e.sender.split('@')[0]}:\nOriginal: ${e.original}\nTranslated: ${e.translated}\n`).join('\n');
 
-                                        // Generate clean HTML
-                                        const htmlLines = callTranscript.map(e => {
+                                        let htmlLines = '';
+                                        if (transcriptSummary) {
+                                            htmlLines += `
+                                            <div style="background-color: #f0fdf4; border-left: 4px solid #00a884; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
+                                                <h3 style="color: #00a884; margin-top: 0; margin-bottom: 8px;">✨ AI Summary</h3>
+                                                <p style="color: #1e293b; line-height: 1.5; margin: 0; font-size: 15px;">${transcriptSummary}</p>
+                                            </div>
+                                            `;
+                                        }
+
+                                        htmlLines += callTranscript.map(e => {
                                             const isYou = e.sender === userEmail;
                                             const senderName = isYou ? 'You' : e.sender.split('@')[0];
                                             const headerColor = isYou ? '#00a884' : '#38bdf8';
@@ -2104,6 +2163,7 @@ function ChatApp({ user, onLogout }) {
                                         alert('Transcript sent successfully!');
                                         setShowTranscriptModal(false);
                                         setCallTranscript([]);
+                                        setTranscriptSummary('');
                                     } catch (err) {
                                         alert('Failed to send transcript: ' + err.message);
                                     } finally {
@@ -2113,13 +2173,12 @@ function ChatApp({ user, onLogout }) {
                                 style={{ padding: '10px 18px', borderRadius: '8px', backgroundColor: '#00a884', color: '#111', border: 'none', cursor: (isSendingTranscript || callTranscript.length === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: (isSendingTranscript || callTranscript.length === 0) ? 0.5 : 1, transition: '0.2s' }}>
                                 {isSendingTranscript ? '⏳ Sending...' : '📧 Send via Email'}
                             </button>
-                            <button onClick={() => { setShowTranscriptModal(false); setCallTranscript([]); }} style={{ padding: '10px 18px', borderRadius: '8px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>Dismiss</button>
+                            <button onClick={() => { setShowTranscriptModal(false); setCallTranscript([]); setTranscriptSummary(''); }} style={{ padding: '10px 18px', borderRadius: '8px', backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>Dismiss</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ✨ LOCAL TRANSLATOR MODAL (POLISHED WITH HISTORY AND EMAIL OPTION) ✨ */}
             {showLocalTranslator && (
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0b141a', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
 
@@ -2131,6 +2190,13 @@ function ChatApp({ user, onLogout }) {
                             {callTranscript.length > 0 && (
                                 <>
                                     <button
+                                        onClick={handleGenerateSummary}
+                                        disabled={isSummarizing}
+                                        style={{ background: 'none', border: '1px solid #00a884', color: '#00a884', borderRadius: '4px', padding: '6px 12px', fontSize: '13px', cursor: isSummarizing ? 'not-allowed' : 'pointer', opacity: isSummarizing ? 0.5 : 1, fontWeight: 'bold' }}
+                                    >
+                                        {isSummarizing ? '✨ Summarizing...' : '✨ AI Summary'}
+                                    </button>
+                                    <button
                                         onClick={handleSendLocalTranscript}
                                         disabled={isSendingLocalTranscript}
                                         style={{ background: 'none', border: '1px solid #38bdf8', color: '#38bdf8', borderRadius: '4px', padding: '6px 12px', fontSize: '13px', cursor: isSendingLocalTranscript ? 'not-allowed' : 'pointer', opacity: isSendingLocalTranscript ? 0.5 : 1, fontWeight: 'bold' }}
@@ -2138,7 +2204,7 @@ function ChatApp({ user, onLogout }) {
                                         {isSendingLocalTranscript ? '⏳ Sending...' : '📧 Email History'}
                                     </button>
                                     <button
-                                        onClick={() => setCallTranscript([])}
+                                        onClick={() => { setCallTranscript([]); setTranscriptSummary(''); }}
                                         style={{ background: 'none', border: '1px solid #8696a0', color: '#8696a0', borderRadius: '4px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer' }}
                                     >
                                         Clear History
@@ -2153,6 +2219,13 @@ function ChatApp({ user, onLogout }) {
                         {callTranscript.length === 0 && !subtitles[userEmail]?.original && (
                             <div style={{ margin: 'auto', color: '#8696a0', textAlign: 'center', fontStyle: 'italic' }}>
                                 Start speaking to see the translation history...
+                            </div>
+                        )}
+
+                        {transcriptSummary && (
+                            <div style={{ backgroundColor: '#005c4b30', borderLeft: '4px solid #00a884', padding: '12px', borderRadius: '8px' }}>
+                                <h4 style={{ color: '#00a884', margin: '0 0 8px 0' }}>✨ Summary</h4>
+                                <p style={{ color: '#e9edef', margin: 0, fontSize: '14px', lineHeight: '1.5' }}>{transcriptSummary}</p>
                             </div>
                         )}
 
@@ -2181,7 +2254,6 @@ function ChatApp({ user, onLogout }) {
                             </div>
                         ))}
 
-                        {/* LIVE INTERIM TEXT */}
                         {subtitles[userEmail]?.original && (
                             <div style={{
                                 backgroundColor: '#111b21',
@@ -2250,7 +2322,6 @@ function ChatApp({ user, onLogout }) {
                 </div>
             )}
 
-            {/* ✨ NEW: VONAGE CALL MODAL (FOR OFFLINE USERS) ✨ */}
             {vonageCallModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 6000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '350px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
@@ -2310,7 +2381,6 @@ function ChatApp({ user, onLogout }) {
                 </div>
             )}
 
-            {/* ✨ EDIT CONTACT MOBILE MODAL (capitalolondra ONLY) ✨ */}
             {editingContact && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 6000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
@@ -2336,7 +2406,6 @@ function ChatApp({ user, onLogout }) {
                                     if (editingContact.type === 'member' || editingContact.email.includes('@')) {
                                         const trimmedMobile = editMobileValue.trim();
 
-                                        // 1. Try to update existing profile
                                         const { data: updateData, error: updateError } = await supabase
                                             .from('profiles')
                                             .update({ mobile: trimmedMobile })
@@ -2344,7 +2413,6 @@ function ChatApp({ user, onLogout }) {
                                             .select();
 
                                         if (updateError) {
-                                            // Handle RLS Permission Denied for other users
                                             if (updateError.message.includes('permission denied') || updateError.code === '42501') {
                                                 const cleanMobile = trimmedMobile.replace(/[^0-9]/g, '');
                                                 setSavedContacts(prev => {
@@ -2364,7 +2432,6 @@ function ChatApp({ user, onLogout }) {
                                             }
                                         }
 
-                                        // 2. If no rows were updated, profile doesn't exist yet, try to insert it
                                         if (!updateData || updateData.length === 0) {
                                             const { error: insertError } = await supabase
                                                 .from('profiles')
@@ -2390,7 +2457,6 @@ function ChatApp({ user, onLogout }) {
                                             }
                                         }
 
-                                        // 3. Update local members state so UI reflects changes immediately
                                         setMembers(prev => prev.map(m =>
                                             m.email === editingContact.email ? { ...m, mobile: trimmedMobile } : m
                                         ));
@@ -2592,7 +2658,6 @@ function ChatApp({ user, onLogout }) {
                                                 <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                                     {isMobile ? (isTranscribing ? '💬 On' : '💬 Off') : (isTranscribing ? '💬 Transcribe On' : '💬 Transcribe Off')}
                                                 </button>
-                                                {/* ✨ SYNCHRONIZED TTS TOGGLE ✨ */}
                                                 <button onClick={toggleTTS} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                                     {isMobile ? (isTTSOn ? '🔊 On' : '🔇 Off') : (isTTSOn ? '🔊 Speak On' : '🔇 Speak Off')}
                                                 </button>
@@ -2711,7 +2776,6 @@ function ChatApp({ user, onLogout }) {
                     </div>
                 )}
             </div>
-            {/* FOOTER */}
             <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
                 <span>© NoirSoft Ltd</span>
                 <div style={{ display: 'flex', gap: '20px' }}>
