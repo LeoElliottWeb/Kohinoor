@@ -103,6 +103,19 @@ const uiDict = {
         resetMsg: "输入您的电子邮件，我们将向您发送重置密码的链接。",
         checkEmail: "✅ 检查您的电子邮件"
     },
+    'ja': {
+        search: "🔍 ユーザーを検索...", online: "オンライン", members: "登録ユーザー", contacts: "保存された連絡先",
+        logout: "ログアウト", openTranslator: "🗣️ ローカル翻訳を開く", changeMobile: "📱 携帯番号を変更",
+        addExternal: "+ 外部追加", selectContact: "チャットする連絡先を選択してください",
+        faceToFace: "対面で話していますか？", messagePlaceholder: "メッセージまたは画像/リンクを貼り付け...",
+        recording: "音声を録音中...", callMobile: "📞 携帯に発信", call: "📹 通話", add: "➕ 追加",
+        end: "🔴 終了", uiLang: "🌐 UI言語", activeCall: "📞 通話中 - タップして戻る",
+        login: "ログイン", signup: "サインアップ", forgotPwd: "パスワードを忘れた場合", createAcc: "アカウントを作成",
+        backLogin: "ログインに戻る", email: "メールアドレス", password: "パスワード (最小6文字)", mobile: "携帯番号 (必須)",
+        sendReset: "リセットリンクを送信", loading: "読み込み中...", sending: "送信中...",
+        resetMsg: "メールアドレスを入力すると、パスワードをリセットするためのリンクが送信されます。",
+        checkEmail: "✅ メールを確認してください"
+    },
     'ru': {
         search: "🔍 Поиск...", online: "В сети", members: "Зарегистрированные пользователи", contacts: "Сохраненные контакты",
         logout: "Выйти", openTranslator: "🗣️ Локальный переводчик", changeMobile: "📱 Изменить номер",
