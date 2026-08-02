@@ -398,7 +398,9 @@ export default function Stats() {
                                     <tr style={{ borderBottom: '2px solid #444' }}>
                                         <th style={{ padding: '12px 10px', color: '#ccc' }}>Date / Time (UTC)</th>
                                         <th style={{ padding: '12px 10px', color: '#ccc' }}>Country</th>
+                                        <th style={{ padding: '12px 10px', color: '#ccc' }}>City</th>
                                         <th style={{ padding: '12px 10px', color: '#ccc' }}>Device Type</th>
+                                        <th style={{ padding: '12px 10px', color: '#ccc' }}>Referrer</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -408,12 +410,14 @@ export default function Stats() {
                                                 {new Date(v.created_at).toLocaleString('en-US', { timeZone: 'UTC' })}
                                             </td>
                                             <td style={{ padding: '10px' }}>{v.country || 'Unknown'}</td>
+                                            <td style={{ padding: '10px' }}>{v.city || 'Unknown'}</td>
                                             <td style={{ padding: '10px' }}>{v.device_type || 'Unknown'}</td>
+                                            <td style={{ padding: '10px', maxWidth: '200px', wordBreak: 'break-word' }}>{v.referrer || 'Direct'}</td>
                                         </tr>
                                     ))}
                                     {weeklyFiltered.length === 0 && (
                                         <tr>
-                                            <td colSpan="3" style={{ padding: '20px', textAlign: 'center', color: '#888' }}>
+                                            <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#888' }}>
                                                 No visitor details found for this day.
                                             </td>
                                         </tr>
