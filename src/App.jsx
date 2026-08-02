@@ -3175,24 +3175,15 @@ export async function recordVisitorData() {
         const isMobile = /Mobile|Android|iP(hone|od|ad)|IEMobile|BlackBerry/i.test(userAgent);
         const deviceType = isMobile ? 'Mobile' : 'Desktop';
 
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        // Use the existing supabase client instead of a manual fetch
+        const { error } = await supabase.from('visitors').insert([{
+            ip_address: geoData.ip,
+            country: geoData.country,
+            device_type: deviceType
+        }]);
 
-        if (url && key) {
-            await fetch(`${url}/rest/v1/visitors`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': key,
-                    'Authorization': `Bearer ${key}`,
-                    'Prefer': 'return=minimal'
-                },
-                body: JSON.stringify({
-                    ip_address: geoData.ip,
-                    country: geoData.country,
-                    device_type: deviceType
-                })
-            });
+        if (error) {
+            throw error;
         }
 
     } catch (err) {
