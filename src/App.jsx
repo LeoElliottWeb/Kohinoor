@@ -115,6 +115,45 @@ const uiDict = {
         sendReset: "Отправить ссылку", loading: "Загрузка...", sending: "Отправка...",
         resetMsg: "Введите свой адрес электронной почты, и мы отправим ссылку для сброса.",
         checkEmail: "✅ Проверьте почту"
+    },
+    'el': {
+        search: "🔍 Αναζήτηση χρήστη...", online: "Σε σύνδεση", members: "Εγγεγραμμένοι χρήστες", contacts: "Αποθηκευμένες επαφές",
+        logout: "Αποσύνδεση", openTranslator: "🗣️ Τοπικός μεταφραστής", changeMobile: "📱 Αλλαγή κινητού",
+        addExternal: "+ Προσθήκη Εξωτερικής Επαφής", selectContact: "Επιλέξτε μια επαφή για συνομιλία",
+        faceToFace: "Μιλάτε πρόσωπο με πρόσωπο;", messagePlaceholder: "Μήνυμα ή επικόλληση εικόνας/συνδέσμου...",
+        recording: "Εγγραφή ήχου...", callMobile: "📞 Κλήση σε κινητό", call: "📹 Κλήση", add: "➕ Προσθήκη",
+        end: "🔴 Τερματισμός", uiLang: "🌐 Γλώσσα UI", activeCall: "📞 Ενεργή Κλήση - Επιστροφή",
+        login: "Σύνδεση", signup: "Εγγραφή", forgotPwd: "Ξεχάσατε τον κωδικό;", createAcc: "Δημιουργία Λογαριασμού",
+        backLogin: "Επιστροφή στη σύνδεση", email: "Email", password: "Κωδικός (τουλ. 6 χαρακτήρες)", mobile: "Αριθμός Κινητού (Υποχρεωτικό)",
+        sendReset: "Αποστολή συνδέσμου", loading: "Φόρτωση...", sending: "Αποστολή...",
+        resetMsg: "Εισαγάγετε το email σας και θα σας στείλουμε έναν σύνδεσμο για επαναφορά.",
+        checkEmail: "✅ Ελέγξτε το email σας"
+    },
+    'yo': {
+        search: "🔍 Ṣàwárí àwọn olùmúlò...", online: "Lórí Ìkànnì", members: "Àwọn Olùmúlò", contacts: "Àwọn Olùbásọ̀rọ̀",
+        logout: "Jáde", openTranslator: "🗣️ Ògbùfọ̀ Agbègbè", changeMobile: "📱 Yí Nọ́mbà Padà",
+        addExternal: "+ Ṣàfikún Ìta", selectContact: "Yan olùbásọ̀rọ̀ láti bẹ̀rẹ̀",
+        faceToFace: "Ṣé ẹ̀ ń sọ̀rọ̀ lójúkòójú?", messagePlaceholder: "Fi ránṣẹ́ tàbí lẹ̀ pọ̀...",
+        recording: "Gbígbásílẹ̀ ohùn...", callMobile: "📞 Pe Alágbèéká", call: "📹 Pe", add: "➕ Ṣàfikún",
+        end: "🔴 Parí", uiLang: "🌐 Èdè UI", activeCall: "📞 Ìpè Lọ́wọ́lọ́wọ́ - Padà",
+        login: "Wọlé", signup: "Forúkọsílẹ̀", forgotPwd: "Gbàgbé Ọ̀rọ̀-ìkọkọ?", createAcc: "Ṣẹ̀dá Àkọọ́lẹ̀",
+        backLogin: "Padà sí Wọlé", email: "Ímẹ́èlì", password: "Ọ̀rọ̀-ìkọkọ (kéré jù 6)", mobile: "Nọ́mbà Alágbèéká (Ọ̀bùdàn)",
+        sendReset: "Fi Ọ̀nà asopọ ránsẹ́", loading: "Ń gbé e wá...", sending: "Ń firánṣẹ́...",
+        resetMsg: "Tẹ ímẹ́èlì rẹ, a ó fi ọ̀nà asopọ ránṣẹ́ láti ṣètò rẹ̀.",
+        checkEmail: "✅ Ṣàyẹ̀wò ímẹ́èlì rẹ"
+    },
+    'pl': {
+        search: "🔍 Szukaj użytkowników...", online: "Dostępny", members: "Zarejestrowani użytkownicy", contacts: "Zapisane kontakty",
+        logout: "Wyloguj się", openTranslator: "🗣️ Tłumacz lokalny", changeMobile: "📱 Zmień numer",
+        addExternal: "+ Dodaj zewnętrzny", selectContact: "Wybierz kontakt, aby rozpocząć czat",
+        faceToFace: "Rozmawiacie twarzą w twarz?", messagePlaceholder: "Wiadomość lub wklej obraz/link...",
+        recording: "Nagrywanie dźwięku...", callMobile: "📞 Zadzwoń na komórkę", call: "📹 Zadzwoń", add: "➕ Dodaj",
+        end: "🔴 Zakończ", uiLang: "🌐 Język interfejsu", activeCall: "📞 Aktywne połączenie - Powrót",
+        login: "Zaloguj się", signup: "Zarejestruj się", forgotPwd: "Zapomniałeś hasła?", createAcc: "Utwórz konto",
+        backLogin: "Powrót do logowania", email: "E-mail", password: "Hasło (min. 6 znaków)", mobile: "Numer komórkowy (Obowiązkowy)",
+        sendReset: "Wyślij link", loading: "Ładowanie...", sending: "Wysyłanie...",
+        resetMsg: "Podaj swój e-mail, a wyślemy Ci link do zresetowania hasła.",
+        checkEmail: "✅ Sprawdź swój e-mail"
     }
 };
 
