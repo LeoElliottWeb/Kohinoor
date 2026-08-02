@@ -3174,12 +3174,16 @@ export async function recordVisitorData() {
         const userAgent = navigator.userAgent;
         const isMobile = /Mobile|Android|iP(hone|od|ad)|IEMobile|BlackBerry/i.test(userAgent);
         const deviceType = isMobile ? 'Mobile' : 'Desktop';
+        
+        const referrerInfo = document.referrer || 'Direct';
 
         // Use the existing supabase client instead of a manual fetch
         const { error } = await supabase.from('visitors').insert([{
             ip_address: geoData.ip,
             country: geoData.country,
-            device_type: deviceType
+            city: geoData.city,
+            device_type: deviceType,
+            referrer: referrerInfo
         }]);
 
         if (error) {
