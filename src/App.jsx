@@ -741,6 +741,10 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     const [transcriptSummary, setTranscriptSummary] = useState('');
     const [isSummarizing, setIsSummarizing] = useState(false);
 
+    // ✨ Chat Text Summary State
+    const [chatSummary, setChatSummary] = useState(null);
+    const [isSummarizingChat, setIsSummarizingChat] = useState(false);
+
     const callTranscriptRef = useRef([]);
     useEffect(() => { callTranscriptRef.current = callTranscript; }, [callTranscript]);
 
@@ -876,6 +880,57 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     const inCallRef = useRef(false);
     const isEndingRef = useRef(false);
     const lastActionRef = useRef(0);
+
+    // ==========================================
+    // ✨ CATCH ME UP CHAT SUMMARIZATION
+    // ==========================================
+    const handleCatchMeUp = async () => {
+        if (chatMessages.length === 0) return;
+        setIsSummarizingChat(true);
+        try {
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+            const recentMessages = chatMessages.filter(m => new Date(m.created_at) > oneHourAgo);
+
+            if (recentMessages.length === 0) {
+                alert("No messages in the past hour to summarize.");
+                setIsSummarizingChat(false);
+                return;
+            }
+
+            const textToSummarize = recentMessages.map(m => {
+                const senderName = m.sender_email === userEmail ? 'Me' : m.sender_email.split('@')[0];
+                let text = m.text || '';
+                if (text.startsWith('[VOICE]')) text = '[Voice Message]';
+                if (text.startsWith('[IMAGE]')) text = '[Image]';
+                return `[${new Date(m.created_at).toLocaleTimeString()}] ${senderName}: ${text}`;
+            }).join('\n');
+
+            const { data, error } = await supabase.functions.invoke('ai-summary', {
+                body: { transcript: textToSummarize }
+            });
+
+            if (error) {
+                let actualErrorMessage = error.message;
+                if (error.context && typeof error.context.json === 'function') {
+                    try {
+                        const errorBody = await error.context.json();
+                        actualErrorMessage = errorBody.error || errorBody.message || actualErrorMessage;
+                    } catch (e) { }
+                }
+                throw new Error(actualErrorMessage);
+            }
+
+            if (data && data.summary) {
+                setChatSummary(data.summary);
+            } else {
+                throw new Error("No summary returned");
+            }
+        } catch (err) {
+            alert('Failed to generate summary: ' + err.message);
+        } finally {
+            setIsSummarizingChat(false);
+        }
+    };
 
     // ==========================================
     // 💾 USER SETTINGS & PROFILE: LOAD & SAVE
@@ -1035,6 +1090,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
     useEffect(() => {
         if (!selectedContact || !userEmail) return;
+        setChatSummary(null); // Clear summary when switching contacts
         Promise.all([
             supabase.from('messages').select('*').eq('sender_email', userEmail).eq('receiver_email', selectedContact).limit(50),
             supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
@@ -2210,7 +2266,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
     const sendMsg = async (e) => {
         e.preventDefault();
-        if (!chatInput.trim() || !selectedContact) return;
+        if (!chatInput.trim() && !selectedContact) return;
         const txt = chatInput;
         setChatInput('');
         setShowEmojiPicker(false);
@@ -3073,7 +3129,15 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                         <b>{activeName}</b>
                                     </div>
 
-                                    <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                    <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        <button
+                                            onClick={handleCatchMeUp}
+                                            disabled={isSummarizingChat || chatMessages.length === 0}
+                                            style={{ backgroundColor: '#2a3942', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: (isSummarizingChat || chatMessages.length === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', marginRight: '5px', opacity: (isSummarizingChat || chatMessages.length === 0) ? 0.5 : 1 }}
+                                        >
+                                            {isSummarizingChat ? '⏳ Catching up...' : '✨ Catch Me Up'}
+                                        </button>
+
                                         <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                             {isMobile ? (isVonageCalling ? '📞...' : '📞') : (isVonageCalling ? '📞...' : t('callMobile', uiLanguage))}
                                         </button>
@@ -3153,6 +3217,15 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                 )}
 
                                 <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
+                                    {chatSummary && (
+                                        <div style={{ backgroundColor: '#202c33', borderLeft: '4px solid #00a884', padding: '16px', borderRadius: '8px', position: 'relative', marginBottom: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                            <button onClick={() => setChatSummary(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '16px' }}>✖</button>
+                                            <h4 style={{ color: '#00a884', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>✨ Catch Up (Last Hour)</h4>
+                                            <div style={{ color: '#e9edef', fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                                                {chatSummary}
+                                            </div>
+                                        </div>
+                                    )}
                                     {chatMessages.map((m, i) => {
                                         const isVoiceMessage = m.text && m.text.startsWith('[VOICE]');
                                         const isImageMessage = m.text && m.text.startsWith('[IMAGE]');
