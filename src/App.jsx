@@ -167,6 +167,58 @@ const uiDict = {
         sendReset: "Wyślij link", loading: "Ładowanie...", sending: "Wysyłanie...",
         resetMsg: "Podaj swój e-mail, a wyślemy Ci link do zresetowania hasła.",
         checkEmail: "✅ Sprawdź swój e-mail"
+    },
+    'pcm': {
+        search: "🔍 Find pipo...", online: "Online", members: "Regista Pipo", contacts: "Saved Contacts",
+        logout: "Comot", openTranslator: "🗣️ Open Local Translator", changeMobile: "📱 Change Number",
+        addExternal: "+ Add Outside Pipo", selectContact: "Select person to chat",
+        faceToFace: "Talking face-to-face with someone?", messagePlaceholder: "Message or paste image/link...",
+        recording: "Recording audio...", callMobile: "📞 Call Mobile", call: "📹 Call", add: "➕ Add",
+        end: "🔴 End", uiLang: "🌐 UI Language", activeCall: "📞 Active Call - Tap to Return",
+        login: "Log In", signup: "Sign Up", forgotPwd: "You forget password?", createAcc: "Create Account",
+        backLogin: "Back to Login", email: "Email", password: "Password (min 6 characters)", mobile: "Mobile Number (Mandatory)",
+        sendReset: "Send Reset Link", loading: "Loading...", sending: "Sending...",
+        resetMsg: "Enter your email address and we go send you link to reset your password.",
+        checkEmail: "✅ Check your email"
+    },
+    'ha': {
+        search: "🔍 Nemi masu amfani...", online: "A kan layi", members: "Masu amfani", contacts: "Lambobi",
+        logout: "Fita", openTranslator: "🗣️ Bude Mai Fassara", changeMobile: "📱 Canza Lambar Waya",
+        addExternal: "+ Ƙara na Waje", selectContact: "Zaɓi lambar sadarwa don tattaunawa",
+        faceToFace: "Kuna magana fuska da fuska?", messagePlaceholder: "Saƙo ko manna hoto/mahada...",
+        recording: "Rikodin sauti...", callMobile: "📞 Kira Waya", call: "📹 Kira", add: "➕ Ƙara",
+        end: "🔴 Ƙarshe", uiLang: "🌐 Harshen UI", activeCall: "📞 Kira Mai Aiki - Taɓa don Koma",
+        login: "Shiga", signup: "Yi Rajista", forgotPwd: "An manta kalmar sirri?", createAcc: "Ƙirƙiri asusu",
+        backLogin: "Koma kan Shiga", email: "Imel", password: "Kalmar sirri (min 6 haruffa)", mobile: "Lambar Waya (Wajibi)",
+        sendReset: "Aika hanyar haɗi", loading: "Ana lodawa...", sending: "Ana aikawa...",
+        resetMsg: "Shigar da imel ɗin ku kuma za mu aiko muku da hanyar haɗi don sake saita kalmar sirrin ku.",
+        checkEmail: "✅ Duba imel ɗin ku"
+    },
+    'ig': {
+        search: "🔍 Chọọ ndị ọrụ...", online: "N'ịntanetị", members: "Ndị debanyere aha", contacts: "Kọntaktị echekwara",
+        logout: "Pụọ", openTranslator: "🗣️ Mepee onye ntụgharị", changeMobile: "📱 Gbanwee nọmba",
+        addExternal: "+ Tinye mpụga", selectContact: "Họrọ kọntaktị ịkparịta ụka",
+        faceToFace: "Ị na-ekwu ihu na ihu?", messagePlaceholder: "Ozi ma ọ bụ mado onyonyo/njikọ...",
+        recording: "Ịdekọ ọdịyo...", callMobile: "📞 Kpọọ ekwentị", call: "📹 Kpọọ", add: "➕ Tinye",
+        end: "🔴 Kwụsị", uiLang: "🌐 Asụsụ UI", activeCall: "📞 Oku na-aga n'ihu - Pịa ka ịlaghachi",
+        login: "Banye", signup: "Debanye aha", forgotPwd: "Chefuru paswọọdụ?", createAcc: "Mepụta Akaụntụ",
+        backLogin: "Laghachi na Nbanye", email: "Email", password: "Paswọọdụ (min mkpụrụedemede 6)", mobile: "Nọmba ekwentị (Iwu)",
+        sendReset: "Ziga njikọ", loading: "Na-ebu...", sending: "Na-eziga...",
+        resetMsg: "Tinye email gị ka anyị ziga njikọ iji tọgharịa paswọọdụ gị.",
+        checkEmail: "✅ Lelee email gị"
+    },
+    'kr': {
+        search: "🔍 Matǝ am...", online: "Online", members: "Am rajiwa", contacts: "Kǝntaktwa",
+        logout: "Fǝtǝ", openTranslator: "🗣️ Tǝrjaman", changeMobile: "📱 Namba falte",
+        addExternal: "+ Kǝra nguro", selectContact: "Kǝntakt suwe",
+        faceToFace: "Fuwa-a-fuwa mana?", messagePlaceholder: "Laya aw kǝla...",
+        recording: "Zǝwǝna...", callMobile: "📞 Namba bo", call: "📹 Bo", add: "➕ Kǝra",
+        end: "🔴 Kambu", uiLang: "🌐 Tǝlam UI", activeCall: "📞 Kolo - Walte",
+        login: "Gǝre", signup: "Rajisita", forgotPwd: "Paswod notǝ?", createAcc: "Akaunt tǝra",
+        backLogin: "Walte", email: "Email", password: "Paswod (kǝla 6)", mobile: "Namba waya",
+        sendReset: "Zǝwǝna laya", loading: "Gǝnawa...", sending: "Zǝwǝ...",
+        resetMsg: "Email num sa, laya paswod walte zǝwiya.",
+        checkEmail: "✅ Email num kuru"
     }
 };
 
@@ -604,6 +656,10 @@ function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn }) {
 const LanguageOptions = () => (
     <>
         <option value="en-US">English</option>
+        <option value="pcm-NG">Pigeon English</option>
+        <option value="ha-NG">Hausa</option>
+        <option value="ig-NG">Igbo</option>
+        <option value="kr-NG">Kanuri</option>
         <option value="es-ES">Spanish</option>
         <option value="fr-FR">French</option>
         <option value="de-DE">German</option>
@@ -1640,7 +1696,8 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         const langMap = {
             'en-US': 'en', 'es-ES': 'es', 'fr-FR': 'fr', 'de-DE': 'de', 'it-IT': 'it',
             'zh-CN': 'zh', 'ja-JP': 'ja', 'pt-PT': 'pt', 'pt-BR': 'pt', 'el-GR': 'el',
-            'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl'
+            'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl',
+            'pcm-NG': 'en-NG', 'ha-NG': 'ha', 'ig-NG': 'ig', 'kr-NG': 'kr'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
@@ -3174,7 +3231,7 @@ export async function recordVisitorData() {
         const userAgent = navigator.userAgent;
         const isMobile = /Mobile|Android|iP(hone|od|ad)|IEMobile|BlackBerry/i.test(userAgent);
         const deviceType = isMobile ? 'Mobile' : 'Desktop';
-        
+
         const referrerInfo = document.referrer || 'Direct';
 
         // Use the existing supabase client instead of a manual fetch
