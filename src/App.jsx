@@ -219,6 +219,19 @@ const uiDict = {
         sendReset: "Zǝwǝna laya", loading: "Gǝnawa...", sending: "Zǝwǝ...",
         resetMsg: "Email num sa, laya paswod walte zǝwiya.",
         checkEmail: "✅ Email num kuru"
+    },
+    'ko': {
+        search: "🔍 사용자 검색...", online: "온라인", members: "등록된 사용자", contacts: "저장된 연락처",
+        logout: "로그아웃", openTranslator: "🗣️ 로컬 번역기 열기", changeMobile: "📱 휴대폰 번호 변경",
+        addExternal: "+ 외부 추가", selectContact: "채팅할 연락처를 선택하세요",
+        faceToFace: "대면으로 이야기하고 있나요?", messagePlaceholder: "메시지를 입력하거나 이미지/링크를 붙여넣으세요...",
+        recording: "오디오 녹음 중...", callMobile: "📞 휴대폰 전화", call: "📹 통화", add: "➕ 추가",
+        end: "🔴 종료", uiLang: "🌐 UI 언어", activeCall: "📞 통화 중 - 탭하여 돌아가기",
+        login: "로그인", signup: "가입하기", forgotPwd: "비밀번호를 잊으셨나요?", createAcc: "계정 만들기",
+        backLogin: "로그인으로 돌아가기", email: "이메일", password: "비밀번호 (최소 6자)", mobile: "휴대폰 번호 (필수)",
+        sendReset: "재설정 링크 보내기", loading: "로딩 중...", sending: "보내는 중...",
+        resetMsg: "이메일 주소를 입력하면 비밀번호 재설정 링크를 보내드립니다.",
+        checkEmail: "✅ 이메일을 확인하세요"
     }
 };
 
@@ -660,6 +673,7 @@ const LanguageOptions = () => (
         <option value="ha-NG">Hausa</option>
         <option value="ig-NG">Igbo</option>
         <option value="kr-NG">Kanuri</option>
+        <option value="ko-KR">Korean</option>
         <option value="es-ES">Spanish</option>
         <option value="fr-FR">French</option>
         <option value="de-DE">German</option>
@@ -1697,7 +1711,8 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             'en-US': 'en', 'es-ES': 'es', 'fr-FR': 'fr', 'de-DE': 'de', 'it-IT': 'it',
             'zh-CN': 'zh', 'ja-JP': 'ja', 'pt-PT': 'pt', 'pt-BR': 'pt', 'el-GR': 'el',
             'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl',
-            'pcm-NG': 'en-NG', 'ha-NG': 'ha', 'ig-NG': 'ig', 'kr-NG': 'kr'
+            'pcm-NG': 'en-NG', 'ha-NG': 'ha', 'ig-NG': 'ig', 'kr-NG': 'kr',
+            'ko-KR': 'ko'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
