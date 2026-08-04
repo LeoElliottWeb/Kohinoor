@@ -317,7 +317,7 @@ const uiDict = {
         info6: "Rajisita sa kuru amfa"
     },
     'ko': {
-        search: "🔍 사용자 검색...", online: "온라인", members: "등록된 사용자", contacts: "저장된 연락처",
+        search: "🔍 사용자 검색...", 온라인: "온라인", members: "등록된 사용자", contacts: "저장된 연락처",
         logout: "로그아웃", openTranslator: "🗣️ 로컬 번역기 열기", changeMobile: "📱 휴대폰 번호 변경",
         addExternal: "+ 외부 추가", selectContact: "채팅할 연락처를 선택하세요",
         faceToFace: "대면으로 이야기하고 있나요?", messagePlaceholder: "메시지를 입력하거나 이미지/링크를 붙여넣으세요...",
@@ -467,8 +467,8 @@ function EmojiPicker({ onSelectEmoji, onClose }) {
         '👍': ['👍', '👎', '👊', '✊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✌️', '🤟', '🤘', '👌', '🤌', '🤏', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤙', '💪', '🦾', '🖕', '✍️', '🙇', '💁', '🙋', '🧏', '🙆', '🙅', '🤷', '🤦', '🙎', '🙍', '💇', '💆', '🧖', '💅', '🤳', '💃', '🕺', '👯', '🕴️', '👨‍🦽', '👩‍🦽', '🧑‍🦽', '👨‍🦼', '👩‍🦼', '🧑‍🦼'],
         '👋': ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦵', '🦿', '🦶', '👣', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '舌', '👄', '🫦'],
         '🐱': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', 'crab', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊'],
-        '🍕': ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '芒果', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🫒', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫘', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪'],
-        '🚗': ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🏍️', '🛵', '🚲', '🛴', '🛹', '🛼', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢'],
+        '🍕': ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '芒果', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🫒', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫘', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', 'バター', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪'],
+        '🚗': ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🏍️', '🛵', '🚲', '🛴', 'skateboard', '🛼', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢'],
         '💡': ['💡', '🔦', '🕯️', '🧯', '🪔', '🧨', '💣', '🧲', '🧰', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🔩', '⚙️', '🧱', '⛓️', '🧪', '🧫', '🧬', '🔬', '🔭', '📡', '💉', '🩸', '💊', '🩹', '🩺', '🧹', '🧺', '🧻', '🪣', '🧼', '🫧', '🪥', '🧽', '🧴', '🪞', '🪟', '🚰', '🪠', '🪤', '🪣', '🧯'],
         '📱': ['📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '💽', '💾', '💿', '📀', '🧮', '🎥', '📽️', '📺', '📷', '📸', '📹', '📼', '🔍', '🔎', '🕯️', '💡', '🔦', '🏮', '🪔', '📔', '📕', '📖', '📗', '📘', '📙', '📚', '📓', '📒', '📃', '📜', '📄', '📰', '🗞️', '📑', '🔖', '📌', '📍', '✂️', '📐', '📏', '🧷', '📎', '🖇️', '📏', '📐', '✒️', '🖊️', '🖋️', '✏️', '🖍️', '🖌️', '🔏', '🔐', '🔒', '🔓']
     };
@@ -987,26 +987,43 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     // ✨ CATCH ME UP CHAT SUMMARIZATION
     // ==========================================
     const handleCatchMeUp = async () => {
-        if (chatMessages.length === 0) return;
+        // Filter text messages to only those from the last 24 hours to prevent summarizing "weeks ago" histories.
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const recentMessages = chatMessages.filter(m => new Date(m.created_at) > twentyFourHoursAgo);
+
+        if (recentMessages.length === 0 && callTranscript.length === 0) {
+            alert("No recent conversation (within the last 24 hours) or active call to summarize.");
+            return;
+        }
+
         setIsSummarizingChat(true);
         try {
-            // Changed from 1 hour (60 * 60 * 1000) to 2 minutes (2 * 60 * 1000)
-            const twoMinsAgo = new Date(Date.now() - 2 * 60 * 1000);
-            const recentMessages = chatMessages.filter(m => new Date(m.created_at) > twoMinsAgo);
+            let combinedTextArray = [];
 
-            if (recentMessages.length === 0) {
-                alert("No messages in the past 2 minutes to summarize.");
-                setIsSummarizingChat(false);
-                return;
+            // Add recent chat messages to summary
+            if (recentMessages.length > 0) {
+                combinedTextArray.push("--- TEXT CHAT MESSAGES ---");
+                const chatText = recentMessages.map(m => {
+                    const senderName = m.sender_email === userEmail ? 'Me' : m.sender_email.split('@')[0];
+                    let text = m.text || '';
+                    if (text.startsWith('[VOICE]')) text = '[Voice Message]';
+                    if (text.startsWith('[IMAGE]')) text = '[Image]';
+                    return `[${new Date(m.created_at).toLocaleTimeString()}] ${senderName}: ${text}`;
+                }).join('\n');
+                combinedTextArray.push(chatText);
             }
 
-            const textToSummarize = recentMessages.map(m => {
-                const senderName = m.sender_email === userEmail ? 'Me' : m.sender_email.split('@')[0];
-                let text = m.text || '';
-                if (text.startsWith('[VOICE]')) text = '[Voice Message]';
-                if (text.startsWith('[IMAGE]')) text = '[Image]';
-                return `[${new Date(m.created_at).toLocaleTimeString()}] ${senderName}: ${text}`;
-            }).join('\n');
+            // Add live call transcript to summary if active
+            if (callTranscript.length > 0) {
+                combinedTextArray.push("--- ONGOING VOICE CALL TRANSCRIPT ---");
+                const callText = callTranscript.map(e => {
+                    const senderName = e.sender === userEmail ? 'Me' : e.sender.split('@')[0];
+                    return `[${e.time}] ${senderName}: ${e.original}`;
+                }).join('\n');
+                combinedTextArray.push(callText);
+            }
+
+            const textToSummarize = combinedTextArray.join('\n\n');
 
             const { data, error } = await supabase.functions.invoke('ai-summary', {
                 body: { transcript: textToSummarize }
@@ -1023,8 +1040,13 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                 throw new Error(actualErrorMessage);
             }
 
+            // Gracefully handle different response structures
             if (data && data.summary) {
                 setChatSummary(data.summary);
+            } else if (typeof data === 'string') {
+                setChatSummary(data);
+            } else if (data && data.text) {
+                setChatSummary(data.text);
             } else {
                 throw new Error("No summary returned");
             }
@@ -2874,7 +2896,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                 {isTranscribing ? '⏹ Stop Listening' : '🎤 Start Listening'}
                             </button>
                             <button onClick={toggleTTS} style={{ flex: 1, maxWidth: '200px', padding: '12px', borderRadius: '24px', backgroundColor: isTTSOn ? '#005c4b' : 'transparent', color: isTTSOn ? 'white' : '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', transition: 'all 0.2s' }}>
-                                {isTTSOn ? '🔊 Speaker: ON' : '🔇 Speaker: OFF'}
+                                {isTTSOn ? 'Speak on' : 'Speak off'}
                             </button>
                         </div>
                     </div>
@@ -3236,8 +3258,8 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                     <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
                                         <button
                                             onClick={handleCatchMeUp}
-                                            disabled={isSummarizingChat || chatMessages.length === 0}
-                                            style={{ backgroundColor: '#2a3942', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: (isSummarizingChat || chatMessages.length === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', marginRight: '5px', opacity: (isSummarizingChat || chatMessages.length === 0) ? 0.5 : 1 }}
+                                            disabled={isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)}
+                                            style={{ backgroundColor: '#2a3942', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: (isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', marginRight: '5px', opacity: (isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)) ? 0.5 : 1 }}
                                         >
                                             {isSummarizingChat ? '⏳ Catching up...' : '✨ Catch Me Up'}
                                         </button>
@@ -3258,10 +3280,10 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                                     </button>
                                                 )}
                                                 <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isTranscribing ? '💬 On' : '💬 Off') : (isTranscribing ? '💬 On' : '💬 Off')}
+                                                    {isTranscribing ? 'Translate on' : 'Translate off'}
                                                 </button>
                                                 <button onClick={toggleTTS} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isTTSOn ? '🔊 On' : '🔇 Off') : (isTTSOn ? '🔊 On' : '🔇 Off')}
+                                                    {isTTSOn ? 'Speak on' : 'Speak off'}
                                                 </button>
                                                 <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
                                                     {isMobile ? (isMuted ? '🔇' : '🎙️') : (isMuted ? '🔇 Mute' : '🎙️ Mute')}
@@ -3279,6 +3301,17 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* NEW LOCATION FOR CHAT SUMMARY - Placed right under header, outside the scrolling area */}
+                                {chatSummary && (
+                                    <div style={{ margin: '10px 20px 0 20px', backgroundColor: '#202c33', borderLeft: '4px solid #00a884', padding: '16px', borderRadius: '8px', position: 'relative', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', zIndex: 10 }}>
+                                        <button onClick={() => setChatSummary(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '16px' }}>✖</button>
+                                        <h4 style={{ color: '#00a884', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>✨ Catch Up Summary</h4>
+                                        <div style={{ color: '#e9edef', fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                                            {chatSummary}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {inVoiceCall && isTranscribing && (
                                     <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #334155' }}>
@@ -3321,15 +3354,6 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                 )}
 
                                 <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
-                                    {chatSummary && (
-                                        <div style={{ backgroundColor: '#202c33', borderLeft: '4px solid #00a884', padding: '16px', borderRadius: '8px', position: 'relative', marginBottom: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-                                            <button onClick={() => setChatSummary(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '16px' }}>✖</button>
-                                            <h4 style={{ color: '#00a884', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>✨ Catch Up (Last Hour)</h4>
-                                            <div style={{ color: '#e9edef', fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-                                                {chatSummary}
-                                            </div>
-                                        </div>
-                                    )}
                                     {chatMessages.map((m, i) => {
                                         const isVoiceMessage = m.text && m.text.startsWith('[VOICE]');
                                         const isImageMessage = m.text && m.text.startsWith('[IMAGE]');
@@ -3497,7 +3521,7 @@ export async function recordVisitorData() {
 // 🛡️ AUTHENTICATION WRAPPER
 // ==========================================
 export default function App() {
-    // NOE @ 27/06/2026 Visitor stats  
+    // Visitor stats  
     useEffect(() => {
         recordVisitorData();
     }, []);
