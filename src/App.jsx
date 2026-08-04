@@ -127,7 +127,7 @@ const uiDict = {
         info6: "Inscreva-se e seja produtivo"
     },
     'zh': {
-        search: "🔍 搜索...", online: "在线", members: "注册用户", contacts: "保存的联系人",
+        search: "🔍 搜索...", 在线: "在线", members: "注册用户", contacts: "保存的联系人",
         logout: "登出", openTranslator: "🗣️ 本地翻译器", changeMobile: "📱 更改手机号",
         addExternal: "+ 添加外部", selectContact: "选择联系人开始聊天",
         faceToFace: "面对面交谈？", messagePlaceholder: "留言或粘贴图像/链接...",
@@ -770,27 +770,26 @@ function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn }) {
 // ==========================================
 const LanguageOptions = () => (
     <>
+        <option value="zh-CN">Chinese</option>
         <option value="en-US">English</option>
-        <option value="pcm-NG">Pigeon English</option>
-        <option value="ha-NG">Hausa</option>
-        <option value="ig-NG">Igbo</option>
-        <option value="kr-NG">Kanuri</option>
-        <option value="ko-KR">Korean</option>
-        <option value="es-ES">Spanish</option>
         <option value="fr-FR">French</option>
         <option value="de-DE">German</option>
-        <option value="it-IT">Italian</option>
-        <option value="zh-CN">Chinese</option>
-        <option value="ja-JP">Japanese</option>
-        <option value="pt-PT">Portuguese (PT)</option>
-        <option value="pt-BR">Portuguese (BR)</option>
         <option value="el-GR">Greek</option>
-        <option value="ru-RU">Russian</option>
-        <option value="yo-NG">Yoruba</option>
+        <option value="ha-NG">Hausa</option>
+        <option value="ig-NG">Igbo</option>
+        <option value="it-IT">Italian</option>
+        <option value="ja-JP">Japanese</option>
+        <option value="kr-NG">Kanuri</option>
+        <option value="ko-KR">Korean</option>
+        <option value="pcm-NG">Pigeon English</option>
         <option value="pl-PL">Polish</option>
+        <option value="pt-BR">Portuguese (BR)</option>
+        <option value="pt-PT">Portuguese (PT)</option>
+        <option value="ru-RU">Russian</option>
+        <option value="es-ES">Spanish</option>
+        <option value="yo-NG">Yoruba</option>
     </>
 );
-
 
 // ==========================================
 // 🛡️ MAIN CHAT COMPONENT
@@ -846,6 +845,9 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     // ✨ Chat Text Summary State
     const [chatSummary, setChatSummary] = useState(null);
     const [isSummarizingChat, setIsSummarizingChat] = useState(false);
+
+    // Ref to prevent deepgram fast-double-fires duplicating the chat logs
+    const lastInsertedSpeechRef = useRef({ text: '', time: 0 });
 
     const callTranscriptRef = useRef([]);
     useEffect(() => { callTranscriptRef.current = callTranscript; }, [callTranscript]);
@@ -987,12 +989,22 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     // ✨ CATCH ME UP CHAT SUMMARIZATION
     // ==========================================
     const handleCatchMeUp = async () => {
-        // Filter text messages to only those from the last 24 hours to prevent summarizing "weeks ago" histories.
-        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const recentMessages = chatMessages.filter(m => new Date(m.created_at) > twentyFourHoursAgo);
+        // Smart Session Boundary: Find if there's a > 4 hour gap in the chat history
+        // to avoid grabbing last week's "old call" details.
+        let sessionStartIndex = 0;
+        for (let i = chatMessages.length - 1; i > 0; i--) {
+            const currentMsgDate = new Date(chatMessages[i].created_at).getTime();
+            const prevMsgDate = new Date(chatMessages[i - 1].created_at).getTime();
+            if (currentMsgDate - prevMsgDate > 4 * 60 * 60 * 1000) { // 4 hour gap
+                sessionStartIndex = i;
+                break;
+            }
+        }
 
-        if (recentMessages.length === 0 && callTranscript.length === 0) {
-            alert("No recent conversation (within the last 24 hours) or active call to summarize.");
+        const currentSessionMessages = chatMessages.slice(sessionStartIndex);
+
+        if (currentSessionMessages.length === 0 && callTranscript.length === 0) {
+            alert("No recent conversation or active call to summarize.");
             return;
         }
 
@@ -1001,9 +1013,9 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             let combinedTextArray = [];
 
             // Add recent chat messages to summary
-            if (recentMessages.length > 0) {
-                combinedTextArray.push("--- TEXT CHAT MESSAGES ---");
-                const chatText = recentMessages.map(m => {
+            if (currentSessionMessages.length > 0) {
+                combinedTextArray.push("--- CHAT MESSAGES ---");
+                const chatText = currentSessionMessages.map(m => {
                     const senderName = m.sender_email === userEmail ? 'Me' : m.sender_email.split('@')[0];
                     let text = m.text || '';
                     if (text.startsWith('[VOICE]')) text = '[Voice Message]';
@@ -1024,6 +1036,12 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             }
 
             const textToSummarize = combinedTextArray.join('\n\n');
+
+            if (!textToSummarize) {
+                alert("No recent conversation to summarize.");
+                setIsSummarizingChat(false);
+                return;
+            }
 
             const { data, error } = await supabase.functions.invoke('ai-summary', {
                 body: { transcript: textToSummarize }
@@ -1218,8 +1236,8 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         if (!selectedContact || !userEmail) return;
         setChatSummary(null); // Clear summary when switching contacts
         Promise.all([
-            supabase.from('messages').select('*').eq('sender_email', userEmail).eq('receiver_email', selectedContact).limit(50),
-            supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail).limit(50)
+            supabase.from('messages').select('*').eq('sender_email', userEmail).eq('receiver_email', selectedContact),
+            supabase.from('messages').select('*').eq('sender_email', selectedContact).eq('receiver_email', userEmail)
         ]).then(([s, r]) => setChatMessages([...(s.data || []), ...(r.data || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))));
     }, [selectedContact, userEmail]);
 
@@ -2094,18 +2112,43 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                         });
 
                         if (isFinal) {
+                            let isDup = false;
                             setCallTranscript(prev => {
-                                const isDup = prev.length > 0 && prev[prev.length - 1].original === text && prev[prev.length - 1].sender === sender;
+                                isDup = prev.length > 0 && prev[prev.length - 1].original === text && prev[prev.length - 1].sender === sender;
                                 if (isDup) return prev;
                                 return [...prev, { sender, original: text, translated, time: new Date().toLocaleTimeString() }];
                             });
-                        }
 
-                        const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
-                        if (isFinal && shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
-                            const utterance = new SpeechSynthesisUtterance(translated || text);
-                            utterance.lang = translateToLang;
-                            window.speechSynthesis.speak(utterance);
+                            if (!isDup) {
+                                const nowTime = Date.now();
+                                if (sender === userEmail && inCallRef.current && !isLocalTranslateModeRef.current && selectedContactRef.current) {
+                                    // Make absolutely sure we do not duplicate inserts into supabase within 2 seconds
+                                    if (lastInsertedSpeechRef.current.text !== text || nowTime - lastInsertedSpeechRef.current.time > 2000) {
+                                        lastInsertedSpeechRef.current = { text, time: nowTime };
+
+                                        let msgText = `🗣️ ${text}`;
+                                        if (translated && translated !== text && translated !== '...') {
+                                            msgText += `\n🌐 ${translated}`;
+                                        }
+                                        supabase.from('messages').insert([{
+                                            sender_email: userEmail,
+                                            receiver_email: selectedContactRef.current,
+                                            text: msgText
+                                        }]).select().then(({ data, error }) => {
+                                            if (!error && data?.length) {
+                                                setChatMessages(curr => curr.find(m => m.id === data[0].id) ? curr : [...curr, data[0]]);
+                                            }
+                                        });
+                                    }
+                                }
+
+                                const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
+                                if (shouldSpeak && isTTSOnRef.current && 'speechSynthesis' in window) {
+                                    const utterance = new SpeechSynthesisUtterance(translated || text);
+                                    utterance.lang = translateToLang;
+                                    window.speechSynthesis.speak(utterance);
+                                }
+                            }
                         }
                     });
                 };
@@ -2129,18 +2172,40 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                     }, 800);
                 }
             } else if (!needsTranslation && isFinal && text.trim().length > 0) {
+                let isDup = false;
                 setCallTranscript(prev => {
-                    const isDup = prev.length > 0 && prev[prev.length - 1].original === text && prev[prev.length - 1].sender === sender;
+                    isDup = prev.length > 0 && prev[prev.length - 1].original === text && prev[prev.length - 1].sender === sender;
                     if (isDup) return prev;
                     return [...prev, { sender, original: text, translated: text, time: new Date().toLocaleTimeString() }];
                 });
 
-                if (isTTSOnRef.current && 'speechSynthesis' in window) {
-                    const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
-                    if (shouldSpeak) {
-                        const utterance = new SpeechSynthesisUtterance(text);
-                        utterance.lang = translateToLang;
-                        window.speechSynthesis.speak(utterance);
+                if (!isDup) {
+                    const nowTime = Date.now();
+                    if (sender === userEmail && inCallRef.current && !isLocalTranslateModeRef.current && selectedContactRef.current) {
+                        // Make absolutely sure we do not duplicate inserts into supabase within 2 seconds
+                        if (lastInsertedSpeechRef.current.text !== text || nowTime - lastInsertedSpeechRef.current.time > 2000) {
+                            lastInsertedSpeechRef.current = { text, time: nowTime };
+
+                            let msgText = `🗣️ ${text}`;
+                            supabase.from('messages').insert([{
+                                sender_email: userEmail,
+                                receiver_email: selectedContactRef.current,
+                                text: msgText
+                            }]).select().then(({ data, error }) => {
+                                if (!error && data?.length) {
+                                    setChatMessages(curr => curr.find(m => m.id === data[0].id) ? curr : [...curr, data[0]]);
+                                }
+                            });
+                        }
+                    }
+
+                    if (isTTSOnRef.current && 'speechSynthesis' in window) {
+                        const shouldSpeak = (sender !== userEmail) || isLocalTranslateModeRef.current;
+                        if (shouldSpeak) {
+                            const utterance = new SpeechSynthesisUtterance(text);
+                            utterance.lang = translateToLang;
+                            window.speechSynthesis.speak(utterance);
+                        }
                     }
                 }
             }
@@ -2691,7 +2756,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                         if (transcriptSummary) {
                                             htmlLines += `
                                             <div style="background-color: #f0fdf4; border-left: 4px solid #00a884; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
-                                                <h3 style="color: #00a884; margin-top: 0; margin-bottom: 8px;">✨ AI Summary</h3>
+                                                <h3 style="color: #00a884; margin: 0; margin-bottom: 8px;">✨ AI Summary</h3>
                                                 <p style="color: #1e293b; line-height: 1.5; margin: 0; font-size: 15px;">${transcriptSummary}</p>
                                             </div>
                                             `;
