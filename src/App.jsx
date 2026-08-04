@@ -23,7 +23,13 @@ const uiDict = {
         backLogin: "Back to Login", email: "Email", password: "Password (min 6 characters)", mobile: "Mobile Number (Mandatory)",
         sendReset: "Send Reset Link", loading: "Loading...", sending: "Sending...",
         resetMsg: "Enter your email address and we'll send you a link to reset your password.",
-        checkEmail: "✅ Check your email"
+        checkEmail: "✅ Check your email",
+        info1: "TotalRecall is like WhatsApp but has more features.",
+        info2: "Live call translation in a number of languages.",
+        info3: "Local call translation. i.e. in person and not on a live call.",
+        info4: "Notification that you want a call for users offline. i.e. calls the person and sends an SMS message with a link to join the call.",
+        info5: "This site is FREE!",
+        info6: "Sign-up and get productive"
     },
     'es': {
         search: "🔍 Buscar usuarios...", online: "En línea", members: "Usuarios Registrados", contacts: "Contactos Guardados",
@@ -36,7 +42,13 @@ const uiDict = {
         backLogin: "Volver al Login", email: "Correo electrónico", password: "Contraseña (min 6 caracteres)", mobile: "Número de Móvil (Obligatorio)",
         sendReset: "Enviar enlace", loading: "Cargando...", sending: "Enviando...",
         resetMsg: "Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.",
-        checkEmail: "✅ Revisa tu correo"
+        checkEmail: "✅ Revisa tu correo",
+        info1: "TotalRecall es como WhatsApp pero con más funciones.",
+        info2: "Traducción de llamadas en vivo en varios idiomas.",
+        info3: "Traducción local. Ej. en persona y no en una llamada en vivo.",
+        info4: "Notificación de llamada a usuarios desconectados. Ej. llama a la persona y envía un SMS con un enlace para unirse.",
+        info5: "¡Este sitio es GRATIS!",
+        info6: "Regístrate y sé productivo"
     },
     'fr': {
         search: "🔍 Rechercher...", online: "En ligne", members: "Utilisateurs Inscrits", contacts: "Contacts Enregistrés",
@@ -49,7 +61,13 @@ const uiDict = {
         backLogin: "Retour", email: "E-mail", password: "Mot de passe (min 6 caractères)", mobile: "Numéro de Mobile (Obligatoire)",
         sendReset: "Envoyer le lien", loading: "Chargement...", sending: "Envoi...",
         resetMsg: "Entrez votre e-mail et nous vous enverrons un lien pour réinitialiser votre mot de passe.",
-        checkEmail: "✅ Vérifiez vos e-mails"
+        checkEmail: "✅ Vérifiez vos e-mails",
+        info1: "TotalRecall est comme WhatsApp mais avec plus de fonctionnalités.",
+        info2: "Traduction d'appels en direct dans plusieurs langues.",
+        info3: "Traduction locale. Ex. en personne et non lors d'un appel.",
+        info4: "Notification d'appel pour les utilisateurs hors ligne. Ex. appelle la personne et envoie un SMS avec un lien.",
+        info5: "Ce site est GRATUIT !",
+        info6: "Inscrivez-vous et soyez productif"
     },
     'de': {
         search: "🔍 Suchen...", online: "Online", members: "Registrierte Nutzer", contacts: "Gespeicherte Kontakte",
@@ -62,7 +80,13 @@ const uiDict = {
         backLogin: "Zurück zum Login", email: "E-Mail", password: "Passwort (min 6 Zeichen)", mobile: "Handynummer (Pflichtfeld)",
         sendReset: "Link senden", loading: "Wird geladen...", sending: "Senden...",
         resetMsg: "Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen.",
-        checkEmail: "✅ E-Mails prüfen"
+        checkEmail: "✅ E-Mails prüfen",
+        info1: "TotalRecall ist wie WhatsApp, bietet aber mehr Funktionen.",
+        info2: "Live-Anrufübersetzung in mehrere Sprachen.",
+        info3: "Lokale Übersetzung. D.h. persönlich und nicht bei einem Live-Anruf.",
+        info4: "Anrufbenachrichtigung für Offline-Benutzer. D.h. ruft die Person an und sendet eine SMS mit einem Link.",
+        info5: "Diese Seite ist KOSTENLOS!",
+        info6: "Melden Sie sich an und werden Sie produktiv"
     },
     'it': {
         search: "🔍 Cerca utenti...", online: "In linea", members: "Utenti Registrati", contacts: "Contatti Salvati",
@@ -75,7 +99,13 @@ const uiDict = {
         backLogin: "Torna al Login", email: "Email", password: "Password (min 6 caratteri)", mobile: "Numero di cellulare (Obbligatorio)",
         sendReset: "Invia Link", loading: "Caricamento...", sending: "Invio...",
         resetMsg: "Inserisci la tua email e ti invieremo un link per reimpostare la password.",
-        checkEmail: "✅ Controlla la tua email"
+        checkEmail: "✅ Controlla la tua email",
+        info1: "TotalRecall è come WhatsApp ma ha più funzioni.",
+        info2: "Traduzione di chiamate in tempo reale in diverse lingue.",
+        info3: "Traduzione locale. Es. di persona e non durante una chiamata dal vivo.",
+        info4: "Notifica di chiamata per utenti offline. Es. chiama la persona e invia un SMS con un link.",
+        info5: "Questo sito è GRATIS!",
+        info6: "Iscriviti e diventa produttivo"
     },
     'pt': {
         search: "🔍 Pesquisar...", online: "Online", members: "Usuários Registrados", contacts: "Contatos Salvos",
@@ -88,7 +118,13 @@ const uiDict = {
         backLogin: "Voltar", email: "E-mail", password: "Senha (min 6 caracteres)", mobile: "Número de Celular (Obrigatório)",
         sendReset: "Enviar Link", loading: "Carregando...", sending: "Enviando...",
         resetMsg: "Digite seu e-mail e enviaremos um link para redefinir sua senha.",
-        checkEmail: "✅ Verifique seu e-mail"
+        checkEmail: "✅ Verifique seu e-mail",
+        info1: "O TotalRecall é como o WhatsApp, mas tem mais recursos.",
+        info2: "Tradução de chamadas ao vivo em vários idiomas.",
+        info3: "Tradução local. Ou seja, pessoalmente e não em uma chamada ao vivo.",
+        info4: "Notificação de chamada para usuários offline. Ou seja, liga para a pessoa e envia um SMS com um link.",
+        info5: "Este site é GRATUITO!",
+        info6: "Inscreva-se e seja produtivo"
     },
     'zh': {
         search: "🔍 搜索...", online: "在线", members: "注册用户", contacts: "保存的联系人",
@@ -101,10 +137,16 @@ const uiDict = {
         backLogin: "返回登录", email: "电子邮件", password: "密码（最少6个字符）", mobile: "手机号码（必填）",
         sendReset: "发送重置链接", loading: "加载中...", sending: "发送中...",
         resetMsg: "输入您的电子邮件，我们将向您发送重置密码的链接。",
-        checkEmail: "✅ 检查您的电子邮件"
+        checkEmail: "✅ 检查您的电子邮件",
+        info1: "TotalRecall 类似 WhatsApp，但功能更多。",
+        info2: "多种语言的实时通话翻译。",
+        info3: "本地翻译。即面对面翻译，而非实时通话中。",
+        info4: "离线用户通话通知。即呼叫对方并发送包含加入链接的短信。",
+        info5: "本网站免费！",
+        info6: "注册并提高效率"
     },
     'ja': {
-        search: "🔍 ユーザーを検索...", online: "オンライン", members: "登録ユーザー", contacts: "保存された連絡先",
+        search: "🔍 ユーザーを検索...", オンライン: "オンライン", members: "登録ユーザー", contacts: "保存された連絡先",
         logout: "ログアウト", openTranslator: "🗣️ ローカル翻訳を開く", changeMobile: "📱 携帯番号を変更",
         addExternal: "+ 外部追加", selectContact: "チャットする連絡先を選択してください",
         faceToFace: "対面で話していますか？", messagePlaceholder: "メッセージまたは画像/リンクを貼り付け...",
@@ -114,7 +156,13 @@ const uiDict = {
         backLogin: "ログインに戻る", email: "メールアドレス", password: "パスワード (最小6文字)", mobile: "携帯番号 (必須)",
         sendReset: "リセットリンクを送信", loading: "読み込み中...", sending: "送信中...",
         resetMsg: "メールアドレスを入力すると、パスワードをリセットするためのリンクが送信されます。",
-        checkEmail: "✅ メールを確認してください"
+        checkEmail: "✅ メールを確認してください",
+        info1: "TotalRecallはWhatsAppに似ていますが、より多くの機能を備えています。",
+        info2: "多言語でのライブ通話翻訳。",
+        info3: "ローカル翻訳。つまり、ライブ通話ではなく対面での翻訳。",
+        info4: "オフラインユーザーへの通話通知。つまり、相手に電話をかけ、参加リンク付きのSMSを送信します。",
+        info5: "このサイトは無料です！",
+        info6: "サインアップして生産性を高めましょう"
     },
     'ru': {
         search: "🔍 Поиск...", online: "В сети", members: "Зарегистрированные пользователи", contacts: "Сохраненные контакты",
@@ -127,7 +175,13 @@ const uiDict = {
         backLogin: "Назад", email: "Эл. почта", password: "Пароль (минимум 6 символов)", mobile: "Мобильный номер (Обязательно)",
         sendReset: "Отправить ссылку", loading: "Загрузка...", sending: "Отправка...",
         resetMsg: "Введите свой адрес электронной почты, и мы отправим ссылку для сброса.",
-        checkEmail: "✅ Проверьте почту"
+        checkEmail: "✅ Проверьте почту",
+        info1: "TotalRecall похож на WhatsApp, но имеет больше функций.",
+        info2: "Живой перевод звонков на несколько языков.",
+        info3: "Локальный перевод. Т.е. лично, а не во время живого звонка.",
+        info4: "Уведомление о звонке для пользователей не в сети. Т.е. звонит человеку и отправляет SMS со ссылкой.",
+        info5: "Этот сайт БЕСПЛАТНЫЙ!",
+        info6: "Зарегистрируйтесь и станьте продуктивнее"
     },
     'el': {
         search: "🔍 Αναζήτηση χρήστη...", online: "Σε σύνδεση", members: "Εγγεγραμμένοι χρήστες", contacts: "Αποθηκευμένες επαφές",
@@ -140,7 +194,13 @@ const uiDict = {
         backLogin: "Επιστροφή στη σύνδεση", email: "Email", password: "Κωδικός (τουλ. 6 χαρακτήρες)", mobile: "Αριθμός Κινητού (Υποχρεωτικό)",
         sendReset: "Αποστολή συνδέσμου", loading: "Φόρτωση...", sending: "Αποστολή...",
         resetMsg: "Εισαγάγετε το email σας και θα σας στείλουμε έναν σύνδεσμο για επαναφορά.",
-        checkEmail: "✅ Ελέγξτε το email σας"
+        checkEmail: "✅ Ελέγξτε το email σας",
+        info1: "Το TotalRecall είναι σαν το WhatsApp αλλά έχει περισσότερες δυνατότητες.",
+        info2: "Ζωντανή μετάφραση κλήσεων σε πολλές γλώσσες.",
+        info3: "Τοπική μετάφραση. Δηλαδή από κοντά και όχι σε ζωντανή κλήση.",
+        info4: "Ειδοποίηση κλήσης για χρήστες εκτός σύνδεσης. Δηλαδή καλεί το άτομο και στέλνει SMS με σύνδεσμο.",
+        info5: "Αυτός ο ιστότοπος είναι ΔΩΡΕΑΝ!",
+        info6: "Εγγραφείτε και γίνετε παραγωγικοί"
     },
     'yo': {
         search: "🔍 Ṣàwárí àwọn olùmúlò...", online: "Lórí Ìkànnì", members: "Àwọn Olùmúlò", contacts: "Àwọn Olùbásọ̀rọ̀",
@@ -153,7 +213,13 @@ const uiDict = {
         backLogin: "Padà sí Wọlé", email: "Ímẹ́èlì", password: "Ọ̀rọ̀-ìkọkọ (kéré jù 6)", mobile: "Nọ́mbà Alágbèéká (Ọ̀bùdàn)",
         sendReset: "Fi Ọ̀nà asopọ ránsẹ́", loading: "Ń gbé e wá...", sending: "Ń firánṣẹ́...",
         resetMsg: "Tẹ ímẹ́èlì rẹ, a ó fi ọ̀nà asopọ ránṣẹ́ láti ṣètò rẹ̀.",
-        checkEmail: "✅ Ṣàyẹ̀wò ímẹ́èlì rẹ"
+        checkEmail: "✅ Ṣàyẹ̀wò ímẹ́èlì rẹ",
+        info1: "TotalRecall dabi WhatsApp ṣugbọn o ni awọn ẹya diẹ sii.",
+        info2: "Itumọ ipe ifiwe ni awọn ede pupọ.",
+        info3: "Itumọ agbegbe. i.e. ni eniyan ati kii ṣe lori ipe ifiwe.",
+        info4: "Akiyesi ipe fun awọn olumulo ti ko si lori ayelujara. i.e. pe eniyan naa o si fi SMS ranṣẹ pẹlu ọna asopọ.",
+        info5: "Aaye yii jẹ ỌFẸ!",
+        info6: "Forukọsilẹ ki o si jẹ eleso"
     },
     'pl': {
         search: "🔍 Szukaj użytkowników...", online: "Dostępny", members: "Zarejestrowani użytkownicy", contacts: "Zapisane kontakty",
@@ -166,7 +232,13 @@ const uiDict = {
         backLogin: "Powrót do logowania", email: "E-mail", password: "Hasło (min. 6 znaków)", mobile: "Numer komórkowy (Obowiązkowy)",
         sendReset: "Wyślij link", loading: "Ładowanie...", sending: "Wysyłanie...",
         resetMsg: "Podaj swój e-mail, a wyślemy Ci link do zresetowania hasła.",
-        checkEmail: "✅ Sprawdź swój e-mail"
+        checkEmail: "✅ Sprawdź swój e-mail",
+        info1: "TotalRecall przypomina WhatsApp, ale ma więcej funkcji.",
+        info2: "Tłumaczenie rozmów na żywo w wielu językach.",
+        info3: "Tłumaczenie lokalne. Tj. osobiście, a nie podczas rozmowy na żywo.",
+        info4: "Powiadomienie o połączeniu dla użytkowników offline. Tj. dzwoni do osoby i wysyła SMS z linkiem.",
+        info5: "Ta strona jest DARMOWA!",
+        info6: "Zarejestruj się i bądź produktywny"
     },
     'pcm': {
         search: "🔍 Find pipo...", online: "Online", members: "Regista Pipo", contacts: "Saved Contacts",
@@ -179,7 +251,13 @@ const uiDict = {
         backLogin: "Back to Login", email: "Email", password: "Password (min 6 characters)", mobile: "Mobile Number (Mandatory)",
         sendReset: "Send Reset Link", loading: "Loading...", sending: "Sending...",
         resetMsg: "Enter your email address and we go send you link to reset your password.",
-        checkEmail: "✅ Check your email"
+        checkEmail: "✅ Check your email",
+        info1: "TotalRecall be like WhatsApp but e get more features.",
+        info2: "Live call translation for many languages.",
+        info3: "Local call translation. i.e. face-to-face and no be on live call.",
+        info4: "Notification for offline users. i.e. e go call di person and send SMS with link to join.",
+        info5: "Dis site na AWOOF (FREE)!",
+        info6: "Sign-up make you productive"
     },
     'ha': {
         search: "🔍 Nemi masu amfani...", online: "A kan layi", members: "Masu amfani", contacts: "Lambobi",
@@ -192,7 +270,13 @@ const uiDict = {
         backLogin: "Koma kan Shiga", email: "Imel", password: "Kalmar sirri (min 6 haruffa)", mobile: "Lambar Waya (Wajibi)",
         sendReset: "Aika hanyar haɗi", loading: "Ana lodawa...", sending: "Ana aikawa...",
         resetMsg: "Shigar da imel ɗin ku kuma za mu aiko muku da hanyar haɗi don sake saita kalmar sirrin ku.",
-        checkEmail: "✅ Duba imel ɗin ku"
+        checkEmail: "✅ Duba imel ɗin ku",
+        info1: "TotalRecall kamar WhatsApp yake amma yana da ƙarin fasali.",
+        info2: "Fassarar kira kai tsaye a cikin yaruka da yawa.",
+        info3: "Fassarar gida. watau ido-da-ido ba a kan kira kai tsaye ba.",
+        info4: "Sanarwar kira ga masu amfani da layi. watau yana kiran mutum kuma ya aika SMS da mahada.",
+        info5: "Wannan rukunin KYAUTA ne!",
+        info6: "Yi rajista don zama mai amfani"
     },
     'ig': {
         search: "🔍 Chọọ ndị ọrụ...", online: "N'ịntanetị", members: "Ndị debanyere aha", contacts: "Kọntaktị echekwara",
@@ -205,7 +289,13 @@ const uiDict = {
         backLogin: "Laghachi na Nbanye", email: "Email", password: "Paswọọdụ (min mkpụrụedemede 6)", mobile: "Nọmba ekwentị (Iwu)",
         sendReset: "Ziga njikọ", loading: "Na-ebu...", sending: "Na-eziga...",
         resetMsg: "Tinye email gị ka anyị ziga njikọ iji tọgharịa paswọọdụ gị.",
-        checkEmail: "✅ Lelee email gị"
+        checkEmail: "✅ Lelee email gị",
+        info1: "TotalRecall dị ka WhatsApp mana o nwere atụmatụ ndị ọzọ.",
+        info2: "Ntụgharị oku ndụ n'ọtụtụ asụsụ.",
+        info3: "Ntụgharị mpaghara. ya bụ ihu na ihu ọ bụghị na oku ndụ.",
+        info4: "Mgbasa ozi oku maka ndị ọrụ anọghị n'ịntanetị. ya bụ na-akpọ onye ahụ ma ziga SMS nwere njikọ.",
+        info5: "Ebe nrụọrụ weebụ a bụ N'EFU!",
+        info6: "Debanye aha ma na-arụpụta ihe"
     },
     'kr': {
         search: "🔍 Matǝ am...", online: "Online", members: "Am rajiwa", contacts: "Kǝntaktwa",
@@ -218,7 +308,13 @@ const uiDict = {
         backLogin: "Walte", email: "Email", password: "Paswod (kǝla 6)", mobile: "Namba waya",
         sendReset: "Zǝwǝna laya", loading: "Gǝnawa...", sending: "Zǝwǝ...",
         resetMsg: "Email num sa, laya paswod walte zǝwiya.",
-        checkEmail: "✅ Email num kuru"
+        checkEmail: "✅ Email num kuru",
+        info1: "TotalRecall WhatsApp yinzǝ ro amman kǝla zǝgǝ.",
+        info2: "Tǝrjaman kǝla waya tǝlamwa nǝmbu ro.",
+        info3: "Tǝrjaman kǝla tǝlam. Mana fuwa-a-fuwa kǝla waya ba.",
+        info4: "Notifi waya ro am online ba ro. Waya bo sa kuru SMS laya zǝwiya.",
+        info5: "Saiti adǝ SHADA!",
+        info6: "Rajisita sa kuru amfa"
     },
     'ko': {
         search: "🔍 사용자 검색...", online: "온라인", members: "등록된 사용자", contacts: "저장된 연락처",
@@ -231,7 +327,13 @@ const uiDict = {
         backLogin: "로그인으로 돌아가기", email: "이메일", password: "비밀번호 (최소 6자)", mobile: "휴대폰 번호 (필수)",
         sendReset: "재설정 링크 보내기", loading: "로딩 중...", sending: "보내는 중...",
         resetMsg: "이메일 주소를 입력하면 비밀번호 재설정 링크를 보내드립니다.",
-        checkEmail: "✅ 이메일을 확인하세요"
+        checkEmail: "✅ 이메일을 확인하세요",
+        info1: "TotalRecall은 WhatsApp과 비슷하지만 기능이 더 많습니다.",
+        info2: "여러 언어로 제공되는 실시간 통화 번역.",
+        info3: "로컬 번역. 즉, 실시간 통화가 아닌 대면 번역입니다.",
+        info4: "오프라인 사용자 통화 알림. 즉, 전화를 걸고 참여 링크가 포함된 SMS를 보냅니다.",
+        info5: "이 사이트는 무료입니다!",
+        info6: "가입하고 생산성을 높이세요"
     }
 };
 
@@ -888,11 +990,12 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         if (chatMessages.length === 0) return;
         setIsSummarizingChat(true);
         try {
-            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-            const recentMessages = chatMessages.filter(m => new Date(m.created_at) > oneHourAgo);
+            // Changed from 1 hour (60 * 60 * 1000) to 2 minutes (2 * 60 * 1000)
+            const twoMinsAgo = new Date(Date.now() - 2 * 60 * 1000);
+            const recentMessages = chatMessages.filter(m => new Date(m.created_at) > twoMinsAgo);
 
             if (recentMessages.length === 0) {
-                alert("No messages in the past hour to summarize.");
+                alert("No messages in the past 2 minutes to summarize.");
                 setIsSummarizingChat(false);
                 return;
             }
@@ -931,6 +1034,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             setIsSummarizingChat(false);
         }
     };
+
 
     // ==========================================
     // 💾 USER SETTINGS & PROFILE: LOAD & SAVE
@@ -3305,6 +3409,55 @@ styleSheet.textContent = `
         from { transform: translate(-50%, -20px); opacity: 0; } 
         to { transform: translate(-50%, 0); opacity: 1; } 
     }
+        
+    .auth-input {
+        width: 100%;
+        padding: 16px 20px;
+        margin-bottom: 16px;
+        border-radius: 12px;
+        border: 2px solid transparent;
+        background-color: #2a3942;
+        color: white;
+        box-sizing: border-box;
+        font-size: 15px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        font-family: inherit;
+    }
+    .auth-input:focus {
+        outline: none;
+        border-color: #00a884;
+        background-color: #111b21;
+        box-shadow: 0 0 0 4px rgba(0, 168, 132, 0.1);
+    }
+    .auth-input::placeholder { color: #8696a0; }
+    
+    .auth-btn {
+        width: 100%;
+        padding: 16px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        box-sizing: border-box;
+        margin-bottom: 16px;
+        font-family: inherit;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+    }
+    .auth-btn:active { transform: scale(0.98); }
+    .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    
+    .auth-btn.primary { background-color: #00a884; color: #111b21; border: none; }
+    .auth-btn.primary:hover:not(:disabled) { background-color: #00c298; box-shadow: 0 8px 20px rgba(0, 168, 132, 0.25); transform: translateY(-1px); }
+    
+    .auth-btn.secondary { background-color: transparent; color: #00a884; border: 2px solid #00a884; }
+    .auth-btn.secondary:hover:not(:disabled) { background-color: rgba(0, 168, 132, 0.08); transform: translateY(-1px); }
+    
+    .auth-btn.ghost { background-color: transparent; color: #8696a0; border: none; padding: 8px; font-size: 14px; margin-bottom: 0; }
+    .auth-btn.ghost:hover:not(:disabled) { color: #e9edef; text-decoration: underline; }
 `;
 document.head.appendChild(styleSheet);
 
@@ -3347,6 +3500,13 @@ export default function App() {
     // NOE @ 27/06/2026 Visitor stats  
     useEffect(() => {
         recordVisitorData();
+    }, []);
+
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 900); // Trigger split screen at 900px
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 900);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     const [user, setUser] = useState(null);
@@ -3526,70 +3686,120 @@ export default function App() {
     if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} uiLanguage={uiLanguage} setUiLanguage={setUiLanguage} />;
 
     return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', backgroundColor: '#111b21', color: 'white', fontFamily: 'Segoe UI', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh', backgroundColor: '#0b141a', color: '#e9edef', fontFamily: 'Segoe UI, sans-serif', position: 'relative', padding: isMobile ? '20px' : '40px', boxSizing: 'border-box', overflowX: 'hidden' }}>
+
+            {/* Decorative Background Blurs */}
+            <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(0, 168, 132, 0.08) 0%, transparent 60%)', zIndex: 0, pointerEvents: 'none' }}></div>
+            <div style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(56, 189, 248, 0.05) 0%, transparent 60%)', zIndex: 0, pointerEvents: 'none' }}></div>
 
             {/* Top Right UI Language Selector */}
-            <div style={{ position: 'absolute', top: 20, right: 20 }}>
+            <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 10 }}>
                 <select
                     value={uiLanguage}
                     onChange={(e) => {
                         setUiLanguage(e.target.value);
                         localStorage.setItem('ui_language', e.target.value);
                     }}
-                    style={{ padding: '8px 12px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #00a884', outline: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                    style={{ padding: '8px 12px', borderRadius: '8px', background: '#2a3942', color: 'white', border: '1px solid #00a884', outline: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
                 >
                     <LanguageOptions />
                 </select>
             </div>
 
-            <div style={{ backgroundColor: '#202c33', padding: 40, borderRadius: 8, width: 350, maxWidth: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                <h2 style={{ color: '#00a884', marginBottom: 30 }}>TotalRecall</h2>
-                {error && <div style={{ backgroundColor: '#dc2626', color: 'white', padding: 10, borderRadius: 4, marginBottom: 15, wordWrap: 'break-word' }}>{error}</div>}
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '40px' : '80px', maxWidth: '1100px', width: '100%', zIndex: 1, alignItems: 'center' }}>
 
-                {showConfirm ? (
-                    <div>
-                        <h3>{t('checkEmail', uiLanguage)}</h3>
-                        <p style={{ color: '#8696a0', marginBottom: 20 }}>{confirmMessage}</p>
-                        <button onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); setIsForgotPasswordMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>{t('backLogin', uiLanguage)}</button>
+                {/* Left Side: Information */}
+                <div style={{ flex: 1, padding: isMobile ? '20px 0 0 0' : '20px', animation: 'slideUpFade 0.6s ease-out' }}>
+                    <h1 style={{ fontSize: isMobile ? '36px' : '56px', color: '#00a884', margin: '0 0 20px 0', fontWeight: '800', letterSpacing: '-1px' }}>TotalRecall</h1>
+                    <p style={{ fontSize: isMobile ? '18px' : '22px', margin: '0 0 40px 0', color: '#e9edef', fontWeight: '300', lineHeight: '1.4' }}>
+                        {t('info1', uiLanguage)}
+                    </p>
+
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <li style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', fontSize: '16px', color: '#aebac1', lineHeight: '1.5' }}>
+                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                            <span>{t('info2', uiLanguage)}</span>
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', fontSize: '16px', color: '#aebac1', lineHeight: '1.5' }}>
+                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                            <span>{t('info3', uiLanguage)}</span>
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', fontSize: '16px', color: '#aebac1', lineHeight: '1.5' }}>
+                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                            <span>{t('info4', uiLanguage)}</span>
+                        </li>
+                    </ul>
+
+                    <div style={{ marginTop: '50px', padding: '20px', backgroundColor: 'rgba(0, 168, 132, 0.05)', borderLeft: '4px solid #00a884', borderRadius: '0 12px 12px 0', backdropFilter: 'blur(10px)' }}>
+                        <p style={{ margin: '0 0 8px 0', color: '#00a884', fontWeight: 'bold', fontSize: '18px', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('info5', uiLanguage)}</p>
+                        <p style={{ margin: 0, color: '#e9edef', fontSize: '15px' }}>{t('info6', uiLanguage)}</p>
                     </div>
-                ) : isForgotPasswordMode ? (
-                    <form onSubmit={e => e.preventDefault()}>
-                        <p style={{ color: '#8696a0', marginBottom: 15, fontSize: '14px' }}>{t('resetMsg', uiLanguage)}</p>
-                        <input type="email" placeholder={t('email', uiLanguage)} value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                </div>
 
-                        <button onClick={e => auth(e, 'reset')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>
-                            {loading ? t('sending', uiLanguage) : t('sendReset', uiLanguage)}
-                        </button>
-                        <button onClick={() => { setIsForgotPasswordMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>
-                            {t('backLogin', uiLanguage)}
-                        </button>
-                    </form>
-                ) : (
-                    <form onSubmit={e => e.preventDefault()}>
-                        <input type="email" placeholder={t('email', uiLanguage)} value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                {/* Right Side: Auth Card */}
+                <div style={{ flex: '0 0 auto', width: '100%', maxWidth: '420px', animation: 'slideUpFade 0.8s ease-out' }}>
+                    <div style={{ backgroundColor: 'rgba(32, 44, 51, 0.8)', backdropFilter: 'blur(20px)', padding: '40px 30px', borderRadius: '24px', boxShadow: '0 24px 48px rgba(0,0,0,0.5), 0 1px 3px rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <h2 style={{ color: '#e9edef', margin: '0 0 25px 0', fontSize: '24px', textAlign: 'center', fontWeight: '600' }}>
+                            {isSignupMode ? t('createAcc', uiLanguage) : isForgotPasswordMode ? t('forgotPwd', uiLanguage) : t('login', uiLanguage)}
+                        </h2>
 
-                        {isSignupMode && (
-                            <input type="tel" placeholder={t('mobile', uiLanguage)} value={mobile} onChange={e => setMobile(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 15, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} required />
-                        )}
+                        {error && <div style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)', color: '#ef4444', padding: 12, borderRadius: 8, marginBottom: 20, border: '1px solid rgba(220, 38, 38, 0.3)', fontSize: '14px', wordWrap: 'break-word' }}>{error}</div>}
 
-                        <input type="password" placeholder={t('password', uiLanguage)} value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, borderRadius: 4, border: 'none', backgroundColor: '#2a3942', color: 'white', boxSizing: 'border-box' }} disabled={loading} />
+                        {showConfirm ? (
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '40px', marginBottom: '15px' }}>📧</div>
+                                <h3 style={{ margin: '0 0 10px 0', color: '#00a884' }}>{t('checkEmail', uiLanguage)}</h3>
+                                <p style={{ color: '#8696a0', marginBottom: 25, fontSize: '15px', lineHeight: '1.5' }}>{confirmMessage}</p>
+                                <button className="auth-btn primary" onClick={() => { setShowConfirm(false); setEmail(''); setPassword(''); setMobile(''); setError(''); setIsSignupMode(false); setIsForgotPasswordMode(false); }}>{t('backLogin', uiLanguage)}</button>
+                            </div>
+                        ) : isForgotPasswordMode ? (
+                            <form onSubmit={e => e.preventDefault()}>
+                                <p style={{ color: '#8696a0', marginBottom: 20, fontSize: '14px', lineHeight: '1.5', textAlign: 'center' }}>{t('resetMsg', uiLanguage)}</p>
+                                <input className="auth-input" type="email" placeholder={t('email', uiLanguage)} value={email} onChange={e => setEmail(e.target.value)} disabled={loading} />
 
-                        {!isSignupMode ? (
-                            <>
-                                <button onClick={e => auth(e, 'login')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? t('loading', uiLanguage) : t('login', uiLanguage)}</button>
-                                <button onClick={() => { setIsSignupMode(true); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#00a884', border: '1px solid #00a884', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>{t('signup', uiLanguage)}</button>
-                                <button onClick={() => { setIsForgotPasswordMode(true); setError(''); setIsSignupMode(false); }} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: 'none', fontSize: '13px', cursor: 'pointer', marginTop: '10px', textDecoration: 'underline' }} disabled={loading}>
-                                    {t('forgotPwd', uiLanguage)}
+                                <button className="auth-btn primary" onClick={e => auth(e, 'reset')} disabled={loading}>
+                                    {loading ? t('sending', uiLanguage) : t('sendReset', uiLanguage)}
                                 </button>
-                            </>
+                                <button className="auth-btn secondary" onClick={() => { setIsForgotPasswordMode(false); setError(''); }} disabled={loading}>
+                                    {t('backLogin', uiLanguage)}
+                                </button>
+                            </form>
                         ) : (
-                            <>
-                                <button onClick={e => auth(e, 'signup')} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: '#00a884', color: '#111', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', marginBottom: 10, opacity: loading ? 0.5 : 1 }}>{loading ? t('loading', uiLanguage) : t('createAcc', uiLanguage)}</button>
-                                <button onClick={() => { setIsSignupMode(false); setError(''); }} disabled={loading} style={{ width: '100%', padding: 12, backgroundColor: 'transparent', color: '#8696a0', border: '1px solid #8696a0', borderRadius: 4, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.5 : 1 }}>{t('backLogin', uiLanguage)}</button>
-                            </>
+                            <form onSubmit={e => e.preventDefault()}>
+                                <input className="auth-input" type="email" placeholder={t('email', uiLanguage)} value={email} onChange={e => setEmail(e.target.value)} disabled={loading} />
+
+                                {isSignupMode && (
+                                    <input className="auth-input" type="tel" placeholder={t('mobile', uiLanguage)} value={mobile} onChange={e => setMobile(e.target.value)} disabled={loading} required />
+                                )}
+
+                                <input className="auth-input" type="password" placeholder={t('password', uiLanguage)} value={password} onChange={e => setPassword(e.target.value)} disabled={loading} />
+
+                                {!isSignupMode ? (
+                                    <>
+                                        <button className="auth-btn primary" onClick={e => auth(e, 'login')} disabled={loading}>
+                                            {loading ? t('loading', uiLanguage) : t('login', uiLanguage)}
+                                        </button>
+                                        <button className="auth-btn secondary" onClick={() => { setIsSignupMode(true); setError(''); }} disabled={loading}>
+                                            {t('signup', uiLanguage)}
+                                        </button>
+                                        <button className="auth-btn ghost" onClick={() => { setIsForgotPasswordMode(true); setError(''); setIsSignupMode(false); }} disabled={loading}>
+                                            {t('forgotPwd', uiLanguage)}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button className="auth-btn primary" onClick={e => auth(e, 'signup')} disabled={loading}>
+                                            {loading ? t('loading', uiLanguage) : t('createAcc', uiLanguage)}
+                                        </button>
+                                        <button className="auth-btn secondary" onClick={() => { setIsSignupMode(false); setError(''); }} disabled={loading}>
+                                            {t('backLogin', uiLanguage)}
+                                        </button>
+                                    </>
+                                )}
+                            </form>
                         )}
-                    </form>
-                )}
+                    </div>
+                </div>
             </div>
         </div>
     );
