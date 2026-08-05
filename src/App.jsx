@@ -88,6 +88,25 @@ const uiDict = {
         info5: "Diese Seite ist KOSTENLOS!",
         info6: "Melden Sie sich an und werden Sie produktiv"
     },
+    'de-CH': {
+        search: "🔍 Benutzer sueche...", online: "Online", members: "Registrierti Benutzer", contacts: "Gspeichereti Kontäkt",
+        logout: "Abmälde", openTranslator: "🗣️ Lokale Übersetzer", changeMobile: "📱 Handynummer ändere",
+        addExternal: "+ Extern Hinzufüege", selectContact: "Wähl en Kontakt zum Chatte",
+        faceToFace: "Reded ihr vo Gsicht zu Gsicht?", messagePlaceholder: "Nochricht oder Bild/Link iifüege...",
+        recording: "Audio ufnäh...", callMobile: "📞 Handy aalüüte", call: "📹 Aalüüte", add: "➕ Hinzufüege",
+        end: "🔴 Beände", uiLang: "🌐 UI-Sprooch", activeCall: "📞 Aktive AAruäf - Zrugg",
+        login: "Iilogge", signup: "Registriere", forgotPwd: "Passwort vergässe?", createAcc: "Konto erstelle",
+        backLogin: "Zrugg zum Login", email: "E-Mail", password: "Passwort (min 6 Zeiche)", mobile: "Handynummer (Obligatorisch)",
+        sendReset: "Link schicke", loading: "Ladät...", sending: "Schickt...",
+        resetMsg: "Gib dini E-Mail-Adrässe ii und mir schicked dir en Link zum Zruggsetze.",
+        checkEmail: "✅ E-Mail prüfe",
+        info1: "TotalRecall isch wie WhatsApp, hätt aber meh Funktione.",
+        info2: "Live-Aarüef-Übersetzig i mehreri Sprooche.",
+        info3: "Lokali Übersetzig. D.h. persönlich und nid bime Live-Aarüef.",
+        info4: "Aarüef-Benachrichtigung für Offline-Benutzer. D.h. lüütet de Person aa und schickt es SMS miteme Link.",
+        info5: "Die Siite isch GRATIS!",
+        info6: "Registriere und produktiv werde"
+    },
     'it': {
         search: "🔍 Cerca utenti...", online: "In linea", members: "Utenti Registrati", contacts: "Contatti Salvati",
         logout: "Esci", openTranslator: "🗣️ Traduttore Locale", changeMobile: "📱 Cambia Cellulare",
@@ -182,6 +201,25 @@ const uiDict = {
         info4: "Уведомление о звонке для пользователей не в сети. Т.е. звонит человеку и отправляет SMS со ссылкой.",
         info5: "Этот сайт БЕСПЛАТНЫЙ!",
         info6: "Зарегистрируйтесь и станьте продуктивнее"
+    },
+    'sv': {
+        search: "🔍 Sök användare...", online: "Online", members: "Registrerade användare", contacts: "Sparade kontakter",
+        logout: "Logga ut", openTranslator: "🗣️ Öppna lokal översättare", changeMobile: "📱 Ändra mobilnummer",
+        addExternal: "+ Lägg till extern", selectContact: "Välj en kontakt för att börja chatta",
+        faceToFace: "Pratar du ansikte mot ansikte med någon?", messagePlaceholder: "Meddelande eller klistra in bild/länk...",
+        recording: "Spelar in ljud...", callMobile: "📞 Ring mobil", call: "📹 Ring", add: "➕ Lägg till",
+        end: "🔴 Avsluta", uiLang: "🌐 UI-språk", activeCall: "📞 Aktivt samtal - Klicka för att återgå",
+        login: "Logga in", signup: "Registrera dig", forgotPwd: "Glömt lösenord?", createAcc: "Skapa konto",
+        backLogin: "Tillbaka till inloggning", email: "E-post", password: "Lösenord (minst 6 tecken)", mobile: "Mobilnummer (obligatoriskt)",
+        sendReset: "Skicka återställningslänk", loading: "Laddar...", sending: "Skickar...",
+        resetMsg: "Ange din e-postadress så skickar vi en länk för att återställa ditt lösenord.",
+        checkEmail: "✅ Kolla din e-post",
+        info1: "TotalRecall är som WhatsApp men har fler funktioner.",
+        info2: "Live-samtalsöversättning till ett flertal språk.",
+        info3: "Lokal samtalsöversättning. Dvs. personligen och inte via ett live-samtal.",
+        info4: "Meddelande om samtal för offline-användare. Dvs. ringer personen och skickar ett SMS med en länk för att delta.",
+        info5: "Den här sidan är GRATIS!",
+        info6: "Registrera dig och bli produktiv"
     },
     'el': {
         search: "🔍 Αναζήτηση χρήστη...", online: "Σε σύνδεση", members: "Εγγεγραμμένοι χρήστες", contacts: "Αποθηκευμένες επαφές",
@@ -306,7 +344,7 @@ const uiDict = {
         end: "🔴 Kambu", uiLang: "🌐 Tǝlam UI", activeCall: "📞 Kolo - Walte",
         login: "Gǝre", signup: "Rajisita", forgotPwd: "Paswod notǝ?", createAcc: "Akaunt tǝra",
         backLogin: "Walte", email: "Email", password: "Paswod (kǝla 6)", mobile: "Namba waya",
-        sendReset: "Zǝwǝna laya", loading: "Gǝnawa...", sending: "Zǝwǝ...",
+        sendReset: "Zǝwǝna laya", loading: "Gǝnawa...", sending: "Zǝw...",
         resetMsg: "Email num sa, laya paswod walte zǝwiya.",
         checkEmail: "✅ Email num kuru",
         info1: "TotalRecall WhatsApp yinzǝ ro amman kǝla zǝgǝ.",
@@ -339,6 +377,7 @@ const uiDict = {
 
 const getBaseLang = (code) => (code ? code.split('-')[0] : 'en');
 const t = (key, langCode) => {
+    if (uiDict[langCode] && uiDict[langCode][key]) return uiDict[langCode][key];
     const base = getBaseLang(langCode);
     if (uiDict[base] && uiDict[base][key]) return uiDict[base][key];
     if (uiDict['en'] && uiDict['en'][key]) return uiDict['en'][key];
@@ -787,6 +826,8 @@ const LanguageOptions = () => (
         <option value="pt-PT">Portuguese (PT)</option>
         <option value="ru-RU">Russian</option>
         <option value="es-ES">Spanish</option>
+        <option value="sv-SE">Swedish</option>
+        <option value="de-CH">Swiss (German)</option>
         <option value="yo-NG">Yoruba</option>
     </>
 );
@@ -1912,7 +1953,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             'zh-CN': 'zh', 'ja-JP': 'ja', 'pt-PT': 'pt', 'pt-BR': 'pt', 'el-GR': 'el',
             'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl',
             'pcm-NG': 'en-NG', 'ha-NG': 'ha', 'ig-NG': 'ig', 'kr-NG': 'kr',
-            'ko-KR': 'ko'
+            'ko-KR': 'ko', 'sv-SE': 'sv', 'de-CH': 'de-CH'
         };
         const dgLang = langMap[spokenLangRef.current] || 'en';
 
@@ -3204,7 +3245,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                         <div style={{ padding: '15px', borderBottom: '1px solid #222d34', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <button
                                 onClick={() => setShowLocalTranslator(true)}
-                                style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+                                style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#00a884', color: '#111', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifycontent: 'center', gap: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
                             >
                                 {t('openTranslator', uiLanguage)}
                             </button>
@@ -3213,7 +3254,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                     setNewMobile(currentUserMobile || '');
                                     setShowMobileModal(true);
                                 }}
-                                style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: '#2a3942', color: '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: '#2a3942', color: '#00a884', border: '1px solid #00a884', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifycontent: 'center', gap: '8px' }}
                             >
                                 {t('changeMobile', uiLanguage)}
                             </button>
@@ -3532,7 +3573,7 @@ styleSheet.textContent = `
         margin-bottom: 16px;
         font-family: inherit;
         display: flex;
-        justify-content: center;
+        justifycontent: center;
         align-items: center;
         gap: 8px;
     }
