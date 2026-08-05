@@ -31,6 +31,25 @@ const uiDict = {
         info5: "This site is FREE!",
         info6: "Sign-up and get productive"
     },
+    'da': {
+        search: "🔍 Søg brugere...", online: "Online", members: "Registrerede Brugere", contacts: "Gemte Kontakter",
+        logout: "Log ud", openTranslator: "🗣️ Åbn Lokal Oversætter", changeMobile: "📱 Skift Mobilnummer",
+        addExternal: "+ Tilføj Ekstern", selectContact: "Vælg en kontakt for at begynde at chatte",
+        faceToFace: "Taler du ansigt til ansigt med nogen?", messagePlaceholder: "Besked eller indsæt billede/link...",
+        recording: "Optager lyd...", callMobile: "📞 Ring til Mobil", call: "📹 Ring", add: "➕ Tilføj",
+        end: "🔴 Afslut", uiLang: "🌐 UI Sprog", activeCall: "📞 Aktivt Opkald - Tryk for at Returnere",
+        login: "Log Ind", signup: "Tilmeld", forgotPwd: "Glemt Adgangskode?", createAcc: "Opret Konto",
+        backLogin: "Tilbage til Login", email: "E-mail", password: "Adgangskode (min. 6 tegn)", mobile: "Mobilnummer (Obligatorisk)",
+        sendReset: "Send Nulstillingslink", loading: "Indlæser...", sending: "Sender...",
+        resetMsg: "Indtast din e-mailadresse, så sender vi dig et link til at nulstille din adgangskode.",
+        checkEmail: "✅ Tjek din e-mail",
+        info1: "TotalRecall er ligesom WhatsApp, men har flere funktioner.",
+        info2: "Live opkaldsoversættelse på en række sprog.",
+        info3: "Lokal opkaldsoversættelse. F.eks. personligt og ikke på et live opkald.",
+        info4: "Opkaldsmeddelelse til offline brugere. F.eks. ringer til personen og sender en SMS med et link til at deltage.",
+        info5: "Dette websted er GRATIS!",
+        info6: "Tilmeld dig og bliv produktiv"
+    },
     'es': {
         search: "🔍 Buscar usuarios...", online: "En línea", members: "Usuarios Registrados", contacts: "Contactos Guardados",
         logout: "Cerrar sesión", openTranslator: "🗣️ Traductor Local", changeMobile: "📱 Cambiar Móvil",
@@ -810,6 +829,7 @@ function RemoteVideo({ stream, email, allKnownUsers, subtitle, isTTSOn }) {
 const LanguageOptions = () => (
     <>
         <option value="zh-CN">Chinese</option>
+        <option value="da-DK">Danish</option>
         <option value="en-US">English</option>
         <option value="fr-FR">French</option>
         <option value="de-DE">German</option>
@@ -1951,7 +1971,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         const langMap = {
             'en-US': 'en', 'es-ES': 'es', 'fr-FR': 'fr', 'de-DE': 'de', 'it-IT': 'it',
             'zh-CN': 'zh', 'ja-JP': 'ja', 'pt-PT': 'pt', 'pt-BR': 'pt', 'el-GR': 'el',
-            'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl',
+            'ru-RU': 'ru', 'yo-NG': 'yo', 'pl-PL': 'pl', 'da-DK': 'da',
             'pcm-NG': 'en-NG', 'ha-NG': 'ha', 'ig-NG': 'ig', 'kr-NG': 'kr',
             'ko-KR': 'ko', 'sv-SE': 'sv', 'de-CH': 'de-CH'
         };
@@ -3524,7 +3544,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                     <span>🟢 {t('online', uiLanguage)}: {totalOnlineCount}</span>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
 
