@@ -28,7 +28,7 @@ const uiDict = {
         info2: "Live call translation in a number of languages.",
         info3: "Local call translation. i.e. in person and not on a live call.",
         info4: "Notification that you want a call for users offline. i.e. calls the person and sends an SMS message with a link to join the call.",
-        info5: "This site is FREE!",
+        info5: "This website is FREE",
         info6: "Sign-up and get productive"
     },
     'da': {
@@ -934,6 +934,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     // ✨ Local Translate Mode State
     const [showLocalTranslator, setShowLocalTranslator] = useState(false);
     const [isSendingLocalTranscript, setIsSendingLocalTranscript] = useState(false);
+    const [isFetchingRecipe, setIsFetchingRecipe] = useState(false);
     const isLocalTranslateModeRef = useRef(false);
     useEffect(() => { isLocalTranslateModeRef.current = showLocalTranslator; }, [showLocalTranslator]);
 
@@ -1136,6 +1137,49 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         }
     };
 
+    // ==========================================
+    // 🍲 GET RECIPE INTEGRATION
+    // ==========================================
+    const handleGetRecipe = async () => {
+        const dish = prompt("What dish do you want the recipe for?");
+        if (!dish) return;
+        setIsFetchingRecipe(true);
+        try {
+            const res = await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(dish.trim())}`);
+            const data = await res.json();
+            if (data.meals && data.meals.length > 0) {
+                const meal = data.meals[0];
+                let recipeText = `Dish: ${meal.strMeal}\n\nIngredients:\n`;
+                for (let i = 1; i <= 20; i++) {
+                    const ing = meal[`strIngredient${i}`];
+                    const measure = meal[`strMeasure${i}`];
+                    if (ing && ing.trim()) {
+                        recipeText += `- ${measure.trim()} ${ing.trim()}\n`;
+                    }
+                }
+                recipeText += `\nInstructions:\n${meal.strInstructions}`;
+
+                // Translate to target language if target is not English
+                let translatedRecipe = recipeText;
+                if (targetLang && !targetLang.startsWith('en')) {
+                    translatedRecipe = await translateText(recipeText, 'en-US', targetLang);
+                }
+
+                setCallTranscript(prev => [...prev, {
+                    sender: 'AI Chef',
+                    original: recipeText,
+                    translated: translatedRecipe,
+                    time: new Date().toLocaleTimeString()
+                }]);
+            } else {
+                alert("Sorry, couldn't find a recipe for that dish.");
+            }
+        } catch (err) {
+            alert("Error fetching recipe: " + err.message);
+        } finally {
+            setIsFetchingRecipe(false);
+        }
+    };
 
     // ==========================================
     // 💾 USER SETTINGS & PROFILE: LOAD & SAVE
@@ -2894,6 +2938,13 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                             {t('openTranslator', uiLanguage)}
                         </h3>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={handleGetRecipe}
+                                disabled={isFetchingRecipe}
+                                style={{ background: 'none', border: '1px solid #eab308', color: '#eab308', borderRadius: '4px', padding: '6px 12px', fontSize: '13px', cursor: isFetchingRecipe ? 'not-allowed' : 'pointer', opacity: isFetchingRecipe ? 0.5 : 1, fontWeight: 'bold' }}
+                            >
+                                {isFetchingRecipe ? '⏳ Cooking...' : '🍲 Get Recipe'}
+                            </button>
                             {callTranscript.length > 0 && (
                                 <>
                                     <button
@@ -2950,12 +3001,12 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                 </div>
                                 <div>
                                     <div style={{ color: '#8696a0', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Spoken ({spokenLang})</div>
-                                    <div style={{ color: '#e9edef', fontSize: '16px' }}>{entry.original}</div>
+                                    <div style={{ color: '#e9edef', fontSize: '16px', whiteSpace: 'pre-wrap' }}>{entry.original}</div>
                                 </div>
                                 {entry.original !== entry.translated && (
                                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                                         <div style={{ color: '#8696a0', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Translated ({targetLang})</div>
-                                        <div style={{ color: '#38bdf8', fontSize: '18px', fontWeight: 'bold' }}>{entry.translated}</div>
+                                        <div style={{ color: '#38bdf8', fontSize: '18px', fontWeight: 'bold', whiteSpace: 'pre-wrap' }}>{entry.translated}</div>
                                     </div>
                                 )}
                             </div>
