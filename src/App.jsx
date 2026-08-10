@@ -2787,22 +2787,21 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         }
 
         // 2. ✨ NEW: Check if talking to the AI Assistant
+        // 2. ✨ NEW: Check if talking to the AI Assistant
         if (selectedContact === 'ai@totalrecall.network') {
             setIsAskingAI(true);
             try {
-                // Replace with your actual Gemini API Key from Google AI Studio
-                const GEMINI_API_KEY = 'AQ.Ab8RN6I86FPzKl6FLWAVwhs18FJlE-pihJJvHe6AsFazyIQN9Q';
-
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: txt }] }]
-                    })
+                // Call your secure Supabase Edge Function instead of Gemini directly
+                const { data, error } = await supabase.functions.invoke('chat-with-ai', {
+                    body: { txt: txt }
                 });
 
-                const aiData = await response.json();
-                const aiText = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that request.";
+                if (error) {
+                    throw new Error("Failed to invoke Edge Function");
+                }
+
+                // Get the reply returned from the Edge Function
+                const aiText = data.reply || "Sorry, I couldn't process that request.";
 
                 // Save AI's response to the database so it renders in the chat
                 const { data: aiMsgData, error: aiErr } = await supabase.from('messages').insert([{
@@ -2821,6 +2820,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             }
         }
     };
+
 
 
     const handlePaste = async (e) => {
