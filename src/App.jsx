@@ -984,6 +984,103 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     // ✨ Desktop Notification Status & Request
     const [notifPermission, setNotifPermission] = useState('default');
 
+    // ==========================================
+    // 📸 CAMERA CAPTURE LOGIC
+    // ==========================================
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const [countdown, setCountdown] = useState(null);
+    const cameraVideoRef = useRef(null);
+    const cameraStreamRef = useRef(null);
+
+    const openCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } });
+            cameraStreamRef.current = stream;
+            setIsCameraOpen(true);
+        } catch (err) {
+            alert("Could not access camera: " + err.message);
+        }
+    };
+
+    const closeCamera = () => {
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach(t => t.stop());
+            cameraStreamRef.current = null;
+        }
+        setIsCameraOpen(false);
+        setCountdown(null);
+    };
+
+    useEffect(() => {
+        if (isCameraOpen && cameraVideoRef.current && cameraStreamRef.current) {
+            cameraVideoRef.current.srcObject = cameraStreamRef.current;
+        }
+    }, [isCameraOpen]);
+
+    const playShutterSound = () => {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const actx = new AudioContext();
+            const osc = actx.createOscillator();
+            const gain = actx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, actx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, actx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, actx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(actx.destination);
+            osc.start(actx.currentTime);
+            osc.stop(actx.currentTime + 0.1);
+        } catch (e) { console.error('Shutter sound failed', e); }
+    };
+
+    const captureAndSend = async () => {
+        if (!cameraVideoRef.current || !selectedContact) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = cameraVideoRef.current.videoWidth;
+        canvas.height = cameraVideoRef.current.videoHeight;
+        const ctx = canvas.getContext('2d');
+
+        // Mirror the image so it looks like what the user sees
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(cameraVideoRef.current, 0, 0, canvas.width, canvas.height);
+        const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+
+        closeCamera();
+
+        const { data, error } = await supabase.from('messages').insert([{
+            sender_email: userEmail,
+            receiver_email: selectedContact,
+            text: `[IMAGE]${base64Image}`
+        }]).select();
+
+        if (!error && data?.length) {
+            setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
+        }
+    };
+
+    const takePicture = () => {
+        if (countdown !== null) return;
+        setCountdown(3);
+        let count = 3;
+        const intv = setInterval(() => {
+            count--;
+            if (count > 0) {
+                setCountdown(count);
+            } else {
+                clearInterval(intv);
+                setCountdown(0);
+                playShutterSound();
+                setTimeout(captureAndSend, 150); // slight delay to show the flash/0 before closing
+            }
+        }, 1000);
+    };
+
+
+
+
     useEffect(() => {
         if ('Notification' in window) {
             setNotifPermission(Notification.permission);
@@ -3556,8 +3653,15 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
                                 <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'flex-end', position: 'relative' }}>
                                     <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} title="Add Emoji" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>😊</button>
+
+                                    {/* 📸 NEW CAMERA BUTTON */}
+                                    <button type="button" onClick={openCamera} disabled={isRecording} title="Take Picture" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: isRecording ? 'not-allowed' : 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4, opacity: isRecording ? 0.5 : 1 }}>📷</button>
+
                                     <button type="button" onClick={toggleRecording} title={isRecording ? "Stop Recording" : "Record Voice Message"} style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>{isRecording ? '⏹' : '🎤'}</button>
                                     {showEmojiPicker && <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />}
+
+
+
                                     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#2a3942', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
                                         {previewUrl && !isRecording && (
                                             <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.2)', backgroundColor: '#1e293b' }}>
@@ -3588,6 +3692,27 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                     </div>
                 )}
             </div>
+
+            {/* ✨ CAMERA CAPTURE MODAL */}
+            {isCameraOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 7000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', width: '100%', maxWidth: '600px', backgroundColor: '#000', borderRadius: '12px', overflow: 'hidden', border: countdown === 0 ? '4px solid white' : 'none', transition: 'border 0.1s' }}>
+                        <video ref={cameraVideoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block', transform: 'scaleX(-1)' }} />
+                        {countdown !== null && (
+                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '120px', color: 'white', fontWeight: 'bold', textShadow: '0 4px 20px rgba(0,0,0,0.8)', zIndex: 10 }}>
+                                {countdown === 0 ? '📸' : countdown}
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '20px', marginTop: '30px' }}>
+                        <button onClick={closeCamera} style={{ padding: '12px 24px', borderRadius: '24px', border: '2px solid #8696a0', background: 'transparent', color: '#8696a0', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>Cancel</button>
+                        <button onClick={takePicture} disabled={countdown !== null} style={{ padding: '12px 24px', borderRadius: '24px', border: 'none', background: '#00a884', color: '#111', cursor: countdown !== null ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px', opacity: countdown !== null ? 0.5 : 1 }}>
+                            {countdown !== null ? 'Capturing...' : 'Take Picture'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
                 <span>© NoirSoft Ltd</span>
                 <div style={{ display: 'flex', gap: '20px' }}>
@@ -3595,9 +3720,10 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                     <span>🟢 {t('online', uiLanguage)}: {totalOnlineCount}</span>
                 </div>
             </div>
-        </div >
+        </div>
     );
 }
+
 
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
