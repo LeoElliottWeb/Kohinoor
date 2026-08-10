@@ -856,6 +856,10 @@ const LanguageOptions = () => (
 // 🛡️ MAIN CHAT COMPONENT
 // ==========================================
 function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
+
+    // ✨ AI Assistant State
+    const [isAskingAI, setIsAskingAI] = useState(false);
+
     const userEmail = user?.email || '';
     const displayName = userEmail.split('@')[0];
     const isCapitalOlondra = userEmail.split('@')[0].toLowerCase() === 'capitalolondra';
@@ -2763,15 +2767,61 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         if (textarea) textarea.focus();
     };
 
+
     const sendMsg = async (e) => {
         e.preventDefault();
         if (!chatInput.trim() && !selectedContact) return;
         const txt = chatInput;
         setChatInput('');
         setShowEmojiPicker(false);
-        const { data, error } = await supabase.from('messages').insert([{ sender_email: userEmail, receiver_email: selectedContact, text: txt }]).select();
-        if (!error && data?.length) setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
+
+        // 1. Save the user's message to the database
+        const { data, error } = await supabase.from('messages').insert([{
+            sender_email: userEmail,
+            receiver_email: selectedContact,
+            text: txt
+        }]).select();
+
+        if (!error && data?.length) {
+            setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
+        }
+
+        // 2. ✨ NEW: Check if talking to the AI Assistant
+        if (selectedContact === 'ai@totalrecall.network') {
+            setIsAskingAI(true);
+            try {
+                // Replace with your actual Gemini API Key from Google AI Studio
+                const GEMINI_API_KEY = 'AQ.Ab8RN6I86FPzKl6FLWAVwhs18FJlE-pihJJvHe6AsFazyIQN9Q';
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: txt }] }]
+                    })
+                });
+
+                const aiData = await response.json();
+                const aiText = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that request.";
+
+                // Save AI's response to the database so it renders in the chat
+                const { data: aiMsgData, error: aiErr } = await supabase.from('messages').insert([{
+                    sender_email: 'ai@totalrecall.network',
+                    receiver_email: userEmail,
+                    text: `${aiText}` // Renders as plain text, Markdown is supported if you add a parser later
+                }]).select();
+
+                if (!aiErr && aiMsgData?.length) {
+                    setChatMessages(prev => prev.find(m => m.id === aiMsgData[0].id) ? prev : [...prev, aiMsgData[0]]);
+                }
+            } catch (err) {
+                console.error("AI Error:", err);
+            } finally {
+                setIsAskingAI(false);
+            }
+        }
     };
+
 
     const handlePaste = async (e) => {
         const items = e.clipboardData?.items;
@@ -2925,8 +2975,13 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         return name.toLowerCase().includes(query) || c.email.toLowerCase().includes(query);
     });
 
+
+
     const activeContact = allKnown.find(c => c.email?.toLowerCase() === selectedContact?.toLowerCase());
-    const activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
+    let activeName = activeContact?.name || selectedContact?.split('@')[0] || '';
+    if (selectedContact === 'ai@totalrecall.network') activeName = 'AI Assistant';
+
+
     const memberCount = members.filter(m => m.email?.toLowerCase() !== safeEmail).length;
     const totalOnlineCount = onlineUsers.length + 1;
 
@@ -3679,19 +3734,39 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                     <span style={{ color: '#8696a0' }}>{isContactsExpanded ? '▼' : '▶'}</span>
                                 </div>
                             </div>
-                            {isContactsExpanded && filteredContacts.map(c => (
-                                <div id={`contact-row-${c.email}`} key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', transition: 'background-color 0.5s', backgroundColor: highlightedEmail === c.email ? 'rgba(0, 168, 132, 0.4)' : (selectedContact === c.email ? '#2a3942' : 'transparent') }}>
-                                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
-                                    <div style={{ flexGrow: 1 }}><div>{c.name || (c.email.includes('@') ? c.email.split('@')[0] : c.email)}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
-                                    {isCapitalOlondra && (
-                                        <button onClick={(e) => handleEditContactMobileClick(e, c.email, 'contact')} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
-                                    )}
-                                    <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}>❌</button>
+
+
+                            {isContactsExpanded && (
+                                <>
+                                    {/* ✨ NEW: AI Assistant Static Contact */}
+                                    <div
+                                        id="contact-row-ai@totalrecall.network"
+                                        onClick={() => setSelectedContact('ai@totalrecall.network')}
+                                        style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', transition: 'background-color 0.5s', backgroundColor: selectedContact === 'ai@totalrecall.network' ? '#2a3942' : 'transparent' }}
+                                    >
+                                        <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#8b5cf6', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontSize: '20px' }}>🤖</div>
+                                        <div style={{ flexGrow: 1 }}>
+                                            <div style={{ fontWeight: 'bold', color: '#e9edef' }}>AI Assistant</div>
+                                            <div style={{ fontSize: 12, color: '#00a884' }}>Powered by Gemini</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Restored the missing map function here! */}
+                                    {filteredContacts.map(c => (
+                                        <div id={`contact-row-${c.email}`} key={c.email} onClick={() => setSelectedContact(c.email)} style={{ padding: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', borderBottom: '1px solid #222d34', transition: 'background-color 0.5s', backgroundColor: highlightedEmail === c.email ? 'rgba(0, 168, 132, 0.4)' : (selectedContact === c.email ? '#2a3942' : 'transparent') }}>
+                                            <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#64748b', display: 'flex', justifyContent: 'center', alignItems: 'center', marginRight: 15, color: '#fff', fontWeight: 'bold' }}>{(c.name || c.email)[0]?.toUpperCase()}</div>
+                                            <div style={{ flexGrow: 1 }}><div>{c.name || (c.email.includes('@') ? c.email.split('@')[0] : c.email)}</div><div style={{ fontSize: 12, color: '#8696a0' }}>{c.email}</div></div>
+                                            {isCapitalOlondra && (
+                                                <button onClick={(e) => handleEditContactMobileClick(e, c.email, 'contact')} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '16px', padding: '5px', marginRight: '5px' }} title="Edit Mobile">✏️</button>
+                                            )}
+                                            <button onClick={(e) => handleRemoveContact(e, c.email)} style={{ background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '14px', padding: '5px' }}>❌</button>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
+                                 </div>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                            )}
 
                 {showChat && (
                     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0b141a', height: '100%', overflow: 'hidden' }}>
@@ -3704,6 +3779,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                         <b>{activeName}</b>
                                     </div>
 
+                                    {selectedContact !== 'ai@totalrecall.network' && (
                                     <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
                                         <button
                                             onClick={handleCatchMeUp}
@@ -3748,7 +3824,8 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                                 </button>
                                             </>
                                         )}
-                                    </div>
+                                                </div>
+                                            )}
                                 </div>
 
                                 {/* NEW LOCATION FOR CHAT SUMMARY - Placed right under header, outside the scrolling area */}
@@ -3847,6 +3924,19 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
                                         );
                                     })}
+
+
+
+
+                                        {/* ✨ NEW: AI Typing Indicator */}
+                                        {isAskingAI && (
+                                            <div style={{ alignSelf: 'flex-start', backgroundColor: '#202c33', padding: '12px 16px', borderRadius: 8, maxWidth: '65%', color: '#8696a0', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '4px solid #8b5cf6' }}>
+                                                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#8b5cf6', animation: 'pulse 1.5s infinite' }} />
+                                                AI Assistant is thinking...
+                                            </div>
+                                        )}
+
+
                                 </div>
 
                                 <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'flex-end', position: 'relative' }}>
