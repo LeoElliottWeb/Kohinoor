@@ -952,6 +952,54 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     useEffect(() => { isTTSOnRef.current = isTTSOn; }, [isTTSOn]);
 
     const [isRecording, setIsRecording] = useState(false);
+
+
+    // ✨ Google Maps Location State
+    const [isSendingLocation, setIsSendingLocation] = useState(false);
+
+    const handleShareLocation = () => {
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser");
+            return;
+        }
+        setIsSendingLocation(true);
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                const text = `[LOCATION]${latitude},${longitude}`;
+
+                if (!selectedContact) {
+                    setIsSendingLocation(false);
+                    return;
+                }
+
+                const { data, error } = await supabase.from('messages').insert([{
+                    sender_email: userEmail,
+                    receiver_email: selectedContact,
+                    text: text
+                }]).select();
+
+                if (!error && data?.length) {
+                    setChatMessages(prev => prev.find(m => m.id === data[0].id) ? prev : [...prev, data[0]]);
+                }
+                setIsSendingLocation(false);
+            },
+            (error) => {
+                console.error("Error getting location:", error);
+                alert("Unable to retrieve your location. Please check your permissions.");
+                setIsSendingLocation(false);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    };
+
+
+
+
+
+
+
+
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const selectedContactRef = useRef(selectedContact);
@@ -2512,6 +2560,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                     let msgPreview = p.new.text || '';
                     if (msgPreview.startsWith('[VOICE]')) msgPreview = '🎤 Voice message';
                     if (msgPreview.startsWith('[IMAGE]')) msgPreview = '📷 Image';
+                    if (msgPreview.startsWith('[LOCATION]')) msgPreview = '📍 Shared a location';
 
                     // Trigger Native
                     notifyUser(`New message from ${senderName}`, msgPreview);
@@ -3755,12 +3804,19 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
                                 <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
                                     {chatMessages.map((m, i) => {
+
+
                                         const isVoiceMessage = m.text && m.text.startsWith('[VOICE]');
                                         const isImageMessage = m.text && m.text.startsWith('[IMAGE]');
+                                        const isLocationMessage = m.text && m.text.startsWith('[LOCATION]'); // <-- ADD THIS
+
                                         let content = m.text || '';
                                         if (isVoiceMessage) content = m.text.replace('[VOICE]', '');
                                         else if (isImageMessage) content = m.text.replace('[IMAGE]', '');
-                                        const match = !isVoiceMessage && !isImageMessage ? content.match(urlExtractRegex) : null;
+                                        else if (isLocationMessage) content = m.text.replace('[LOCATION]', ''); // <-- ADD THIS
+                                        const match = !isVoiceMessage && !isImageMessage && !isLocationMessage ? content.match(urlExtractRegex) : null;
+
+
                                         let firstUrl = match ? match[0] : null;
 
                                         return (
@@ -3769,10 +3825,26 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                                     <audio controls src={content} style={{ height: '40px', maxWidth: '100%', outline: 'none' }} />
                                                 ) : isImageMessage ? (
                                                     <img src={content} alt="Pasted attachment" style={{ maxWidth: '100%', borderRadius: 8 }} />
+                                                ) : isLocationMessage ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        <iframe
+                                                            width="100%"
+                                                            height="200"
+                                                            style={{ border: 0, borderRadius: '8px', minWidth: '250px' }}
+                                                            loading="lazy"
+                                                            allowFullScreen
+                                                            src={`https://maps.google.com/maps?q=${content}&z=15&output=embed`}
+                                                        ></iframe>
+                                                        <a href={`https://www.google.com/maps?q=${content}`} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', fontSize: '13px', textDecoration: 'none', fontWeight: 'bold' }}>
+                                                            📍 Open in Google Maps
+                                                        </a>
+                                                    </div>
                                                 ) : (
                                                     <>{renderTextWithLinks(content)}{firstUrl && <LinkPreview url={firstUrl} />}</>
                                                 )}
                                             </div>
+
+
                                         );
                                     })}
                                 </div>
@@ -3782,6 +3854,12 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
                                     {/* 📸 NEW CAMERA BUTTON */}
                                     <button type="button" onClick={openCamera} disabled={isRecording} title="Take Picture" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: isRecording ? 'not-allowed' : 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4, opacity: isRecording ? 0.5 : 1 }}>📷</button>
+
+                                    {/* 📍 NEW LOCATION BUTTON (ADD THIS BLOCK) */}
+                                    <button type="button" onClick={handleShareLocation} disabled={isSendingLocation || isRecording} title="Share Location" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: (isSendingLocation || isRecording) ? 'not-allowed' : 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4, opacity: (isSendingLocation || isRecording) ? 0.5 : 1 }}>
+                                        {isSendingLocation ? '⏳' : '📍'}
+                                    </button>
+
 
                                     <button type="button" onClick={toggleRecording} title={isRecording ? "Stop Recording" : "Record Voice Message"} style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>{isRecording ? '⏹' : '🎤'}</button>
                                     {showEmojiPicker && <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />}
@@ -4125,6 +4203,18 @@ export default function App() {
                 }
 
                 if (data?.user) {
+                    // ==========================================
+                    // 🚀 NEW: Write details to signup_stats
+                    // ==========================================
+                    const { error: statsError } = await supabase.from('signup_stats').insert([{
+                        id: data.user.id // Mapping the newly created user's ID
+                    }]);
+
+                    if (statsError) {
+                        console.error("Failed to write to signup_stats:", statsError.message);
+                    }
+                    // ==========================================
+
                     if (data.session) setUser(data.user);
                     else {
                         setConfirmMessage("We've sent you a confirmation link.");
@@ -4135,7 +4225,6 @@ export default function App() {
             }
         } catch (err) { setError(err.message); } finally { setLoading(false); }
     };
-
     if (user) return <ChatApp user={user} onLogout={() => supabase.auth.signOut()} uiLanguage={uiLanguage} setUiLanguage={setUiLanguage} />;
 
     return (
