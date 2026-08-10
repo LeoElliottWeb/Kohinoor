@@ -938,8 +938,13 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
     const isLocalTranslateModeRef = useRef(false);
     useEffect(() => { isLocalTranslateModeRef.current = showLocalTranslator; }, [showLocalTranslator]);
 
+
+
+
+
+
     // Auto-enable state
-    const [hasSavedSettings, setHasSavedSettings] = useState(false);
+    //const [hasSavedSettings, setHasSavedSettings] = useState(false);
 
     // Text To Speech Toggle
     const [isTTSOn, setIsTTSOn] = useState(false);
@@ -1234,19 +1239,66 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
         }
     };
 
+
+    // ✨ Recipe Catalog States
+    const [showRecipeModal, setShowRecipeModal] = useState(false);
+
+    // HARDCODED LIST: This fixes the empty catalog!
+    const [cultures] = useState([
+        "British", "Canadian", "Chinese", "Croatian", 
+        "Egyptian", "Filipino", "France", "Greek", "Indian", "Irish",
+        "Italian", "Jamaican", "Japanese", "Kenyan", "Malaysian", "Mexican",
+        "Moroccan", "Polish", "Portuguese", "Russian", "Spanish", "Thai",
+        "Tunisian", "Turkish", "Vietnamese"
+    ]);
+
+    const [selectedCulture, setSelectedCulture] = useState('');
+    const [dishes, setDishes] = useState([]);
+    const [isLoadingRecipes, setIsLoadingRecipes] = useState(false);
+
+    // Auto-enable state
+    const [hasSavedSettings, setHasSavedSettings] = useState(false);
+
     // ==========================================
-    // 🍲 GET RECIPE INTEGRATION
+    // 🍲 CULTURAL RECIPE CATALOG INTEGRATION
     // ==========================================
-    const handleGetRecipe = async () => {
-        const dish = prompt("What dish do you want the recipe for?");
-        if (!dish) return;
-        setIsFetchingRecipe(true);
+
+    // 2. Fetch dishes when a culture is selected
+    const handleSelectCulture = async (culture) => {
+        setSelectedCulture(culture);
+        setIsLoadingRecipes(true);
         try {
-            const res = await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(dish.trim())}`);
+            let res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?a=${culture}`);
+            let data = await res.json();
+
+            // Fallback just in case TheMealDB API glitches on "Indian" vs "India"
+            if (!data.meals && culture === 'Indian') {
+                res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?a=India`);
+                data = await res.json();
+            }
+
+            setDishes(data.meals || []);
+
+            if (!data.meals) {
+                alert(`No dishes found for ${culture} cuisine.`);
+            }
+        } catch (err) {
+            alert("Error fetching dishes: " + err.message);
+        } finally {
+            setIsLoadingRecipes(false);
+        }
+    };
+
+    // 3. Fetch specific recipe details when a dish is clicked
+    const handleSelectDish = async (dishId) => {
+        setIsLoadingRecipes(true);
+        try {
+            const res = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${dishId}`);
             const data = await res.json();
             if (data.meals && data.meals.length > 0) {
                 const meal = data.meals[0];
-                let recipeText = `Dish: ${meal.strMeal}\n\nIngredients:\n`;
+                let recipeText = `Dish: ${meal.strMeal} (${meal.strArea})\n\nIngredients:\n`;
+
                 for (let i = 1; i <= 20; i++) {
                     const ing = meal[`strIngredient${i}`];
                     const measure = meal[`strMeasure${i}`];
@@ -1256,27 +1308,32 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                 }
                 recipeText += `\nInstructions:\n${meal.strInstructions}`;
 
-                // Translate to target language if target is not English
+                // Translate if target language is not English
                 let translatedRecipe = recipeText;
                 if (targetLang && !targetLang.startsWith('en')) {
                     translatedRecipe = await translateText(recipeText, 'en-US', targetLang);
                 }
 
+                // Inject directly into the local transcript
                 setCallTranscript(prev => [...prev, {
                     sender: 'AI Chef',
                     original: recipeText,
                     translated: translatedRecipe,
                     time: new Date().toLocaleTimeString()
                 }]);
-            } else {
-                alert("Sorry, couldn't find a recipe for that dish.");
+
+                // Reset and close
+                setShowRecipeModal(false);
+                setSelectedCulture('');
+                setDishes([]);
             }
         } catch (err) {
-            alert("Error fetching recipe: " + err.message);
+            alert("Error fetching recipe details: " + err.message);
         } finally {
-            setIsFetchingRecipe(false);
+            setIsLoadingRecipes(false);
         }
     };
+
 
     // ==========================================
     // 💾 USER SETTINGS & PROFILE: LOAD & SAVE
@@ -2892,6 +2949,71 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                 </div>
             )}
 
+            {/* ✨ RECIPE CATALOG MODAL */}
+            {showRecipeModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 6000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '16px', width: '650px', maxWidth: '90%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', border: '1px solid #2a3942', boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 style={{ color: '#eab308', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                🍲 Cultural Recipe Catalog
+                            </h3>
+                            <button onClick={() => { setShowRecipeModal(false); setSelectedCulture(''); setDishes([]); }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '20px', cursor: 'pointer' }}>✖</button>
+                        </div>
+
+                        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
+                            {isLoadingRecipes && <div style={{ color: '#00a884', textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>Loading...</div>}
+
+                            {/* View 1: Select a Culture */}
+                            {!selectedCulture && !isLoadingRecipes && (
+                                <div>
+                                    <h4 style={{ color: '#e9edef', marginBottom: '15px' }}>Select a Cuisine:</h4>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                        {cultures.map(c => (
+                                            <button key={c} onClick={() => handleSelectCulture(c)} style={{ padding: '10px 16px', borderRadius: '8px', backgroundColor: '#2a3942', color: '#00a884', border: '1px solid #00a884', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#005c4b'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2a3942'}>
+                                                {c}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* View 2: Select a Dish */}
+                            {selectedCulture && !isLoadingRecipes && (
+                                <div>
+                                    <button onClick={() => setSelectedCulture('')} style={{ marginBottom: '15px', background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
+                                        🔙 Back to Cuisines
+                                    </button>
+                                    <h4 style={{ color: '#e9edef', marginTop: 0, marginBottom: '15px' }}>{selectedCulture} Dishes:</h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px' }}>
+                                        {dishes.map(dish => (
+                                            <div
+                                                key={dish.idMeal}
+                                                onClick={() => handleSelectDish(dish.idMeal)}
+                                                style={{ backgroundColor: '#111b21', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', border: '1px solid #2a3942', transition: 'transform 0.2s ease, border-color 0.2s ease' }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = '#00a884'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = '#2a3942'; }}
+                                            >
+                                                <img src={dish.strMealThumb} alt={dish.strMeal} style={{ width: '100%', height: '130px', objectFit: 'cover' }} />
+                                                <div style={{ padding: '12px 10px', fontSize: '14px', color: '#e9edef', textAlign: 'center', fontWeight: 'bold' }}>
+                                                    {dish.strMeal}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
+
+
+
+
+
+
             {showTranscriptModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 5000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '16px', width: '550px', maxWidth: '90%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', border: '1px solid #2a3942', boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
@@ -3035,13 +3157,17 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                             {t('openTranslator', uiLanguage)}
                         </h3>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+
                             <button
-                                onClick={handleGetRecipe}
-                                disabled={isFetchingRecipe}
-                                style={{ background: 'none', border: '1px solid #eab308', color: '#eab308', borderRadius: '4px', padding: '6px 12px', fontSize: '13px', cursor: isFetchingRecipe ? 'not-allowed' : 'pointer', opacity: isFetchingRecipe ? 0.5 : 1, fontWeight: 'bold' }}
+                                onClick={() => setShowRecipeModal(true)}
+                                disabled={isLoadingRecipes}
+                                style={{ background: 'none', border: '1px solid #eab308', color: '#eab308', borderRadius: '4px', padding: '6px 12px', fontSize: '13px', cursor: isLoadingRecipes ? 'not-allowed' : 'pointer', opacity: isLoadingRecipes ? 0.5 : 1, fontWeight: 'bold' }}
                             >
-                                {isFetchingRecipe ? '⏳ Cooking...' : '🍲 Get Recipe'}
+                                {isLoadingRecipes ? '⏳ Loading...' : '🍲 Recipe Catalog'}
                             </button>
+
+
+
                             {callTranscript.length > 0 && (
                                 <>
                                     <button
