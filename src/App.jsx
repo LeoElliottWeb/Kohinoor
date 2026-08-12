@@ -857,6 +857,11 @@ const LanguageOptions = () => (
 // ==========================================
 function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
+
+    // 👇 ADD THIS NEW STATE FOR THE CALL LOCATION MODAL
+    const [callLocationMap, setCallLocationMap] = useState(null);
+
+
     // ✨ AI Assistant State
     const [isAskingAI, setIsAskingAI] = useState(false);
 
@@ -2717,6 +2722,14 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             }
         });
 
+        // 👇 ADD THIS LISTENER TO RECEIVE THE LOCATION
+        ch.on('broadcast', { event: 'webrtc-send-location' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail) {
+                setCallLocationMap({ email: payload.sender, lat: payload.lat, lng: payload.lng });
+            }
+        });
+
+
         ch.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
                 try { await ch.track({ email: userEmail, online: true }); } catch (e) { }
@@ -3466,6 +3479,39 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                 </div>
             )}
 
+
+            {/* 👇 ADD THIS NEW LOCATION MODAL BLOCK */}
+            {callLocationMap && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 6000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '16px', width: '600px', maxWidth: '90%', border: '1px solid #2a3942', boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 style={{ color: '#38bdf8', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                📍 Location: {callLocationMap.email.split('@')[0]}
+                            </h3>
+                            <button onClick={() => setCallLocationMap(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '20px', cursor: 'pointer' }}>✖</button>
+                        </div>
+                        <div style={{ width: '100%', height: '350px', borderRadius: '8px', overflow: 'hidden' }}>
+                            <iframe
+                                width="100%"
+                                height="100%"
+                                style={{ border: 0 }}
+                                loading="lazy"
+                                allowFullScreen
+                                src={`https://maps.google.com/maps?q=${callLocationMap.lat},${callLocationMap.lng}&z=15&output=embed`}
+                            ></iframe>
+                        </div>
+                        <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <a href={`https://www.google.com/maps?q=${callLocationMap.lat},${callLocationMap.lng}`} target="_blank" rel="noopener noreferrer" style={{ padding: '10px 18px', borderRadius: '8px', backgroundColor: '#38bdf8', color: '#111', textDecoration: 'none', fontWeight: 'bold' }}>
+                                Open in Google Maps
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* 👆 END NEW LOCATION MODAL */}
+
+
+
             {editingContact && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 6000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ backgroundColor: '#202c33', padding: '25px', borderRadius: '12px', width: '300px', maxWidth: '90%', border: '1px solid #222d34', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
@@ -3780,55 +3826,85 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                     </div>
 
                                     {selectedContact !== 'ai@totalrecall.network' && (
-                                    <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                        <button
-                                            onClick={handleCatchMeUp}
-                                            disabled={isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)}
-                                            style={{ backgroundColor: '#2a3942', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: (isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', marginRight: '5px', opacity: (isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)) ? 0.5 : 1 }}
-                                        >
-                                            {isSummarizingChat ? '⏳ Catching up...' : '✨ Catch Me Up'}
-                                        </button>
-
-                                        <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                            {isMobile ? (isVonageCalling ? '📞...' : '📞') : (isVonageCalling ? '📞...' : t('callMobile', uiLanguage))}
-                                        </button>
-
-                                        {!inVoiceCall ? (
-                                            <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                {isMobile ? '📹' : t('call', uiLanguage)}
+                                        <div style={{ display: 'flex', gap: isMobile ? 5 : 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                            <button
+                                                onClick={handleCatchMeUp}
+                                                disabled={isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)}
+                                                style={{ backgroundColor: '#2a3942', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: (isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', marginRight: '5px', opacity: (isSummarizingChat || (chatMessages.length === 0 && callTranscript.length === 0)) ? 0.5 : 1 }}
+                                            >
+                                                {isSummarizingChat ? '⏳ Catching up...' : '✨ Catch Me Up'}
                                             </button>
-                                        ) : (
-                                            <>
-                                                {!activeCallEmails.includes(selectedContact) && (
-                                                    <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                        {isMobile ? '➕' : t('add', uiLanguage)}
+
+                                            <button onClick={handleVonageMobileCallUI} disabled={isVonageCalling} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: isVonageCalling ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                {isMobile ? (isVonageCalling ? '📞...' : '📞') : (isVonageCalling ? '📞...' : t('callMobile', uiLanguage))}
+                                            </button>
+
+                                            {!inVoiceCall ? (
+                                                <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: 'transparent', border: '1px solid #00a884', color: '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                    {isMobile ? '📹' : t('call', uiLanguage)}
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    {!activeCallEmails.includes(selectedContact) && (
+                                                        <button onClick={() => initiateCall(selectedContact)} style={{ backgroundColor: '#005c4b', border: '1px solid #00a884', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                            {isMobile ? '➕' : t('add', uiLanguage)}
+                                                        </button>
+                                                    )}
+
+                                                    {/* ✨ NEW SHARE LOCATION BUTTON HERE */}
+                                                    <button onClick={() => {
+                                                        if (!navigator.geolocation) {
+                                                            alert("Geolocation is not supported by your browser");
+                                                            return;
+                                                        }
+                                                        navigator.geolocation.getCurrentPosition(
+                                                            (position) => {
+                                                                if (channelRef.current && selectedContact) {
+                                                                    channelRef.current.send({
+                                                                        type: 'broadcast',
+                                                                        event: 'webrtc-send-location',
+                                                                        payload: {
+                                                                            targetEmail: selectedContact,
+                                                                            sender: userEmail,
+                                                                            lat: position.coords.latitude,
+                                                                            lng: position.coords.longitude
+                                                                        }
+                                                                    });
+                                                                    alert(`Location shared with ${selectedContact.split('@')[0]}`);
+                                                                }
+                                                            },
+                                                            (error) => alert("Failed to get location: " + error.message),
+                                                            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                                                        );
+                                                    }} style={{ backgroundColor: 'transparent', border: '1px solid #38bdf8', color: '#38bdf8', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                        {isMobile ? '📍' : '📍 Share Location'}
                                                     </button>
-                                                )}
-                                                <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isTranscribing ? 'Translate on' : 'Translate off'}
-                                                </button>
-                                                <button onClick={toggleTTS} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isTTSOn ? 'Speak on' : 'Speak off'}
-                                                </button>
-                                                <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isMuted ? '🔇' : '🎙️') : (isMuted ? '🔇 Mute' : '🎙️ Mute')}
-                                                </button>
-                                                <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isVideoOff ? '📷' : '📸') : (isVideoOff ? '📷 Off' : '📸 Off')}
-                                                </button>
-                                                <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? (isScreenSharing ? '💻 Stop' : '💻 Share') : (isScreenSharing ? '💻 Stop' : '💻 Share')}
-                                                </button>
-                                                <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
-                                                    {isMobile ? '🔴' : t('end', uiLanguage)}
-                                                </button>
-                                            </>
-                                        )}
-                                                </div>
+
+                                                    <button onClick={toggleTranscription} style={{ backgroundColor: isTranscribing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTranscribing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                        {isTranscribing ? 'Translate on' : 'Translate off'}
+                                                    </button>
+                                                    <button onClick={toggleTTS} style={{ backgroundColor: isTTSOn ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isTTSOn ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                        {isTTSOn ? 'Speak on' : 'Speak off'}
+                                                    </button>
+                                                    <button onClick={toggleMute} style={{ backgroundColor: isMuted ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isMuted ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                        {isMobile ? (isMuted ? '🔇' : '🎙️') : (isMuted ? '🔇 Mute' : '🎙️ Mute')}
+                                                    </button>
+                                                    <button onClick={toggleCamera} style={{ backgroundColor: isVideoOff ? '#ef4444' : 'transparent', border: '1px solid #00a884', color: isVideoOff ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                        {isMobile ? (isVideoOff ? '📷' : '📸') : (isVideoOff ? '📷 Off' : '📸 Off')}
+                                                    </button>
+                                                    <button onClick={toggleScreenShare} style={{ backgroundColor: isScreenSharing ? '#005c4b' : 'transparent', border: '1px solid #00a884', color: isScreenSharing ? 'white' : '#00a884', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                        {isMobile ? (isScreenSharing ? '💻 Stop' : '💻 Share') : (isScreenSharing ? '💻 Stop' : '💻 Share')}
+                                                    </button>
+                                                    <button onClick={() => endCall(true)} style={{ backgroundColor: '#ef4444', border: 'none', color: 'white', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                        {isMobile ? '🔴' : t('end', uiLanguage)}
+                                                    </button>
+                                                </>
                                             )}
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* NEW LOCATION FOR CHAT SUMMARY - Placed right under header, outside the scrolling area */}
+                                {/* Chat Summary Banner */}
                                 {chatSummary && (
                                     <div style={{ margin: '10px 20px 0 20px', backgroundColor: '#202c33', borderLeft: '4px solid #00a884', padding: '16px', borderRadius: '8px', position: 'relative', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', zIndex: 10 }}>
                                         <button onClick={() => setChatSummary(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#8696a0', cursor: 'pointer', fontSize: '16px' }}>✖</button>
@@ -3839,6 +3915,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                     </div>
                                 )}
 
+                                {/* Transcribe / Call active UI */}
                                 {inVoiceCall && isTranscribing && (
                                     <div style={{ backgroundColor: '#1e293b', padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #334155' }}>
                                         <label>🗣️ My Language:
@@ -3881,19 +3958,16 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
 
                                 <div ref={chatContainerRef} style={{ flexGrow: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, backgroundImage: 'url(https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png)' }}>
                                     {chatMessages.map((m, i) => {
-
-
                                         const isVoiceMessage = m.text && m.text.startsWith('[VOICE]');
                                         const isImageMessage = m.text && m.text.startsWith('[IMAGE]');
-                                        const isLocationMessage = m.text && m.text.startsWith('[LOCATION]'); // <-- ADD THIS
+                                        const isLocationMessage = m.text && m.text.startsWith('[LOCATION]');
 
                                         let content = m.text || '';
                                         if (isVoiceMessage) content = m.text.replace('[VOICE]', '');
                                         else if (isImageMessage) content = m.text.replace('[IMAGE]', '');
-                                        else if (isLocationMessage) content = m.text.replace('[LOCATION]', ''); // <-- ADD THIS
+                                        else if (isLocationMessage) content = m.text.replace('[LOCATION]', '');
+
                                         const match = !isVoiceMessage && !isImageMessage && !isLocationMessage ? content.match(urlExtractRegex) : null;
-
-
                                         let firstUrl = match ? match[0] : null;
 
                                         return (
@@ -3920,41 +3994,29 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                                     <>{renderTextWithLinks(content)}{firstUrl && <LinkPreview url={firstUrl} />}</>
                                                 )}
                                             </div>
-
-
                                         );
                                     })}
 
-
-
-
-                                        {/* ✨ NEW: AI Typing Indicator */}
-                                        {isAskingAI && (
-                                            <div style={{ alignSelf: 'flex-start', backgroundColor: '#202c33', padding: '12px 16px', borderRadius: 8, maxWidth: '65%', color: '#8696a0', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '4px solid #8b5cf6' }}>
-                                                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#8b5cf6', animation: 'pulse 1.5s infinite' }} />
-                                                AI Assistant is thinking...
-                                            </div>
-                                        )}
-
-
+                                    {isAskingAI && (
+                                        <div style={{ alignSelf: 'flex-start', backgroundColor: '#202c33', padding: '12px 16px', borderRadius: 8, maxWidth: '65%', color: '#8696a0', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '4px solid #8b5cf6' }}>
+                                            <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#8b5cf6', animation: 'pulse 1.5s infinite' }} />
+                                            AI Assistant is thinking...
+                                        </div>
+                                    )}
                                 </div>
 
                                 <form onSubmit={sendMsg} style={{ padding: 15, backgroundColor: '#202c33', display: 'flex', gap: 10, alignItems: 'flex-end', position: 'relative' }}>
                                     <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} title="Add Emoji" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>😊</button>
 
-                                    {/* 📸 NEW CAMERA BUTTON */}
                                     <button type="button" onClick={openCamera} disabled={isRecording} title="Take Picture" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: isRecording ? 'not-allowed' : 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4, opacity: isRecording ? 0.5 : 1 }}>📷</button>
 
-                                    {/* 📍 NEW LOCATION BUTTON (ADD THIS BLOCK) */}
                                     <button type="button" onClick={handleShareLocation} disabled={isSendingLocation || isRecording} title="Share Location" style={{ backgroundColor: 'transparent', border: '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: (isSendingLocation || isRecording) ? 'not-allowed' : 'pointer', color: '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4, opacity: (isSendingLocation || isRecording) ? 0.5 : 1 }}>
                                         {isSendingLocation ? '⏳' : '📍'}
                                     </button>
 
-
                                     <button type="button" onClick={toggleRecording} title={isRecording ? "Stop Recording" : "Record Voice Message"} style={{ backgroundColor: isRecording ? '#ef4444' : 'transparent', border: isRecording ? 'none' : '1px solid #8696a0', borderRadius: '50%', width: 40, height: 40, cursor: 'pointer', color: isRecording ? 'white' : '#8696a0', fontSize: 18, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>{isRecording ? '⏹' : '🎤'}</button>
+
                                     {showEmojiPicker && <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />}
-
-
 
                                     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#2a3942', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
                                         {previewUrl && !isRecording && (
@@ -3985,7 +4047,9 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                         )}
                     </div>
                 )}
-            </div>
+
+
+
 
             {/* ✨ CAMERA CAPTURE MODAL */}
             {isCameraOpen && (
@@ -4007,6 +4071,9 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                 </div>
             )}
 
+            </div>
+    );
+
             <div style={{ backgroundColor: '#202c33', padding: '10px 20px', borderTop: '1px solid #222d34', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', fontSize: '13px', color: '#8696a0' }}>
                 <span>© NoirSoft Ltd</span>
                 <div style={{ display: 'flex', gap: '20px' }}>
@@ -4016,9 +4083,11 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             </div>
         </div>
     );
-}
+} // <--- THIS WAS THE MISSING CLOSING BRACE THAT BROKE EVERYTHING!
 
-
+// ==========================================
+// 🎨 STYLES
+// ==========================================
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
@@ -4064,7 +4133,7 @@ styleSheet.textContent = `
         margin-bottom: 16px;
         font-family: inherit;
         display: flex;
-        justifycontent: center;
+        justify-content: center;
         align-items: center;
         gap: 8px;
     }
@@ -4293,17 +4362,13 @@ export default function App() {
                 }
 
                 if (data?.user) {
-                    // ==========================================
-                    // 🚀 NEW: Write details to signup_stats
-                    // ==========================================
                     const { error: statsError } = await supabase.from('signup_stats').insert([{
-                        id: data.user.id // Mapping the newly created user's ID
+                        id: data.user.id
                     }]);
 
                     if (statsError) {
                         console.error("Failed to write to signup_stats:", statsError.message);
                     }
-                    // ==========================================
 
                     if (data.session) setUser(data.user);
                     else {
@@ -4349,15 +4414,15 @@ export default function App() {
 
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <li style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', fontSize: '16px', color: '#aebac1', lineHeight: '1.5' }}>
-                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifycontent: 'center' }}>✓</span>
                             <span>{t('info2', uiLanguage)}</span>
                         </li>
                         <li style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', fontSize: '16px', color: '#aebac1', lineHeight: '1.5' }}>
-                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifycontent: 'center' }}>✓</span>
                             <span>{t('info3', uiLanguage)}</span>
                         </li>
                         <li style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', fontSize: '16px', color: '#aebac1', lineHeight: '1.5' }}>
-                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                            <span style={{ color: '#00a884', fontSize: '18px', marginTop: '2px', backgroundColor: 'rgba(0,168,132,0.1)', padding: '4px', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifycontent: 'center' }}>✓</span>
                             <span>{t('info4', uiLanguage)}</span>
                         </li>
                     </ul>
@@ -4436,3 +4501,4 @@ export default function App() {
         </div>
     );
 }
+
