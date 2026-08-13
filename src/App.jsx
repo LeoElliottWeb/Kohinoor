@@ -2549,6 +2549,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             setOnlineUsers(users);
         });
 
+
         // ✨ UPDATED ALERTS & NOTIFICATION LOGIC
         ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, p => {
             const isForMe = p.new.receiver_email?.toLowerCase() === userEmail.toLowerCase();
@@ -2559,8 +2560,7 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             const isToSelected = p.new.receiver_email?.toLowerCase() === selectedEmail;
 
             if (isForMe && !isFromMe) {
-                // Play notification bell
-                ringer.playBell();
+                // Ping removed: ringer.playBell();
 
                 const isHidden = document.hidden || document.visibilityState === 'hidden';
 
@@ -2591,6 +2591,8 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                 setChatMessages(prev => prev.find(m => m.id === p.new.id) ? prev : [...prev, p.new]);
             }
         });
+
+
 
         // 👇 Listens for a request to share location, fetches it, and sends it back automatically
         ch.on('broadcast', { event: 'webrtc-request-location' }, ({ payload }) => {
