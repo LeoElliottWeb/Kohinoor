@@ -2592,6 +2592,39 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
             }
         });
 
+        // 👇 Listens for a request to share location, fetches it, and sends it back automatically
+        ch.on('broadcast', { event: 'webrtc-request-location' }, ({ payload }) => {
+            if (payload.targetEmail === userEmail) {
+                if (!navigator.geolocation) {
+                    console.error("Geolocation is not supported by this browser.");
+                    return;
+                }
+
+                // Note: The browser will still native-prompt the user for permission 
+                // if they haven't previously granted location access to your site.
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        if (channelRef.current) {
+                            channelRef.current.send({
+                                type: 'broadcast',
+                                event: 'webrtc-send-location',
+                                payload: {
+                                    targetEmail: payload.sender,
+                                    sender: userEmail,
+                                    lat: position.coords.latitude,
+                                    lng: position.coords.longitude
+                                }
+                            });
+                        }
+                    },
+                    (error) => console.error("Could not fetch location for request:", error.message),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            }
+        });
+
+
+
         ch.on('broadcast', { event: 'webrtc-subtitle' }, ({ payload }) => {
             if (payload.sender !== userEmail && processSubtitleRef.current) {
                 processSubtitleRef.current(payload);
@@ -3850,6 +3883,30 @@ function ChatApp({ user, onLogout, uiLanguage, setUiLanguage }) {
                                                             {isMobile ? '➕' : t('add', uiLanguage)}
                                                         </button>
                                                     )}
+
+
+                                                        {/* 👇 ADD THE NEW REQUEST LOCATION BUTTON RIGHT HERE 👇 */}
+                                                        <button onClick={() => {
+                                                            if (channelRef.current && selectedContact) {
+                                                                channelRef.current.send({
+                                                                    type: 'broadcast',
+                                                                    event: 'webrtc-request-location',
+                                                                    payload: {
+                                                                        targetEmail: selectedContact,
+                                                                        sender: userEmail
+                                                                    }
+                                                                });
+                                                                alert(`Location request sent to ${selectedContact.split('@')[0]}. Waiting for them to approve...`);
+                                                            }
+                                                        }} style={{ backgroundColor: 'transparent', border: '1px solid #eab308', color: '#eab308', padding: isMobile ? '8px 12px' : '8px 16px', borderRadius: 20, cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '16px' : '14px' }}>
+                                                            {isMobile ? '❓📍' : '❓ Request Location'}
+                                                        </button>
+                                                        {/* 👆 END OF NEW REQUEST LOCATION BUTTON 👆 */}
+
+
+
+
+
 
                                                     {/* ✨ NEW SHARE LOCATION BUTTON HERE */}
                                                     <button onClick={() => {
