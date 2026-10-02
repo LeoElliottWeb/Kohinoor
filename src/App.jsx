@@ -544,7 +544,7 @@ export default function RadioStation() {
                     {/* LEFT: Up Next playlist */}
                     <div style={styles.leftColumn}>
                         <div style={styles.playlistContainer}>
-                            <h3 style={styles.playlistHeader}>Up Next</h3>
+                            <h3 style={styles.playlistHeader}>Up Next Track</h3>
                             <div style={styles.playlist}>
                                 {tracks.map((track, index) => (
                                     <div
