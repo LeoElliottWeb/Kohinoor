@@ -2,6 +2,31 @@
 import { supabase } from './Auth';
 
 // ==================================================================
+// HELPER: Generate obfuscated 60-char license key with hidden expiry date
+// ==================================================================
+const generateLicenseKey = (expiryDateString) => {
+    const [year, month, day] = expiryDateString.split('-');
+    const yy = year.slice(-2);
+    const m1 = month[0];
+    const m2 = month[1];
+    const d1 = day[0];
+    const d2 = day[1];
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const getRandomChar = () => chars.charAt(Math.floor(Math.random() * chars.length));
+
+    let keyArray = Array.from({ length: 60 }, getRandomChar);
+    keyArray[0] = yy[0];
+    keyArray[1] = yy[1];
+    keyArray[5] = m1;
+    keyArray[9] = m2;
+    keyArray[19] = d1;
+    keyArray[49] = d2;
+
+    return keyArray.join('');
+};
+
+// ==================================================================
 // 1. SUBSCRIPTION TYPES COMPONENT (Admin Only)
 // ==================================================================
 function TypesTab() {
@@ -121,18 +146,22 @@ function ActiveSubsTab({ isAdmin }) {
     const [types, setTypes] = useState([]);
     const [form, setForm] = useState({ cust_id: '', subscription_type_id: '', period: '', cost: '' });
     const [loading, setLoading] = useState(true);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [banner, setBanner] = useState(null); // { type: 'success'|'cancelled'|'processing', message }
 
+    // -------- Load everything --------
     const loadAll = useCallback(async () => {
         setLoading(true);
-
         const session = (await supabase.auth.getSession()).data.session;
         const myCustomerId = session?.user?.user_metadata?.customer_id;
 
-        let query = supabase.from('subscriptions').select('*, customers(company_name), subscription_types(description)').order('id', { ascending: false });
+        let query = supabase
+            .from('subscriptions')
+            .select('*, customers(company_name), subscription_types(description)')
+            .order('id', { ascending: false });
 
         if (!isAdmin && myCustomerId) {
             query = query.eq('cust_id', myCustomerId);
-            // Pre-select the customer in the form
             setForm(prev => ({ ...prev, cust_id: myCustomerId }));
         }
 
@@ -150,6 +179,37 @@ function ActiveSubsTab({ isAdmin }) {
 
     useEffect(() => { loadAll(); }, [loadAll]);
 
+    // -------- Detect return from Stripe + poll for webhook-created row --------
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const paymentStatus = params.get('payment');
+
+        if (paymentStatus === 'success') {
+            setBanner({ type: 'success', message: 'Payment received. Your subscription is activated' });
+
+            // The Stripe webhook inserts the row asynchronously. Poll until it appears.
+            let attempts = 0;
+            const interval = setInterval(async () => {
+                attempts += 1;
+                await loadAll();
+                // If banner was still 'processing' after ~30s, give up politely.
+                if (attempts >= 10) {
+                    clearInterval(interval);
+                    setBanner({ type: 'success', message: 'Payment received. If your subscription does not appear, please contact support.' });
+                }
+            }, 3000);
+
+            // Clean the query string so a refresh doesn't re-trigger this.
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return () => clearInterval(interval);
+        }
+
+        if (paymentStatus === 'cancelled') {
+            setBanner({ type: 'cancelled', message: 'Payment cancelled. No subscription was created.' });
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [loadAll]);
+
     const handleTypeChange = (e) => {
         const typeId = e.target.value;
         const selectedType = types.find(t => t.id.toString() === typeId);
@@ -163,48 +223,68 @@ function ActiveSubsTab({ isAdmin }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.cust_id || !form.subscription_type_id) return alert("Select customer and type");
+        if (!form.cust_id || !form.subscription_type_id) {
+            return alert('Select customer and type');
+        }
+
+        setIsProcessing(true);
 
         try {
-            const { error: subError } = await supabase.from('subscriptions').insert([{
-                cust_id: parseInt(form.cust_id),
-                subscription_type_id: parseInt(form.subscription_type_id),
-                period: parseInt(form.period),
-                cost: parseFloat(form.cost)
-            }]);
+            const periodDays = parseInt(form.period, 10);
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + periodDays);
+            const formattedExpiryDate = expiryDate.toISOString().split('T')[0];
 
-            if (subError) throw subError;
+            // Generate the license key client-side; hand it to the Edge Function
+            // so the webhook can insert it after Stripe confirms payment.
+            const licenseKey = generateLicenseKey(formattedExpiryDate);
 
-            await supabase.from('customers').update({ active_subscription: true }).eq('id', parseInt(form.cust_id));
+            const sessionData = (await supabase.auth.getSession()).data.session;
+            const userEmail = sessionData?.user?.email;
 
-            // Reset the form but keep the customer ID selected if they are a standard user
-            setForm({
-                cust_id: isAdmin ? '' : form.cust_id,
-                subscription_type_id: '',
-                period: '',
-                cost: ''
+            const origin = window.location.origin;
+
+            // CALL SUPABASE EDGE FUNCTION
+            const { data, error } = await supabase.functions.invoke('hyper-worker', {
+                body: {
+                    cust_id: parseInt(form.cust_id),
+                    subscription_type_id: parseInt(form.subscription_type_id),
+                    period: periodDays,
+                    cost: parseFloat(form.cost),
+                    expiryDate: formattedExpiryDate,
+                    licensekey: licenseKey,          // NEW: webhook will insert this
+                    customer_email: userEmail,
+                    success_url: `${origin}/?payment=success`,   // NEW
+                    cancel_url: `${origin}/?payment=cancelled`   // NEW
+                }
             });
-            loadAll();
+
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                throw new Error('No checkout URL returned from server.');
+            }
+
         } catch (err) {
-            alert("Error assigning subscription: " + err.message);
+            alert('Error processing payment: ' + err.message);
+            setIsProcessing(false);
         }
     };
 
     const handleDelete = async (id, custId) => {
         if (!window.confirm('Delete this subscription?')) return;
-
         try {
             await supabase.from('subscriptions').delete().eq('id', id);
-
             const { data: remainingSubs } = await supabase.from('subscriptions').select('id').eq('cust_id', custId);
-
             if (!remainingSubs || remainingSubs.length === 0) {
                 await supabase.from('customers').update({ active_subscription: false }).eq('id', custId);
             }
-
             loadAll();
         } catch (err) {
-            alert("Error deleting: " + err.message);
+            alert('Error deleting: ' + err.message);
         }
     };
 
@@ -213,30 +293,29 @@ function ActiveSubsTab({ isAdmin }) {
             <div style={styles.leftColumn}>
                 <div style={styles.card}>
                     <h2 style={styles.cardTitle}>Assign Subscription</h2>
-                    <form onSubmit={handleSubmit} style={styles.form}>
 
-                        {/* Customer Selection: Dropdown for Admin, Read-only text for User */}
+                    {banner && (
+                        <div style={{
+                            ...styles.banner,
+                            backgroundColor: banner.type === 'cancelled' ? '#7f1d1d' : '#064e3b',
+                            color: banner.type === 'cancelled' ? '#fee2e2' : '#d1fae5'
+                        }}>
+                            {banner.message}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} style={styles.form}>
                         <div style={styles.field}>
                             <label style={styles.label}>Customer</label>
                             {isAdmin ? (
-                                <select
-                                    value={form.cust_id}
-                                    onChange={e => setForm({ ...form, cust_id: e.target.value })}
-                                    style={styles.input}
-                                >
+                                <select value={form.cust_id} onChange={e => setForm({ ...form, cust_id: e.target.value })} style={styles.input}>
                                     <option value="">-- Select --</option>
                                     {customers.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
                                 </select>
                             ) : (
-                                <input
-                                    type="text"
-                                    value={customers.find(c => c.id.toString() === form.cust_id)?.company_name || 'Loading...'}
-                                    disabled
-                                    style={{ ...styles.input, backgroundColor: '#111b21', color: '#8696a0', cursor: 'not-allowed' }}
-                                />
+                                <input type="text" value={customers.find(c => c.id.toString() === form.cust_id)?.company_name || 'Loading...'} disabled style={{ ...styles.input, backgroundColor: '#111b21', color: '#8696a0', cursor: 'not-allowed' }} />
                             )}
                         </div>
-
                         <div style={styles.field}>
                             <label style={styles.label}>Type</label>
                             <select value={form.subscription_type_id} onChange={handleTypeChange} style={styles.input}>
@@ -252,7 +331,9 @@ function ActiveSubsTab({ isAdmin }) {
                             <label style={styles.label}>Cost</label>
                             <input type="number" step="0.01" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} style={styles.input} />
                         </div>
-                        <button type="submit" style={styles.primaryButton}>Assign</button>
+                        <button type="submit" style={{ ...styles.primaryButton, opacity: isProcessing ? 0.7 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }} disabled={isProcessing}>
+                            {isProcessing ? 'Redirecting to Stripe...' : 'Pay & Assign'}
+                        </button>
                     </form>
                 </div>
             </div>
@@ -261,13 +342,24 @@ function ActiveSubsTab({ isAdmin }) {
                     <h2 style={styles.cardTitle}>{isAdmin ? 'All Active Subscriptions' : 'My Subscriptions'}</h2>
                     {loading ? <p>Loading...</p> : (
                         <table style={styles.table}>
-                            <thead><tr><th style={styles.th}>Customer</th><th style={styles.th}>Type</th><th style={styles.th}>Cost</th><th style={styles.th}>Actions</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th style={styles.th}>Customer</th>
+                                    <th style={styles.th}>Type</th>
+                                    <th style={styles.th}>Cost</th>
+                                    <th style={styles.th}>Expiry Date</th>
+                                    <th style={styles.th}>License Key</th>
+                                    <th style={styles.th}>Actions</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 {subs.map(s => (
                                     <tr key={s.id}>
                                         <td style={styles.td}>{s.customers?.company_name || 'Unknown'}</td>
                                         <td style={styles.td}>{s.subscription_types?.description || 'Unknown'}</td>
                                         <td style={styles.td}>£{s.cost}</td>
+                                        <td style={styles.td}>{s.ExpiryDate ? new Date(s.ExpiryDate).toLocaleDateString() : 'N/A'}</td>
+                                        <td style={styles.td}><code style={{ backgroundColor: '#202c33', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', wordBreak: 'break-all' }}>{s.licensekey || 'N/A'}</code></td>
                                         <td style={styles.td}><button onClick={() => handleDelete(s.id, s.cust_id)} style={styles.smallDangerButton}>Delete</button></td>
                                     </tr>
                                 ))}
@@ -285,30 +377,16 @@ function ActiveSubsTab({ isAdmin }) {
 // ==================================================================
 export default function SubscriptionManager({ isAdmin }) {
     const [activeTab, setActiveTab] = useState(isAdmin ? 'types' : 'active');
-
     return (
         <div style={styles.container}>
-            <header style={styles.header}>
-                <h1 style={styles.title}>Subscriptions</h1>
-            </header>
+            <header style={styles.header}><h1 style={styles.title}>Subscriptions</h1></header>
             <main style={styles.main}>
                 {isAdmin && (
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #222d34', paddingBottom: '10px' }}>
-                        <button
-                            onClick={() => setActiveTab('types')}
-                            style={{ ...styles.navItem, ...(activeTab === 'types' ? styles.navItemActive : {}) }}
-                        >
-                            Subscription Types
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('active')}
-                            style={{ ...styles.navItem, ...(activeTab === 'active' ? styles.navItemActive : {}) }}
-                        >
-                            Active Subscriptions
-                        </button>
+                        <button onClick={() => setActiveTab('types')} style={{ ...styles.navItem, ...(activeTab === 'types' ? styles.navItemActive : {}) }}>Subscription Types</button>
+                        <button onClick={() => setActiveTab('active')} style={{ ...styles.navItem, ...(activeTab === 'active' ? styles.navItemActive : {}) }}>Active Subscriptions</button>
                     </div>
                 )}
-
                 {activeTab === 'types' && isAdmin && <TypesTab />}
                 {activeTab === 'active' && <ActiveSubsTab isAdmin={isAdmin} />}
             </main>
@@ -334,6 +412,7 @@ const styles = {
     label: { fontSize: '13px', color: '#8696a0', textTransform: 'uppercase', letterSpacing: '0.5px' },
     input: { padding: '10px 14px', borderRadius: '8px', border: '1px solid #33414a', backgroundColor: '#202c33', color: '#e9edef', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box' },
     errorText: { fontSize: '13px', color: '#ef4444' },
+    banner: { padding: '12px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '500' },
     buttonRow: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
     primaryButton: { padding: '12px 22px', borderRadius: '8px', backgroundColor: '#00a884', color: '#0b141a', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' },
     secondaryButton: { padding: '12px 22px', borderRadius: '8px', backgroundColor: '#33414a', color: '#e9edef', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' },
